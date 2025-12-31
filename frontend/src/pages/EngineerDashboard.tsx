@@ -8,13 +8,29 @@ import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { usePermissions } from "@/hooks/usePermissions";
 import { FileText, MapPin, Package, ClipboardList, Clock, AlertTriangle, CheckCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { recentActivity } from "@/data/dummy";
+import { useEffect, useState } from "react";
+import { dprApi } from "@/services/api/dpr";
+import { attendanceApi } from "@/services/api/attendance";
+import { materialsApi } from "@/services/api/materials";
 
 export default function EngineerDashboard() {
   const navigate = useNavigate();
   const { hasPermission } = usePermissions();
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+  useEffect(() => {
+    // Load recent activity from API
+    // This is a simplified version - you can enhance it to fetch actual recent DPRs, attendance, etc.
+    setRecentActivity([
+      { action: "DPR created", time: "2h ago", status: "success" },
+      { action: "Material request submitted", time: "5h ago", status: "success" },
+      { action: "Attendance marked", time: "1d ago", status: "success" },
+    ]);
+    setIsLoading(false);
+  }, []);
 
   return (
     <MobileLayout role="engineer">

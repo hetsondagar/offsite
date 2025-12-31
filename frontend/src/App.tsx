@@ -22,6 +22,7 @@ import InsightsPage from "./pages/InsightsPage";
 import ProfilePage from "./pages/ProfilePage";
 import SyncPage from "./pages/SyncPage";
 import InvoicingPage from "./pages/InvoicingPage";
+import EventsPage from "./pages/EventsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -87,6 +88,7 @@ function AppContent() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/sync" element={<SyncPage />} />
             <Route path="/invoicing" element={<InvoicingPage />} />
+            <Route path="/events" element={<EventsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

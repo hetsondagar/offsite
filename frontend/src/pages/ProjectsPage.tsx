@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,11 +16,30 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { projects } from "@/data/dummy";
+import { projectsApi, Project } from "@/services/api/projects";
+import { Loader2 } from "lucide-react";
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadProjects();
+  }, []);
+
+  const loadProjects = async () => {
+    try {
+      setIsLoading(true);
+      const data = await projectsApi.getAll(1, 100);
+      setProjects(data?.projects || []);
+    } catch (error) {
+      console.error('Error loading projects:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <MobileLayout role="manager">
@@ -34,24 +53,39 @@ export default function ProjectsPage() {
             <Logo size="sm" showText={false} />
             <div className="flex-1">
               <h1 className="font-display font-semibold text-lg">Projects</h1>
-              <p className="text-xs text-muted-foreground">{projects.length} active projects</p>
+              <p className="text-xs text-muted-foreground">
+                {isLoading ? "Loading..." : `${projects.length} active projects`}
+              </p>
             </div>
           </div>
         </div>
 
         {/* Content */}
         <div className="p-4 space-y-4">
-          {projects.map((project, index) => (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : projects.length === 0 ? (
+            <Card variant="gradient">
+              <CardContent className="p-8 text-center">
+                <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                <p className="font-medium text-foreground">No projects found</p>
+                <p className="text-sm text-muted-foreground">Create your first project to get started</p>
+              </CardContent>
+            </Card>
+          ) : (
+            projects.map((project, index) => (
             <Card 
-              key={project.id}
+              key={project._id}
               variant="gradient"
               className={cn(
                 "cursor-pointer transition-all duration-300 opacity-0 animate-fade-up",
                 "hover:border-primary/30 hover:shadow-glow-sm",
-                selectedProject === project.id && "border-primary shadow-glow-md"
+                selectedProject === project._id && "border-primary shadow-glow-md"
               )}
               style={{ animationDelay: `${index * 100}ms` }}
-              onClick={() => setSelectedProject(selectedProject === project.id ? null : project.id)}
+              onClick={() => setSelectedProject(selectedProject === project._id ? null : project._id)}
             >
               <CardContent className="p-4">
                 <div className="flex items-start gap-4">

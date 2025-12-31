@@ -19,6 +19,7 @@ import materialRoutes from './modules/materials/material.routes';
 import insightsRoutes from './modules/insights/insights.routes';
 import invoiceRoutes from './modules/invoices/invoice.routes';
 import syncRoutes from './modules/sync/sync.routes';
+import eventRoutes from './modules/events/event.routes';
 
 const app: Application = express();
 
@@ -71,6 +72,7 @@ app.use('/api/materials', materialRoutes);
 app.use('/api/insights', insightsRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/sync', syncRoutes);
+app.use('/api/events', eventRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

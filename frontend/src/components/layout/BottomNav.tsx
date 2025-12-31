@@ -1,4 +1,4 @@
-import { Home, FileText, MapPin, Package, User, LayoutDashboard, FolderKanban, CheckSquare, Lightbulb, Receipt } from "lucide-react";
+import { Home, FileText, MapPin, Package, User, LayoutDashboard, FolderKanban, CheckSquare, Lightbulb, Receipt, Calendar } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -20,6 +20,7 @@ const engineerNav: NavItem[] = [
 const managerNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: FolderKanban, label: "Projects", path: "/projects" },
+  { icon: Calendar, label: "Events", path: "/events" },
   { icon: CheckSquare, label: "Approvals", path: "/approvals" },
   { icon: Lightbulb, label: "Insights", path: "/insights" },
   { icon: User, label: "Profile", path: "/profile" },
@@ -28,6 +29,7 @@ const managerNav: NavItem[] = [
 const ownerNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: FolderKanban, label: "Projects", path: "/projects" },
+  { icon: Calendar, label: "Events", path: "/events" },
   { icon: CheckSquare, label: "Approvals", path: "/approvals" },
   { icon: Lightbulb, label: "Insights", path: "/insights" },
   { icon: Receipt, label: "Invoices", path: "/invoicing" },

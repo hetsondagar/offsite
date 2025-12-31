@@ -16,12 +16,52 @@ import {
   Building2
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { projectOverview } from "@/data/dummy";
+import { useEffect, useState } from "react";
+import { projectsApi } from "@/services/api/projects";
+import { insightsApi } from "@/services/api/insights";
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
   const { hasPermission } = usePermissions();
+  const [projectOverview, setProjectOverview] = useState<any[]>([]);
+  const [healthScore, setHealthScore] = useState(78);
+  const [kpis, setKpis] = useState({
+    activeProjects: 0,
+    attendance: 0,
+    pendingApprovals: 0,
+    delayRisks: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
   const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      const [projectsData, healthData, delayRisksData, materialsData] = await Promise.all([
+        projectsApi.getAll(1, 10),
+        insightsApi.getSiteHealth(),
+        insightsApi.getDelayRisks(),
+        materialsApi.getPending(1, 1),
+      ]);
+
+      setProjectOverview(projectsData?.projects || []);
+      setHealthScore(healthData?.overallHealthScore || 78);
+      setKpis({
+        activeProjects: projectsData?.projects?.length || 0,
+        attendance: 92, // This would come from attendance API
+        pendingApprovals: materialsData?.requests?.length || 0,
+        delayRisks: delayRisksData?.filter((r: any) => r.risk === 'High').length || 0,
+      });
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <MobileLayout role="manager">
@@ -59,7 +99,7 @@ export default function ManagerDashboard() {
                   <StatusBadge status="warning" label="1 At Risk" />
                 </div>
               </div>
-              <HealthScoreRing score={78} size="lg" />
+              <HealthScoreRing score={healthScore} size="lg" />
             </div>
           </CardContent>
         </Card>
@@ -68,7 +108,7 @@ export default function ManagerDashboard() {
         <div className="grid grid-cols-2 gap-3">
           <KPICard
             title="Active Projects"
-            value={5}
+            value={kpis.activeProjects}
             icon={FolderKanban}
             trend="up"
             trendValue="+1 this month"
@@ -76,7 +116,7 @@ export default function ManagerDashboard() {
           />
           <KPICard
             title="Today's Attendance"
-            value={92}
+            value={kpis.attendance}
             suffix="%"
             icon={Users}
             variant="success"
@@ -86,14 +126,14 @@ export default function ManagerDashboard() {
           />
           <KPICard
             title="Pending Approvals"
-            value={8}
+            value={kpis.pendingApprovals}
             icon={Clock}
             variant="warning"
             delay={300}
           />
           <KPICard
             title="Delay Risks"
-            value={2}
+            value={kpis.delayRisks}
             icon={AlertTriangle}
             variant="destructive"
             delay={400}
