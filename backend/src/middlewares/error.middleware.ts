@@ -24,15 +24,21 @@ export const errorHandler = (
   const message = err.message || 'Internal Server Error';
   const code = err instanceof AppError ? err.code : 'INTERNAL_ERROR';
 
+  // Log full error details
   logger.error(`Error ${statusCode}: ${message}`, {
     path: req.path,
     method: req.method,
+    body: req.body,
     stack: err.stack,
+    error: err,
   });
 
+  // Don't send stack trace in production
   const response: ApiResponse = {
     success: false,
-    message,
+    message: process.env.NODE_ENV === 'production' && statusCode === 500 
+      ? 'Internal server error. Please try again later.' 
+      : message,
     code,
   };
 

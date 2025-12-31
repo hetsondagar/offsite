@@ -50,6 +50,7 @@ export const login = async (
       id: user._id.toString(),
       name: user.name,
       email: user.email,
+      phone: user.phone,
       role: user.role,
     },
   };
@@ -68,48 +69,78 @@ export const signup = async (
     id: string;
     name: string;
     email: string;
+    phone?: string;
     role: UserRole;
   };
 }> => {
-  // Check if user already exists
-  const existingUser = await User.findOne({ email });
-  
-  if (existingUser) {
-    throw new AppError('User with this email already exists. Please login instead.', 409, 'USER_EXISTS');
+  try {
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    
+    if (existingUser) {
+      throw new AppError('User with this email already exists. Please login instead.', 409, 'USER_EXISTS');
+    }
+    
+    // Create new user
+    const user = new User({
+      email: email.toLowerCase().trim(),
+      password,
+      name: name.trim(),
+      role,
+      phone: phone ? phone.trim() : undefined,
+      assignedProjects: [],
+      isActive: true,
+    });
+    
+    try {
+      await user.save();
+    } catch (error: any) {
+      // Handle MongoDB duplicate key errors
+      if (error.code === 11000) {
+        const field = Object.keys(error.keyPattern)[0];
+        throw new AppError(`${field.charAt(0).toUpperCase() + field.slice(1)} already exists`, 409, 'DUPLICATE_ENTRY');
+      }
+      // Handle validation errors
+      if (error.name === 'ValidationError') {
+        const messages = Object.values(error.errors).map((err: any) => err.message).join(', ');
+        throw new AppError(`Validation error: ${messages}`, 400, 'VALIDATION_ERROR');
+      }
+      // Re-throw as AppError for better handling
+      throw new AppError(`Failed to create user: ${error.message}`, 500, 'USER_CREATION_ERROR');
+    }
+    
+    // Generate tokens
+    try {
+      const payload: JWTPayload = {
+        userId: user._id.toString(),
+        role: user.role,
+        email: user.email,
+      };
+      
+      const accessToken = generateAccessToken(payload);
+      const refreshToken = generateRefreshToken(payload);
+      
+      return {
+        accessToken,
+        refreshToken,
+        user: {
+          id: user._id.toString(),
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+        },
+      };
+    } catch (error: any) {
+      throw new AppError(`Failed to generate authentication tokens: ${error.message}`, 500, 'TOKEN_GENERATION_ERROR');
+    }
+  } catch (error: any) {
+    // If it's already an AppError, re-throw it
+    if (error instanceof AppError) {
+      throw error;
+    }
+    // Otherwise wrap it
+    throw new AppError(`Signup failed: ${error.message}`, 500, 'SIGNUP_ERROR');
   }
-  
-  // Create new user
-  const user = new User({
-    email,
-    password,
-    name,
-    role,
-    phone,
-    assignedProjects: [],
-    isActive: true,
-  });
-  
-  await user.save();
-  
-  // Generate tokens
-  const payload: JWTPayload = {
-    userId: user._id.toString(),
-    role: user.role,
-    email: user.email,
-  };
-  
-  const accessToken = generateAccessToken(payload);
-  const refreshToken = generateRefreshToken(payload);
-  
-  return {
-    accessToken,
-    refreshToken,
-    user: {
-      id: user._id.toString(),
-      name: user.name,
-      email: user.email,
-      role: user.role,
-    },
-  };
 };
 

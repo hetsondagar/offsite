@@ -4,6 +4,7 @@ import { Role, UserRole } from '@/lib/permissions';
 interface AuthState {
   isAuthenticated: boolean;
   role: Role | null;
+  name: string | null;
   email: string | null;
   phone: string | null;
   userId: string | null;
@@ -13,6 +14,7 @@ interface AuthState {
 const initialState: AuthState = {
   isAuthenticated: false,
   role: null,
+  name: null,
   email: null,
   phone: null,
   userId: null,
@@ -23,9 +25,10 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    login: (state, action: PayloadAction<{ role: Role; email: string; phone?: string; userId: string; accessToken: string }>) => {
+    login: (state, action: PayloadAction<{ role: Role; name?: string; email: string; phone?: string; userId: string; accessToken: string }>) => {
       state.isAuthenticated = true;
       state.role = action.payload.role;
+      state.name = action.payload.name || null;
       state.email = action.payload.email;
       state.phone = action.payload.phone || null;
       state.userId = action.payload.userId;
@@ -33,6 +36,9 @@ const authSlice = createSlice({
       // Persist to localStorage
       localStorage.setItem('userRole', action.payload.role);
       localStorage.setItem('userEmail', action.payload.email);
+      if (action.payload.name) {
+        localStorage.setItem('userName', action.payload.name);
+      }
       if (action.payload.phone) {
         localStorage.setItem('userPhone', action.payload.phone);
       }
@@ -43,11 +49,13 @@ const authSlice = createSlice({
     logout: (state) => {
       state.isAuthenticated = false;
       state.role = null;
+      state.name = null;
       state.email = null;
       state.phone = null;
       state.userId = null;
       state.accessToken = null;
       localStorage.removeItem('userRole');
+      localStorage.removeItem('userName');
       localStorage.removeItem('userEmail');
       localStorage.removeItem('userPhone');
       localStorage.removeItem('userId');
@@ -55,6 +63,7 @@ const authSlice = createSlice({
     },
     initializeAuth: (state) => {
       const role = localStorage.getItem('userRole') as Role | null;
+      const name = localStorage.getItem('userName');
       const email = localStorage.getItem('userEmail');
       const phone = localStorage.getItem('userPhone');
       const userId = localStorage.getItem('userId');
@@ -62,6 +71,7 @@ const authSlice = createSlice({
       if (role && email && userId && accessToken) {
         state.isAuthenticated = true;
         state.role = role;
+        state.name = name;
         state.email = email;
         state.phone = phone;
         state.userId = userId;

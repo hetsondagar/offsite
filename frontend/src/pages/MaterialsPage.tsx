@@ -24,7 +24,8 @@ import { saveMaterialRequest } from "@/lib/indexeddb";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addPendingItem } from "@/store/slices/offlineSlice";
 import { usePermissions } from "@/hooks/usePermissions";
-import { materials, pendingMaterialRequests as pendingRequests } from "@/data/dummy";
+import { materialsApi } from "@/services/api/materials";
+import { projectsApi } from "@/services/api/projects";
 
 export default function MaterialsPage() {
   const navigate = useNavigate();
@@ -45,46 +46,93 @@ export default function MaterialsPage() {
     }
   }, [hasPermission, navigate]);
 
+  // Load materials and projects
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const [projectsData] = await Promise.all([
+          projectsApi.getAll(1, 100),
+        ]);
+        setProjects(projectsData?.projects || []);
+        // Materials list would come from a materials catalog API
+        // For now, using a static list that should come from backend
+        setMaterials([
+          { id: "1", name: "Cement", unit: "bags", anomalyThreshold: 100 },
+          { id: "2", name: "Steel Bars", unit: "tons", anomalyThreshold: 5 },
+          { id: "3", name: "Bricks", unit: "pieces", anomalyThreshold: 10000 },
+          { id: "4", name: "Sand", unit: "cubic meters", anomalyThreshold: 50 },
+          { id: "5", name: "Gravel", unit: "cubic meters", anomalyThreshold: 30 },
+        ]);
+      } catch (error) {
+        console.error('Error loading data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
   const selectedMaterialData = materials.find(m => m.id === selectedMaterial);
   const isAnomaly = selectedMaterialData && quantity > selectedMaterialData.anomalyThreshold;
 
   const handleSubmit = async () => {
-    if (!selectedMaterial) return;
+    if (!selectedMaterial || !selectedMaterialData || projects.length === 0) return;
     
     setIsSubmitting(true);
     
-    // Save to IndexedDB with user audit info
-    const matId = await saveMaterialRequest({
-      materialId: selectedMaterial,
-      quantity: quantity,
-      reason: reason,
-      timestamp: Date.now(),
-      requestedBy: userId || "unknown",
-      requestedAt: new Date().toISOString(),
-    });
-    
-    // Add to Redux offline store
-    dispatch(addPendingItem({
-      type: 'material',
-      data: {
-        id: matId,
+    try {
+      // Try to submit to API first
+      await materialsApi.createRequest({
+        projectId: projects[0]._id, // Use first project or let user select
+        materialId: selectedMaterial,
+        materialName: selectedMaterialData.name,
+        quantity: quantity,
+        unit: selectedMaterialData.unit,
+        reason: reason,
+      });
+
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        setSelectedMaterial(null);
+        setQuantity(0);
+        setReason("");
+      }, 2000);
+    } catch (error) {
+      // If API fails, save to IndexedDB for offline sync
+      const matId = await saveMaterialRequest({
         materialId: selectedMaterial,
         quantity: quantity,
         reason: reason,
-        requestedBy: userId,
+        timestamp: Date.now(),
+        requestedBy: userId || "unknown",
         requestedAt: new Date().toISOString(),
-      },
-    }));
-    
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-      setSelectedMaterial(null);
-      setQuantity(0);
-      setReason("");
-    }, 2000);
+      });
+      
+      // Add to Redux offline store
+      dispatch(addPendingItem({
+        type: 'material',
+        data: {
+          id: matId,
+          materialId: selectedMaterial,
+          quantity: quantity,
+          reason: reason,
+          requestedBy: userId,
+          requestedAt: new Date().toISOString(),
+        },
+      }));
+      
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        setSelectedMaterial(null);
+        setQuantity(0);
+        setReason("");
+      }, 2000);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Permission check

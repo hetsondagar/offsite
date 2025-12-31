@@ -22,6 +22,8 @@ import { cn } from "@/lib/utils";
 import { saveAttendance } from "@/lib/indexeddb";
 import { useAppDispatch } from "@/store/hooks";
 import { addPendingItem } from "@/store/slices/offlineSlice";
+import { attendanceApi } from "@/services/api/attendance";
+import { projectsApi } from "@/services/api/projects";
 
 export default function AttendancePage() {
   const navigate = useNavigate();
@@ -33,6 +35,24 @@ export default function AttendancePage() {
   const [isLocating, setIsLocating] = useState(false);
   const [location, setLocation] = useState<string | null>(null);
   const [checkInTime, setCheckInTime] = useState<string | null>(null);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
+
+  // Load projects
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        const data = await projectsApi.getAll(1, 100);
+        setProjects(data?.projects || []);
+        if (data?.projects && data.projects.length > 0) {
+          setSelectedProject(data.projects[0]._id);
+        }
+      } catch (error) {
+        console.error('Error loading projects:', error);
+      }
+    };
+    loadProjects();
+  }, []);
 
   // Check permission
   useEffect(() => {
@@ -50,44 +70,94 @@ export default function AttendancePage() {
   };
 
   const handleCheckIn = async () => {
+    if (!selectedProject) {
+      alert("Please select a project first");
+      return;
+    }
+    
     if (!location) {
       await handleGetLocation();
     }
     setIsLoading(true);
     
-    // Save to IndexedDB with user audit info
-    const attId = await saveAttendance({
-      type: 'checkin',
-      location: location || 'Unknown',
-      timestamp: Date.now(),
-      userId: userId || "unknown",
-      markedAt: new Date().toISOString(),
-    });
-    
-    // Add to Redux offline store
-    dispatch(addPendingItem({
-      type: 'attendance',
-      data: {
-        id: attId,
+    try {
+      // Try to submit to API first
+      await attendanceApi.checkIn(selectedProject, location || 'Unknown');
+      setIsCheckedIn(true);
+      setCheckInTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+    } catch (error) {
+      // If API fails, save to IndexedDB for offline sync
+      const attId = await saveAttendance({
         type: 'checkin',
         location: location || 'Unknown',
-        userId: userId,
+        timestamp: Date.now(),
+        userId: userId || "unknown",
         markedAt: new Date().toISOString(),
-      },
-    }));
-    
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsCheckedIn(true);
-    setCheckInTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
-    setIsLoading(false);
+        projectId: selectedProject,
+      });
+      
+      // Add to Redux offline store
+      dispatch(addPendingItem({
+        type: 'attendance',
+        data: {
+          id: attId,
+          type: 'checkin',
+          location: location || 'Unknown',
+          userId: userId,
+          projectId: selectedProject,
+          timestamp: new Date().toISOString(),
+        },
+      }));
+      
+      setIsCheckedIn(true);
+      setCheckInTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCheckOut = async () => {
+    if (!selectedProject) {
+      alert("Please select a project first");
+      return;
+    }
+    
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsCheckedIn(false);
-    setCheckInTime(null);
-    setIsLoading(false);
+    
+    try {
+      // Try to submit to API first
+      await attendanceApi.checkOut(selectedProject);
+      setIsCheckedIn(false);
+      setCheckInTime(null);
+    } catch (error) {
+      // If API fails, save to IndexedDB for offline sync
+      const attId = await saveAttendance({
+        type: 'checkout',
+        location: location || 'Unknown',
+        timestamp: Date.now(),
+        userId: userId || "unknown",
+        markedAt: new Date().toISOString(),
+        projectId: selectedProject,
+      });
+      
+      // Add to Redux offline store
+      dispatch(addPendingItem({
+        type: 'attendance',
+        data: {
+          id: attId,
+          type: 'checkout',
+          location: location || 'Unknown',
+          userId: userId,
+          projectId: selectedProject,
+          timestamp: new Date().toISOString(),
+        },
+      }));
+      
+      setIsCheckedIn(false);
+      setCheckInTime(null);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });

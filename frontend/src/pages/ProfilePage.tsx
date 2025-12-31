@@ -8,7 +8,7 @@ import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { logout } from "@/store/slices/authSlice";
 import { 
   ArrowLeft, 
-  User,
+  User as UserIcon,
   Building2,
   LogOut,
   ChevronRight,
@@ -18,18 +18,49 @@ import {
   RefreshCw,
   Wifi,
   WifiOff,
-  Crown
+  Crown,
+  Loader2
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { usersApi, User } from "@/services/api/users";
+import { projectsApi } from "@/services/api/projects";
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const { role, email, phone } = useAppSelector((state) => state.auth);
+  const { role, name, email, phone, userId } = useAppSelector((state) => state.auth);
   const { isOnline } = useAppSelector((state) => state.offline);
   const [autoSync, setAutoSync] = useState(true);
+  const [userData, setUserData] = useState<User | null>(null);
+  const [assignedProjects, setAssignedProjects] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      setIsLoading(true);
+      const user = await usersApi.getMe();
+      setUserData(user);
+      
+      // Load assigned projects
+      if (user.assignedProjects && user.assignedProjects.length > 0) {
+        const projectPromises = user.assignedProjects.map((projectId: string) => 
+          projectsApi.getById(projectId).catch(() => null)
+        );
+        const projects = await Promise.all(projectPromises);
+        setAssignedProjects(projects.filter(p => p !== null));
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     dispatch(logout());
@@ -81,21 +112,30 @@ export default function ProfilePage() {
                   {role === "owner" ? (
                     <Crown className="w-8 h-8 text-primary" />
                   ) : (
-                    <User className="w-8 h-8 text-primary" />
+                    <UserIcon className="w-8 h-8 text-primary" />
                   )}
                 </div>
                 <div className="flex-1">
-                  <h2 className="font-display font-semibold text-lg text-foreground">
-                    Rajesh Kumar
-                  </h2>
-                  <p className="text-sm text-muted-foreground">{email || "user@example.com"}</p>
-                  {phone && (
-                    <p className="text-xs text-muted-foreground">{phone}</p>
+                  {isLoading ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                      <span className="text-sm text-muted-foreground">Loading...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <h2 className="font-display font-semibold text-lg text-foreground">
+                        {userData?.name || name || "User"}
+                      </h2>
+                      <p className="text-sm text-muted-foreground">{userData?.email || email || "user@example.com"}</p>
+                      {(userData?.phone || phone) && (
+                        <p className="text-xs text-muted-foreground">{userData?.phone || phone}</p>
+                      )}
+                      <StatusBadge 
+                        status={role === "owner" ? "success" : "info"} 
+                        label={getRoleLabel()} 
+                      />
+                    </>
                   )}
-                  <StatusBadge 
-                    status={role === "owner" ? "success" : "info"} 
-                    label={getRoleLabel()} 
-                  />
                 </div>
               </div>
             </CardContent>
@@ -111,15 +151,24 @@ export default function ProfilePage() {
                 <h3 className="font-medium text-foreground">Assigned Projects</h3>
               </div>
               <div className="space-y-2">
-                {["Riverside Apartments", "Metro Mall Phase 2"].map((project, index) => (
-                  <div 
-                    key={index}
-                    className="p-3 rounded-xl bg-muted/50 flex items-center justify-between"
-                  >
-                    <span className="text-sm text-foreground">{project}</span>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
                   </div>
-                ))}
+                ) : assignedProjects.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No assigned projects</p>
+                ) : (
+                  assignedProjects.map((project) => (
+                    <div 
+                      key={project._id}
+                      className="p-3 rounded-xl bg-muted/50 flex items-center justify-between cursor-pointer hover:bg-muted transition-colors"
+                      onClick={() => navigate("/projects")}
+                    >
+                      <span className="text-sm text-foreground">{project.name}</span>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>

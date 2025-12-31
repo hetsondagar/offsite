@@ -33,7 +33,13 @@ export const loginController = async (
     };
     
     res.status(200).json(response);
-  } catch (error) {
+  } catch (error: any) {
+    // Handle Zod validation errors
+    if (error.name === 'ZodError') {
+      const errorMessages = error.errors.map((err: any) => `${err.path.join('.')}: ${err.message}`).join(', ');
+      return next(new AppError(`Validation error: ${errorMessages}`, 400, 'VALIDATION_ERROR'));
+    }
+    
     next(error);
   }
 };
@@ -45,7 +51,7 @@ export const signupController = async (
 ): Promise<void> => {
   try {
     const { email, password, name, role, phone } = signupSchema.parse(req.body);
-    const result = await signup(email, password, name, role, phone);
+    const result = await signup(email, password, name, role, phone || undefined);
     
     const response: ApiResponse = {
       success: true,
@@ -54,7 +60,19 @@ export const signupController = async (
     };
     
     res.status(201).json(response);
-  } catch (error) {
+  } catch (error: any) {
+    // Handle Zod validation errors
+    if (error.name === 'ZodError') {
+      const errorMessages = error.errors.map((err: any) => `${err.path.join('.')}: ${err.message}`).join(', ');
+      return next(new AppError(`Validation error: ${errorMessages}`, 400, 'VALIDATION_ERROR'));
+    }
+    
+    // Handle MongoDB duplicate key errors
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      return next(new AppError(`${field.charAt(0).toUpperCase() + field.slice(1)} already exists`, 409, 'DUPLICATE_ENTRY'));
+    }
+    
     next(error);
   }
 };

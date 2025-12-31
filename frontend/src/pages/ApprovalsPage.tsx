@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { Logo } from "@/components/common/Logo";
-import { pendingApprovals, historyApprovals } from "@/data/dummy";
+import { materialsApi } from "@/services/api/materials";
+import { Loader2 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAppSelector } from "@/store/hooks";
 import { AlertCircle } from "lucide-react";
@@ -39,11 +40,90 @@ export default function ApprovalsPage() {
   const navigate = useNavigate();
   const { hasPermission } = usePermissions();
   const userId = useAppSelector((state) => state.auth.userId);
-  const [approvals, setApprovals] = useState([...pendingApprovals]);
-  const [history, setHistory] = useState([...historyApprovals]);
+  const [approvals, setApprovals] = useState<any[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleApprove = (id: string) => {
+  // Load pending approvals
+  useEffect(() => {
+    const loadApprovals = async () => {
+      try {
+        setIsLoading(true);
+        const data = await materialsApi.getPending(1, 100);
+        const requests = data?.requests || [];
+        
+        // Transform to approval format
+        const pending = requests
+          .filter((r: any) => r.status === 'pending')
+          .map((r: any) => ({
+            id: r._id,
+            type: 'material' as const,
+            title: r.materialName,
+            description: `Quantity: ${r.quantity} ${r.unit}`,
+            requestedBy: typeof r.requestedBy === 'object' ? r.requestedBy.name : 'Unknown',
+            project: typeof r.projectId === 'object' ? r.projectId.name : 'Unknown',
+            date: new Date(r.createdAt).toLocaleDateString(),
+            quantity: r.quantity,
+            unit: r.unit,
+            isAnomaly: r.anomalyDetected,
+            anomalyReason: r.anomalyReason,
+            status: r.status,
+          }));
+        
+        const historyData = requests
+          .filter((r: any) => r.status !== 'pending')
+          .map((r: any) => ({
+            id: r._id,
+            type: 'material' as const,
+            title: r.materialName,
+            description: `Quantity: ${r.quantity} ${r.unit}`,
+            requestedBy: typeof r.requestedBy === 'object' ? r.requestedBy.name : 'Unknown',
+            project: typeof r.projectId === 'object' ? r.projectId.name : 'Unknown',
+            date: new Date(r.createdAt).toLocaleDateString(),
+            quantity: r.quantity,
+            unit: r.unit,
+            status: r.status,
+          }));
+        
+        setApprovals(pending);
+        setHistory(historyData);
+      } catch (error) {
+        console.error('Error loading approvals:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadApprovals();
+  }, []);
+
+  const handleApprove = async (id: string) => {
     if (!hasPermission("canApproveMaterialRequests")) return;
+    
+    try {
+      await materialsApi.approve(id);
+      // Reload approvals
+      const data = await materialsApi.getPending(1, 100);
+      const requests = data?.requests || [];
+      const pending = requests
+        .filter((r: any) => r.status === 'pending')
+        .map((r: any) => ({
+          id: r._id,
+          type: 'material' as const,
+          title: r.materialName,
+          description: `Quantity: ${r.quantity} ${r.unit}`,
+          requestedBy: typeof r.requestedBy === 'object' ? r.requestedBy.name : 'Unknown',
+          project: typeof r.projectId === 'object' ? r.projectId.name : 'Unknown',
+          date: new Date(r.createdAt).toLocaleDateString(),
+          quantity: r.quantity,
+          unit: r.unit,
+          isAnomaly: r.anomalyDetected,
+          anomalyReason: r.anomalyReason,
+          status: r.status,
+        }));
+      setApprovals(pending);
+    } catch (error) {
+      console.error('Error approving request:', error);
+    }
     
     const approval = approvals.find(a => a.id === id);
     if (approval) {
@@ -63,24 +143,33 @@ export default function ApprovalsPage() {
     }
   };
 
-  const handleReject = (id: string) => {
+  const handleReject = async (id: string) => {
     if (!hasPermission("canApproveMaterialRequests")) return;
     
-    const approval = approvals.find(a => a.id === id);
-    if (approval) {
-      // Prevent self-rejection
-      if (approval.requestedBy === userId) {
-        alert("You cannot reject your own request");
-        return;
-      }
-      
-      setApprovals(approvals.filter(a => a.id !== id));
-      setHistory([{ 
-        ...approval, 
-        status: "rejected" as const,
-        rejectedBy: userId || "unknown",
-        rejectedAt: new Date().toISOString(),
-      }, ...history]);
+    try {
+      await materialsApi.reject(id);
+      // Reload approvals
+      const data = await materialsApi.getPending(1, 100);
+      const requests = data?.requests || [];
+      const pending = requests
+        .filter((r: any) => r.status === 'pending')
+        .map((r: any) => ({
+          id: r._id,
+          type: 'material' as const,
+          title: r.materialName,
+          description: `Quantity: ${r.quantity} ${r.unit}`,
+          requestedBy: typeof r.requestedBy === 'object' ? r.requestedBy.name : 'Unknown',
+          project: typeof r.projectId === 'object' ? r.projectId.name : 'Unknown',
+          date: new Date(r.createdAt).toLocaleDateString(),
+          quantity: r.quantity,
+          unit: r.unit,
+          isAnomaly: r.anomalyDetected,
+          anomalyReason: r.anomalyReason,
+          status: r.status,
+        }));
+      setApprovals(pending);
+    } catch (error) {
+      console.error('Error rejecting request:', error);
     }
   };
 

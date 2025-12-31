@@ -77,6 +77,7 @@ export default function Signup() {
         
         dispatch(login({
           role: user.role,
+          name: user.name,
           email: user.email,
           phone: user.phone || phone || undefined,
           userId: user.id,
@@ -88,7 +89,27 @@ export default function Signup() {
         throw new Error(data.message || 'Signup failed');
       }
     } catch (err: any) {
-      setError(err.message || 'An error occurred during signup');
+      // Better error message handling
+      let errorMessage = 'An error occurred during signup';
+      
+      if (err.message) {
+        errorMessage = err.message;
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      }
+      
+      // Handle specific error codes
+      if (errorMessage.includes('already exists') || errorMessage.includes('409')) {
+        errorMessage = 'This email is already registered. Please login instead.';
+      } else if (errorMessage.includes('Validation error')) {
+        errorMessage = 'Please check your input fields and try again.';
+      } else if (errorMessage.includes('500') || errorMessage.includes('Internal Server Error')) {
+        errorMessage = 'Server error. Please try again later.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }

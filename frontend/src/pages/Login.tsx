@@ -49,6 +49,7 @@ export default function Login() {
         
         dispatch(login({
           role: user.role,
+          name: user.name,
           email: user.email,
           phone: user.phone || undefined,
           userId: user.id,

@@ -26,7 +26,9 @@ import { saveDPR } from "@/lib/indexeddb";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addPendingItem } from "@/store/slices/offlineSlice";
 import { usePermissions } from "@/hooks/usePermissions";
-import { projectList, tasks } from "@/data/dummy";
+import { projectsApi } from "@/services/api/projects";
+import { tasksApi } from "@/services/api/tasks";
+import { dprApi } from "@/services/api/dpr";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -44,6 +46,10 @@ export default function DPRPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
 
   // Check permission
   useEffect(() => {
@@ -51,6 +57,42 @@ export default function DPRPage() {
       navigate("/");
     }
   }, [hasPermission, navigate]);
+
+  // Load projects
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        setIsLoadingProjects(true);
+        const data = await projectsApi.getAll(1, 100);
+        setProjects(data?.projects || []);
+      } catch (error) {
+        console.error('Error loading projects:', error);
+      } finally {
+        setIsLoadingProjects(false);
+      }
+    };
+    loadProjects();
+  }, []);
+
+  // Load tasks when project is selected
+  useEffect(() => {
+    const loadTasks = async () => {
+      if (!selectedProject) {
+        setTasks([]);
+        return;
+      }
+      try {
+        setIsLoadingTasks(true);
+        const data = await tasksApi.getAll(selectedProject);
+        setTasks(data || []);
+      } catch (error) {
+        console.error('Error loading tasks:', error);
+      } finally {
+        setIsLoadingTasks(false);
+      }
+    };
+    loadTasks();
+  }, [selectedProject]);
 
   const handlePhotoUpload = () => {
     // Simulate photo upload
@@ -72,37 +114,56 @@ export default function DPRPage() {
     
     setIsSubmitting(true);
     
-    // Save to IndexedDB with user audit info
-    const dprId = await saveDPR({
-      projectId: selectedProject,
-      taskId: selectedTask,
-      photos: photos,
-      notes: notes,
-      aiSummary: aiSummary,
-      timestamp: Date.now(),
-      createdBy: userId || "unknown",
-      createdAt: new Date().toISOString(),
-    });
-    
-    // Add to Redux offline store
-    dispatch(addPendingItem({
-      type: 'dpr',
-      data: {
-        id: dprId,
+    try {
+      // Try to submit to API first
+      const photoFiles = photos.map((photo) => {
+        // Convert base64/data URL to File if needed
+        // For now, we'll need to handle file uploads properly
+        return null; // Placeholder - implement actual file handling
+      }).filter(Boolean) as File[];
+
+      await dprApi.create({
+        projectId: selectedProject,
+        taskId: selectedTask,
+        notes: notes,
+        generateAISummary: !!aiSummary,
+      }, photoFiles.length > 0 ? photoFiles : undefined);
+
+      setShowSuccess(true);
+      setTimeout(() => navigate("/"), 2000);
+    } catch (error) {
+      // If API fails, save to IndexedDB for offline sync
+      const dprId = await saveDPR({
         projectId: selectedProject,
         taskId: selectedTask,
         photos: photos,
         notes: notes,
         aiSummary: aiSummary,
-        createdBy: userId,
+        timestamp: Date.now(),
+        createdBy: userId || "unknown",
         createdAt: new Date().toISOString(),
-      },
-    }));
-    
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    setShowSuccess(true);
-    setTimeout(() => navigate("/"), 2000);
+      });
+      
+      // Add to Redux offline store
+      dispatch(addPendingItem({
+        type: 'dpr',
+        data: {
+          id: dprId,
+          projectId: selectedProject,
+          taskId: selectedTask,
+          photos: photos,
+          notes: notes,
+          aiSummary: aiSummary,
+          createdBy: userId,
+          createdAt: new Date().toISOString(),
+        },
+      }));
+      
+      setShowSuccess(true);
+      setTimeout(() => navigate("/"), 2000);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const stepTitles = {
@@ -205,27 +266,39 @@ export default function DPRPage() {
           {/* Step 1: Select Project */}
           {step === 1 && (
             <div className="space-y-3 animate-fade-up">
-              {projectList.map((project) => (
-                <Card
-                  key={project.id}
-                  className={cn(
-                    "cursor-pointer transition-all duration-200",
-                    selectedProject === project.id && "border-primary shadow-glow-sm"
-                  )}
-                  onClick={() => {
-                    setSelectedProject(project.id);
-                    setStep(2);
-                  }}
-                >
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <span className="font-medium">{project.name}</span>
-                    <ChevronDown className={cn(
-                      "w-5 h-5 text-muted-foreground transition-transform",
-                      selectedProject === project.id && "-rotate-90"
-                    )} />
+              {isLoadingProjects ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : projects.length === 0 ? (
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <p className="text-muted-foreground">No projects available</p>
                   </CardContent>
                 </Card>
-              ))}
+              ) : (
+                projects.map((project) => (
+                  <Card
+                    key={project._id}
+                    className={cn(
+                      "cursor-pointer transition-all duration-200",
+                      selectedProject === project._id && "border-primary shadow-glow-sm"
+                    )}
+                    onClick={() => {
+                      setSelectedProject(project._id);
+                      setStep(2);
+                    }}
+                  >
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <span className="font-medium">{project.name}</span>
+                      <ChevronDown className={cn(
+                        "w-5 h-5 text-muted-foreground transition-transform",
+                        selectedProject === project._id && "-rotate-90"
+                      )} />
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
           )}
 
@@ -283,27 +356,39 @@ export default function DPRPage() {
           {/* Step 3: Select Task */}
           {step === 3 && (
             <div className="space-y-3 animate-fade-up">
-              {tasks.map((task) => (
-                <Card
-                  key={task.id}
-                  className={cn(
-                    "cursor-pointer transition-all duration-200",
-                    selectedTask === task.id && "border-primary shadow-glow-sm"
-                  )}
-                  onClick={() => {
-                    setSelectedTask(task.id);
-                    setStep(4);
-                  }}
-                >
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <span className="font-medium">{task.name}</span>
-                    <StatusBadge 
-                      status={task.status === "completed" ? "success" : task.status === "in-progress" ? "info" : "pending"} 
-                      label={task.status.replace("-", " ")} 
-                    />
+              {isLoadingTasks ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : tasks.length === 0 ? (
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <p className="text-muted-foreground">No tasks available for this project</p>
                   </CardContent>
                 </Card>
-              ))}
+              ) : (
+                tasks.map((task) => (
+                  <Card
+                    key={task._id}
+                    className={cn(
+                      "cursor-pointer transition-all duration-200",
+                      selectedTask === task._id && "border-primary shadow-glow-sm"
+                    )}
+                    onClick={() => {
+                      setSelectedTask(task._id);
+                      setStep(4);
+                    }}
+                  >
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <span className="font-medium">{task.title}</span>
+                      <StatusBadge 
+                        status={task.status === "completed" ? "success" : task.status === "in-progress" ? "info" : "pending"} 
+                        label={task.status.replace("-", " ")} 
+                      />
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
           )}
 
@@ -381,14 +466,14 @@ export default function DPRPage() {
                   <div className="p-3 rounded-xl bg-muted/50">
                     <span className="text-xs text-muted-foreground">Project</span>
                     <p className="font-medium text-foreground">
-                      {projectList.find(p => p.id === selectedProject)?.name}
+                      {projects.find(p => p._id === selectedProject)?.name || "Unknown Project"}
                     </p>
                   </div>
                   
                   <div className="p-3 rounded-xl bg-muted/50">
                     <span className="text-xs text-muted-foreground">Task</span>
                     <p className="font-medium text-foreground">
-                      {tasks.find(t => t.id === selectedTask)?.name}
+                      {tasks.find(t => t._id === selectedTask)?.title || "Unknown Task"}
                     </p>
                   </div>
 
