@@ -8,7 +8,7 @@ export type ProjectStatus = 'planning' | 'active' | 'on-hold' | 'completed' | 'a
 export interface JWTPayload {
   userId: string;
   role: UserRole;
-  phone: string;
+  email: string;
 }
 
 export interface ApiResponse<T = any> {

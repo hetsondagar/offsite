@@ -1,23 +1,20 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { login, verifyOTPAndLogin, signup } from './auth.service';
+import { login, signup } from './auth.service';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 
 const loginSchema = z.object({
-  phone: z.string().min(10).max(15),
-});
-
-const verifyOTPSchema = z.object({
-  phone: z.string().min(10).max(15),
-  otp: z.string().length(6),
-  role: z.enum(['engineer', 'manager', 'owner']).optional(),
+  email: z.string().email('Please provide a valid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
 const signupSchema = z.object({
-  phone: z.string().min(10).max(15),
-  name: z.string().min(2).max(100),
+  email: z.string().email('Please provide a valid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  name: z.string().min(2, 'Name must be at least 2 characters').max(100, 'Name must be less than 100 characters'),
   role: z.enum(['engineer', 'manager', 'owner']),
+  phone: z.string().optional(),
 });
 
 export const loginController = async (
@@ -26,29 +23,8 @@ export const loginController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { phone } = loginSchema.parse(req.body);
-    const result = await login(phone);
-    
-    const response: ApiResponse = {
-      success: true,
-      message: 'OTP sent successfully',
-      data: result,
-    };
-    
-    res.status(200).json(response);
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const verifyOTPController = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const { phone, otp, role } = verifyOTPSchema.parse(req.body);
-    const result = await verifyOTPAndLogin(phone, otp, role);
+    const { email, password } = loginSchema.parse(req.body);
+    const result = await login(email, password);
     
     const response: ApiResponse = {
       success: true,
@@ -68,12 +44,12 @@ export const signupController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { phone, name, role } = signupSchema.parse(req.body);
-    const result = await signup(phone, name, role);
+    const { email, password, name, role, phone } = signupSchema.parse(req.body);
+    const result = await signup(email, password, name, role, phone);
     
     const response: ApiResponse = {
       success: true,
-      message: 'User created. OTP sent successfully',
+      message: 'User created successfully',
       data: result,
     };
     

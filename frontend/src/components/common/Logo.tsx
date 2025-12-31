@@ -49,20 +49,15 @@ export function Logo({ size = "md", showText = true, variant = "default" }: Logo
 
   return (
     <div className={cn("flex items-center", sizes[size].container)}>
-      <div className="relative">
-        <div className="absolute inset-0 bg-primary/30 blur-xl rounded-full" />
-        <div className="relative p-2 bg-primary/10 rounded-xl border border-primary/30 flex items-center justify-center">
-          {mounted ? (
-            <img 
-              src={logoSrc} 
-              alt="OffSite Logo" 
-              className={cn("object-contain", sizes[size].image)}
-            />
-          ) : (
-            <div className={cn("bg-primary/20 rounded", sizes[size].image, sizes[size].image.replace("h-", "w-"))} />
-          )}
-        </div>
-      </div>
+      {mounted ? (
+        <img 
+          src={logoSrc} 
+          alt="OffSite Logo" 
+          className={cn("object-contain", sizes[size].image)}
+        />
+      ) : (
+        <div className={cn("bg-transparent", sizes[size].image, sizes[size].image.replace("h-", "w-"))} />
+      )}
       {showText && (
         <span className={cn("font-display font-bold text-foreground", sizes[size].text)}>
           Off<span className="text-primary">Site</span>

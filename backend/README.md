@@ -109,9 +109,8 @@ npm start
 ## API Endpoints
 
 ### Authentication
-- `POST /api/auth/login` - Request OTP
-- `POST /api/auth/verify-otp` - Verify OTP and login
-- `POST /api/auth/signup` - Create new user
+- `POST /api/auth/login` - Login with email and password
+- `POST /api/auth/signup` - Create new user with email and password
 - `POST /api/auth/logout` - Logout
 
 ### Users
