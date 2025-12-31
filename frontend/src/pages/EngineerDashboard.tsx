@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { usePermissions } from "@/hooks/usePermissions";
 import { FileText, MapPin, Package, ClipboardList, Clock, AlertTriangle, CheckCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { recentActivity } from "@/data/dummy";
 
 export default function EngineerDashboard() {
   const navigate = useNavigate();
@@ -22,7 +23,7 @@ export default function EngineerDashboard() {
         <div className="flex flex-col items-center gap-4 opacity-0 animate-fade-up">
           {/* Centered Large Logo */}
           <div className="flex justify-center w-full">
-            <Logo size="lg" showText={false} />
+            <Logo size="xl" showText={false} />
           </div>
           
           {/* Time and Theme Toggle */}

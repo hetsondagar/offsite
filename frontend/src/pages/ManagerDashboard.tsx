@@ -30,7 +30,7 @@ export default function ManagerDashboard() {
         <div className="flex flex-col items-center gap-4 opacity-0 animate-fade-up">
           {/* Centered Large Logo */}
           <div className="flex justify-center w-full">
-            <Logo size="lg" showText={false} />
+            <Logo size="xl" showText={false} />
           </div>
           
           {/* Date, Theme Toggle and Status */}

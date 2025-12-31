@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface LogoProps {
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
   showText?: boolean;
   variant?: "default" | "plain";
 }
@@ -20,6 +20,7 @@ export function Logo({ size = "md", showText = true, variant = "default" }: Logo
     sm: { image: "h-6", text: "text-lg", container: "gap-2" },
     md: { image: "h-8", text: "text-2xl", container: "gap-3" },
     lg: { image: "h-32", text: "text-4xl", container: "gap-4" },
+    xl: { image: "h-48", text: "text-5xl", container: "gap-5" },
   };
 
   // Use light logo for light mode, dark logo for dark mode

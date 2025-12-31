@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider, useTheme } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -25,6 +25,20 @@ import InvoicingPage from "./pages/InvoicingPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+function FaviconUpdater() {
+  const { theme, resolvedTheme } = useTheme();
+
+  useEffect(() => {
+    const favicon = document.getElementById('favicon') as HTMLLinkElement;
+    if (favicon) {
+      const currentTheme = resolvedTheme || theme || 'dark';
+      favicon.href = currentTheme === 'dark' ? '/logodark.png' : '/logo.png';
+    }
+  }, [theme, resolvedTheme]);
+
+  return null;
+}
 
 function AppContent() {
   const dispatch = useAppDispatch();
@@ -56,6 +70,7 @@ function AppContent() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <FaviconUpdater />
         <Toaster />
         <Sonner />
         <BrowserRouter>
