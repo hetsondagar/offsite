@@ -8,6 +8,7 @@ export interface IUser extends Document {
   password: string;
   phone?: string;
   role: UserRole;
+  offsiteId: string; // Unique OffSite ID (e.g., OSSE0023, OSPM0042, OSOW0001)
   assignedProjects: mongoose.Types.ObjectId[];
   isActive: boolean;
   createdAt: Date;
@@ -45,6 +46,14 @@ const userSchema = new Schema<IUser>(
       enum: ['engineer', 'manager', 'owner'],
       required: true,
     },
+    offsiteId: {
+      type: String,
+      unique: true,
+      index: true,
+      immutable: true, // Never allow updates to offsiteId
+      required: true,
+      trim: true,
+    },
     assignedProjects: [
       {
         type: Schema.Types.ObjectId,
@@ -77,9 +86,11 @@ userSchema.methods.comparePassword = async function (candidatePassword: string):
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-userSchema.index({ email: 1 });
+// Indexes for fast lookup
+userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ phone: 1 });
 userSchema.index({ role: 1 });
+userSchema.index({ offsiteId: 1 }, { unique: true }); // Critical: Unique index for offsiteId
 
 export const User = mongoose.model<IUser>('User', userSchema);
 

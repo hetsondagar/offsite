@@ -55,14 +55,20 @@ export default function MaterialsPage() {
     const loadData = async () => {
       try {
         setIsLoading(true);
-        // Set materials first (static list)
-        setMaterials([
-          { id: "1", name: "Cement", unit: "bags", anomalyThreshold: 100 },
-          { id: "2", name: "Steel Bars", unit: "tons", anomalyThreshold: 5 },
-          { id: "3", name: "Bricks", unit: "pieces", anomalyThreshold: 10000 },
-          { id: "4", name: "Sand", unit: "cubic meters", anomalyThreshold: 50 },
-          { id: "5", name: "Gravel", unit: "cubic meters", anomalyThreshold: 30 },
-        ]);
+        
+        // Load materials catalog from API
+        try {
+          const catalog = await materialsApi.getCatalog();
+          setMaterials(catalog.map((mat: any) => ({
+            id: mat._id,
+            name: mat.name,
+            unit: mat.unit,
+            anomalyThreshold: mat.defaultAnomalyThreshold || 1.3,
+          })));
+        } catch (catalogError) {
+          console.error('Error loading materials catalog:', catalogError);
+          setMaterials([]);
+        }
         
         // Try to load projects
         try {
@@ -97,20 +103,12 @@ export default function MaterialsPage() {
         }
       } catch (error) {
         console.error('Error loading data:', error);
-        // Ensure materials are set even on error
-        setMaterials([
-          { id: "1", name: "Cement", unit: "bags", anomalyThreshold: 100 },
-          { id: "2", name: "Steel Bars", unit: "tons", anomalyThreshold: 5 },
-          { id: "3", name: "Bricks", unit: "pieces", anomalyThreshold: 10000 },
-          { id: "4", name: "Sand", unit: "cubic meters", anomalyThreshold: 50 },
-          { id: "5", name: "Gravel", unit: "cubic meters", anomalyThreshold: 30 },
-        ]);
       } finally {
         setIsLoading(false);
       }
     };
     loadData();
-  }, []);
+  }, [userId]);
 
   const selectedMaterialData = materials.find(m => m.id === selectedMaterial);
   const isAnomaly = selectedMaterialData && quantity > selectedMaterialData.anomalyThreshold;

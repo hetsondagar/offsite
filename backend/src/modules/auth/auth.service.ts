@@ -1,5 +1,6 @@
 import { User } from '../users/user.model';
 import { generateAccessToken, generateRefreshToken } from '../../utils/jwt';
+import { generateOffsiteId } from '../../utils/generateOffsiteId';
 import { JWTPayload, UserRole } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 
@@ -52,6 +53,7 @@ export const login = async (
       email: user.email,
       phone: user.phone,
       role: user.role,
+      offsiteId: user.offsiteId, // Return stored offsiteId (never regenerate)
     },
   };
 };
@@ -71,6 +73,7 @@ export const signup = async (
     email: string;
     phone?: string;
     role: UserRole;
+    offsiteId: string;
   };
 }> => {
   try {
@@ -81,13 +84,17 @@ export const signup = async (
       throw new AppError('User with this email already exists. Please login instead.', 409, 'USER_EXISTS');
     }
     
-    // Create new user
+    // Generate OffSite ID ONCE at signup (never regenerated)
+    const offsiteId = await generateOffsiteId(role);
+    
+    // Create new user with offsiteId
     const user = new User({
       email: email.toLowerCase().trim(),
       password,
       name: name.trim(),
       role,
       phone: phone ? phone.trim() : undefined,
+      offsiteId, // Set once, never changes
       assignedProjects: [],
       isActive: true,
     });
@@ -129,6 +136,7 @@ export const signup = async (
           email: user.email,
           phone: user.phone,
           role: user.role,
+          offsiteId: user.offsiteId, // Return generated offsiteId
         },
       };
     } catch (error: any) {

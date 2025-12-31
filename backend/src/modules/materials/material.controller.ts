@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { MaterialRequest } from './material.model';
+import { MaterialCatalog } from './material-catalog.model';
 import { detectMaterialAnomaly } from '../../utils/anomalyDetector';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';

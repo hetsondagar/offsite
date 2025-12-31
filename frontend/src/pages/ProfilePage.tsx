@@ -129,6 +129,13 @@ export default function ProfilePage() {
                       {(userData?.phone || phone) && (
                         <p className="text-xs text-muted-foreground">{userData?.phone || phone}</p>
                       )}
+                      {userData?.offsiteId && (
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className="text-xs font-mono font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">
+                            {userData.offsiteId}
+                          </span>
+                        </div>
+                      )}
                       <StatusBadge 
                         status={role === "owner" ? "success" : "info"} 
                         label={getRoleLabel()} 

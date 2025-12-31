@@ -1,5 +1,14 @@
 import { apiGet, apiPost } from '@/lib/api';
 
+export interface MaterialCatalog {
+  _id: string;
+  name: string;
+  unit: string;
+  defaultAnomalyThreshold: number;
+  category?: string;
+  isActive: boolean;
+}
+
 export interface MaterialRequest {
   _id: string;
   projectId: string;
@@ -20,6 +29,11 @@ export interface MaterialRequest {
 }
 
 export const materialsApi = {
+  getCatalog: async () => {
+    const response = await apiGet<MaterialCatalog[]>('/materials/catalog');
+    return response.data || [];
+  },
+
   getPending: async (page = 1, limit = 10) => {
     const response = await apiGet<{ requests: MaterialRequest[]; pagination: any }>('/materials/pending', { page, limit });
     return response.data;

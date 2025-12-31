@@ -4,6 +4,7 @@ import {
   getPendingRequests,
   approveRequest,
   rejectRequest,
+  getMaterialsCatalog,
 } from './material.controller';
 import { authenticateUser } from '../../middlewares/auth.middleware';
 import { authorizePermission } from '../../middlewares/role.middleware';
@@ -15,6 +16,11 @@ router.post(
   authenticateUser,
   authorizePermission('canRaiseMaterialRequests'),
   createMaterialRequest
+);
+router.get(
+  '/catalog',
+  authenticateUser,
+  getMaterialsCatalog
 );
 router.get(
   '/pending',

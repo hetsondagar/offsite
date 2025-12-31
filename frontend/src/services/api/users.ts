@@ -6,6 +6,7 @@ export interface User {
   email: string;
   phone?: string;
   role: 'engineer' | 'manager' | 'owner';
+  offsiteId: string; // Unique OffSite ID (e.g., OSSE0023, OSPM0042, OSOW0001)
   assignedProjects: any[];
   isActive: boolean;
   createdAt: string;

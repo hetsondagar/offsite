@@ -21,6 +21,8 @@ import { useEffect, useState } from "react";
 import { projectsApi } from "@/services/api/projects";
 import { insightsApi } from "@/services/api/insights";
 import { materialsApi } from "@/services/api/materials";
+import { attendanceApi } from "@/services/api/attendance";
+import { Loader2 } from "lucide-react";
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
@@ -48,15 +50,48 @@ export default function ManagerDashboard() {
         projectsApi.getAll(1, 10),
         insightsApi.getSiteHealth(),
         insightsApi.getDelayRisks(),
-        materialsApi.getPending(1, 1),
+        materialsApi.getPending(1, 100),
       ]);
 
       setProjectOverview(projectsData?.projects || []);
-      setHealthScore(healthData?.overallHealthScore || 78);
+      setHealthScore(healthData?.overallHealthScore || 0);
+      
+      // Calculate attendance percentage from real data
+      let attendancePercentage = 0;
+      try {
+        const projects = projectsData?.projects || [];
+        if (projects.length > 0) {
+          // Get attendance for all projects
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          const attendancePromises = projects.map(async (project: any) => {
+            try {
+              const attData = await attendanceApi.getByProject(project._id, 1, 100);
+              const todayAtt = attData?.attendance?.filter((att: any) => {
+                const attDate = new Date(att.timestamp);
+                return attDate >= today && att.type === 'checkin';
+              }) || [];
+              return todayAtt.length;
+            } catch {
+              return 0;
+            }
+          });
+          
+          const attendanceCounts = await Promise.all(attendancePromises);
+          const totalCheckedIn = attendanceCounts.reduce((sum, count) => sum + count, 0);
+          // Assuming average team size per project - in production, get from project members
+          const estimatedTeamSize = projects.length * 5; // Placeholder
+          attendancePercentage = estimatedTeamSize > 0 ? Math.round((totalCheckedIn / estimatedTeamSize) * 100) : 0;
+        }
+      } catch (error) {
+        console.error('Error calculating attendance:', error);
+      }
+      
       setKpis({
         activeProjects: projectsData?.projects?.length || 0,
-        attendance: 92, // This would come from attendance API
-        pendingApprovals: materialsData?.requests?.length || 0,
+        attendance: attendancePercentage,
+        pendingApprovals: materialsData?.requests?.filter((r: any) => r.status === 'pending').length || 0,
         delayRisks: delayRisksData?.filter((r: any) => r.risk === 'High').length || 0,
       });
     } catch (error) {
