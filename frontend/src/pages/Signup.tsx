@@ -6,43 +6,92 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/common/Logo";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
-import { ArrowLeft, Loader2, HardHat, Briefcase, Crown, Phone } from "lucide-react";
+import { ArrowLeft, Loader2, HardHat, Briefcase, Crown, Mail, Phone, Lock, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Role, UserRole } from "@/lib/permissions";
 
-type Step = "phone" | "otp" | "role";
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
+type Step = "details" | "role";
 
 export default function Signup() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const [step, setStep] = useState<Step>("phone");
+  const [step, setStep] = useState<Step>("details");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
   const [role, setRole] = useState<Role | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handlePhoneSubmit = async () => {
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsLoading(false);
-    setStep("otp");
-  };
+  const handleDetailsSubmit = () => {
+    if (!email || !password || !name) {
+      setError("Please fill in all required fields");
+      return;
+    }
 
-  const handleOtpSubmit = async () => {
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsLoading(false);
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    if (!email.includes('@')) {
+      setError("Please enter a valid email address");
+      return;
+    }
+
+    setError(null);
     setStep("role");
   };
 
-  const handleRoleSelect = (selectedRole: Role) => {
+  const handleRoleSelect = async (selectedRole: Role) => {
     setRole(selectedRole);
-    dispatch(login({
-      role: selectedRole,
-      phone: phone,
-      userId: `user_${Date.now()}`,
-    }));
-    navigate("/");
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          name,
+          role: selectedRole,
+          phone: phone || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Signup failed');
+      }
+
+      if (data.success && data.data) {
+        const { user, accessToken } = data.data;
+        
+        dispatch(login({
+          role: user.role,
+          email: user.email,
+          phone: user.phone || phone || undefined,
+          userId: user.id,
+          accessToken: accessToken,
+        }));
+
+        navigate("/");
+      } else {
+        throw new Error(data.message || 'Signup failed');
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during signup');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -81,22 +130,76 @@ export default function Signup() {
 
       {/* Content Area - White/Light Background */}
       <div className="flex-1 bg-card rounded-t-3xl -mt-6 relative z-10 px-6 py-8">
-        {/* Phone Input Step */}
-        {step === "phone" && (
+        {/* Details Step */}
+        {step === "details" && (
           <div className="space-y-6 animate-fade-up">
             <div>
               <h2 className="font-display text-xl font-semibold text-foreground mb-1">
                 Get Started
               </h2>
               <p className="text-sm text-muted-foreground">
-                Enter your phone number to create an account
+                Enter your details to create an account
               </p>
             </div>
 
+            {error && (
+              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30">
+                <p className="text-sm text-destructive">{error}</p>
+              </div>
+            )}
+
             <div className="space-y-4">
-              {/* Phone Number Field */}
+              {/* Name Field */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Phone Number</label>
+                <label className="text-sm font-medium text-foreground">Full Name</label>
+                <div className="relative">
+                  <User className="absolute left-0 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="John Doe"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="pl-8 h-14 text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                </div>
+              </div>
+
+              {/* Email Field */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-0 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    placeholder="john.doe@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-8 h-14 text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                </div>
+              </div>
+
+              {/* Password Field */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-0 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-8 h-14 text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Must be at least 6 characters</p>
+              </div>
+
+              {/* Phone Number Field (Optional) */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Phone Number <span className="text-muted-foreground">(Optional)</span>
+                </label>
                 <div className="relative">
                   <Phone className="absolute left-0 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
@@ -109,64 +212,19 @@ export default function Signup() {
                 </div>
               </div>
 
-              {/* Sign Up Button */}
+              {/* Continue Button */}
               <Button 
                 className="w-full mt-8"
                 size="lg"
-                onClick={handlePhoneSubmit}
-                disabled={phone.length < 10 || isLoading}
+                onClick={handleDetailsSubmit}
+                disabled={!email || !password || !name || isLoading}
               >
                 {isLoading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  "SIGN UP"
+                  "CONTINUE"
                 )}
               </Button>
-            </div>
-          </div>
-        )}
-
-        {/* OTP Step */}
-        {step === "otp" && (
-          <div className="space-y-6 animate-fade-up">
-            <div>
-              <h2 className="font-display text-xl font-semibold text-foreground mb-1">
-                Verify OTP
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Enter the 6-digit code sent to {phone}
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">OTP</label>
-                <Input
-                  type="text"
-                  placeholder="• • • • • •"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.slice(0, 6))}
-                  className="h-14 text-2xl text-center tracking-[1em] bg-transparent border-0 border-b-2 border-border/50 rounded-none font-mono focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                  maxLength={6}
-                />
-              </div>
-
-              <Button 
-                className="w-full mt-8"
-                size="lg"
-                onClick={handleOtpSubmit}
-                disabled={otp.length !== 6 || isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  "VERIFY"
-                )}
-              </Button>
-
-              <button className="w-full text-sm text-primary hover:underline text-center">
-                Resend OTP
-              </button>
             </div>
           </div>
         )}
@@ -182,6 +240,12 @@ export default function Signup() {
                 Choose how you'll use OffSite
               </p>
             </div>
+
+            {error && (
+              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30">
+                <p className="text-sm text-destructive">{error}</p>
+              </div>
+            )}
 
             <div className="space-y-3">
               <div
@@ -253,6 +317,16 @@ export default function Signup() {
                 </div>
               </div>
             </div>
+
+            {/* Back Button */}
+            <Button
+              variant="outline"
+              className="w-full mt-4"
+              onClick={() => setStep("details")}
+              disabled={isLoading}
+            >
+              Back
+            </Button>
           </div>
         )}
 

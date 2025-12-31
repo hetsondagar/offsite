@@ -7,44 +7,63 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Logo } from "@/components/common/Logo";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
-import { Phone, Loader2, HardHat, Briefcase, Crown } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Role, UserRole } from "@/lib/permissions";
+import { Mail, Lock, Loader2 } from "lucide-react";
 
-type Step = "phone" | "otp" | "role";
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 export default function Login() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const [step, setStep] = useState<Step>("phone");
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
-  const [role, setRole] = useState<Role | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handlePhoneSubmit = async () => {
+  const handleLogin = async () => {
+    if (!email || !password) {
+      setError("Please fill in all fields");
+      return;
+    }
+
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsLoading(false);
-    setStep("otp");
-  };
+    setError(null);
 
-  const handleOtpSubmit = async () => {
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsLoading(false);
-    setStep("role");
-  };
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-  const handleRoleSelect = (selectedRole: Role) => {
-    setRole(selectedRole);
-    dispatch(login({
-      role: selectedRole,
-      phone: phone,
-      userId: `user_${Date.now()}`,
-    }));
-    navigate("/");
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed');
+      }
+
+      if (data.success && data.data) {
+        const { user, accessToken } = data.data;
+        
+        dispatch(login({
+          role: user.role,
+          email: user.email,
+          phone: user.phone || undefined,
+          userId: user.id,
+          accessToken: accessToken,
+        }));
+
+        navigate("/");
+      } else {
+        throw new Error(data.message || 'Login failed');
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during login');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -75,191 +94,80 @@ export default function Login() {
 
       {/* Content Area - White/Light Background */}
       <div className="flex-1 bg-card rounded-t-3xl -mt-6 relative z-10 px-6 py-8">
-        {/* Phone Input Step */}
-        {step === "phone" && (
-          <div className="space-y-6 animate-fade-up">
-            <div className="space-y-4">
-              {/* Phone Number Field */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Phone Number</label>
-                <div className="relative">
-                  <Phone className="absolute left-0 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    type="tel"
-                    placeholder="+91 98765 43210"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="pl-8 h-14 text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                  />
-                </div>
+        <div className="space-y-6 animate-fade-up">
+          <div className="space-y-4">
+            {/* Error Message */}
+            {error && (
+              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30">
+                <p className="text-sm text-destructive">{error}</p>
               </div>
+            )}
 
-              {/* Remember Me & Forgot Password */}
-              <div className="flex items-center justify-between pt-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="remember"
-                    checked={rememberMe}
-                    onCheckedChange={(checked) => setRememberMe(checked === true)}
-                  />
-                  <label
-                    htmlFor="remember"
-                    className="text-sm font-medium leading-none cursor-pointer text-foreground"
-                  >
-                    Remember me
-                  </label>
-                </div>
-                <button className="text-sm text-primary hover:underline">
+            {/* Email Field */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Email Address</label>
+              <div className="relative">
+                <Mail className="absolute left-0 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  type="email"
+                  placeholder="john.doe@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="pl-8 h-14 text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                />
+              </div>
+            </div>
+
+            {/* Password Field */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-0 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pl-8 h-14 text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                />
+                <button className="absolute right-0 top-1/2 -translate-y-1/2 text-sm text-primary hover:underline">
                   Forgot Password?
                 </button>
               </div>
-
-              {/* Login Button */}
-              <Button 
-                className="w-full mt-8"
-                size="lg"
-                onClick={handlePhoneSubmit}
-                disabled={phone.length < 10 || isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  "LOGIN"
-                )}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* OTP Step */}
-        {step === "otp" && (
-          <div className="space-y-6 animate-fade-up">
-            <div>
-              <h2 className="font-display text-xl font-semibold text-foreground mb-1">
-                Verify OTP
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Enter the 6-digit code sent to {phone}
-              </p>
             </div>
 
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">OTP</label>
-                <Input
-                  type="text"
-                  placeholder="• • • • • •"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.slice(0, 6))}
-                  className="h-14 text-2xl text-center tracking-[1em] bg-transparent border-0 border-b-2 border-border/50 rounded-none font-mono focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                  maxLength={6}
+            {/* Remember Me & Forgot Password */}
+            <div className="flex items-center justify-between pt-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="remember"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked === true)}
                 />
+                <label
+                  htmlFor="remember"
+                  className="text-sm font-medium leading-none cursor-pointer text-foreground"
+                >
+                  Remember me
+                </label>
               </div>
-
-              <Button 
-                className="w-full mt-8"
-                size="lg"
-                onClick={handleOtpSubmit}
-                disabled={otp.length !== 6 || isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  "VERIFY"
-                )}
-              </Button>
-
-              <button className="w-full text-sm text-primary hover:underline text-center">
-                Resend OTP
-              </button>
             </div>
+
+            {/* Login Button */}
+            <Button 
+              className="w-full mt-8"
+              size="lg"
+              onClick={handleLogin}
+              disabled={!email || !password || isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                "LOGIN"
+              )}
+            </Button>
           </div>
-        )}
-
-        {/* Role Selection Step */}
-        {step === "role" && (
-          <div className="space-y-4 animate-fade-up">
-            <div className="text-center mb-6">
-              <h2 className="font-display text-xl font-semibold text-foreground mb-1">
-                Select your role
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Choose how you'll use OffSite
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <div
-                className={cn(
-                  "p-4 rounded-xl border-2 cursor-pointer transition-all duration-300",
-                  "hover:border-primary/50 hover:bg-primary/5",
-                  role === UserRole.SITE_ENGINEER ? "border-primary bg-primary/10" : "border-border/50"
-                )}
-                onClick={() => handleRoleSelect(UserRole.SITE_ENGINEER)}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-primary/10 border border-primary/30">
-                    <HardHat className="w-6 h-6 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-display font-semibold text-base text-foreground">
-                      Site Engineer
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Create DPRs, mark attendance, raise requests
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                className={cn(
-                  "p-4 rounded-xl border-2 cursor-pointer transition-all duration-300",
-                  "hover:border-primary/50 hover:bg-primary/5",
-                  role === UserRole.PROJECT_MANAGER ? "border-primary bg-primary/10" : "border-border/50"
-                )}
-                onClick={() => handleRoleSelect(UserRole.PROJECT_MANAGER)}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-primary/10 border border-primary/30">
-                    <Briefcase className="w-6 h-6 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-display font-semibold text-base text-foreground">
-                      Project Manager
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      View dashboards, approve requests, insights
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                className={cn(
-                  "p-4 rounded-xl border-2 cursor-pointer transition-all duration-300",
-                  "hover:border-primary/50 hover:bg-primary/5",
-                  role === UserRole.OWNER_ADMIN ? "border-primary bg-primary/10" : "border-border/50"
-                )}
-                onClick={() => handleRoleSelect(UserRole.OWNER_ADMIN)}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-primary/10 border border-primary/30">
-                    <Crown className="w-6 h-6 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-display font-semibold text-base text-foreground">
-                      Owner / Admin
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Full access, all projects, analytics
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* Sign Up Link */}
         <div className="text-center mt-8 pt-6 border-t border-border/50">

@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 export default function ProfilePage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const { role, phone } = useAppSelector((state) => state.auth);
+  const { role, email, phone } = useAppSelector((state) => state.auth);
   const { isOnline } = useAppSelector((state) => state.offline);
   const [autoSync, setAutoSync] = useState(true);
 
@@ -86,7 +86,10 @@ export default function ProfilePage() {
                   <h2 className="font-display font-semibold text-lg text-foreground">
                     Rajesh Kumar
                   </h2>
-                  <p className="text-sm text-muted-foreground">{phone || "+91 98765 43210"}</p>
+                  <p className="text-sm text-muted-foreground">{email || "user@example.com"}</p>
+                  {phone && (
+                    <p className="text-xs text-muted-foreground">{phone}</p>
+                  )}
                   <StatusBadge 
                     status={role === "owner" ? "success" : "info"} 
                     label={getRoleLabel()} 
