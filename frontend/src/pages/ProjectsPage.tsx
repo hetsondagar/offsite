@@ -12,12 +12,12 @@ import {
   Calendar,
   ChevronRight,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { projectsApi, Project } from "@/services/api/projects";
-import { Loader2 } from "lucide-react";
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
@@ -98,9 +98,7 @@ export default function ProjectsPage() {
                         </h3>
                         <p className="text-xs text-muted-foreground">{project.location}</p>
                       </div>
-                      {project.risk && (
-                        <StatusBadge status="warning" label="At Risk" />
-                      )}
+                      {/* Risk badge would come from insights API */}
                     </div>
 
                     {/* Progress Bar */}
@@ -119,35 +117,29 @@ export default function ProjectsPage() {
 
                     {/* Quick Stats */}
                     <div className="flex items-center gap-4 mt-3 text-xs">
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <Users className="w-3 h-3" />
-                        {project.workers}
-                      </div>
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <Calendar className="w-3 h-3" />
-                        {project.dueDate}
-                      </div>
+                      {project.members && (
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <Users className="w-3 h-3" />
+                          {project.members.length} members
+                        </div>
+                      )}
+                      {project.endDate && (
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <Calendar className="w-3 h-3" />
+                          {new Date(project.endDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                        </div>
+                      )}
                       <div className="flex items-center gap-1 text-muted-foreground">
                         <TrendingUp className="w-3 h-3" />
-                        {project.completedTasks}/{project.tasks} tasks
+                        {project.progress}% complete
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Expanded View */}
-                {selectedProject === project.id && (
+                {selectedProject === project._id && (
                   <div className="mt-4 pt-4 border-t border-border/50 space-y-3 animate-fade-up">
-                    {project.risk && (
-                      <div className="flex items-start gap-3 p-3 rounded-xl bg-warning/10 border border-warning/30">
-                        <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium text-warning">Risk Alert</p>
-                          <p className="text-xs text-muted-foreground">{project.riskReason}</p>
-                        </div>
-                      </div>
-                    )}
-                    
                     <Button variant="outline" className="w-full justify-between">
                       View Project Details
                       <ChevronRight className="w-4 h-4" />
