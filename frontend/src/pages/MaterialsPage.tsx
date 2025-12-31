@@ -38,6 +38,10 @@ export default function MaterialsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Check permission
   useEffect(() => {
@@ -51,12 +55,7 @@ export default function MaterialsPage() {
     const loadData = async () => {
       try {
         setIsLoading(true);
-        const [projectsData] = await Promise.all([
-          projectsApi.getAll(1, 100),
-        ]);
-        setProjects(projectsData?.projects || []);
-        // Materials list would come from a materials catalog API
-        // For now, using a static list that should come from backend
+        // Set materials first (static list)
         setMaterials([
           { id: "1", name: "Cement", unit: "bags", anomalyThreshold: 100 },
           { id: "2", name: "Steel Bars", unit: "tons", anomalyThreshold: 5 },
@@ -64,8 +63,48 @@ export default function MaterialsPage() {
           { id: "4", name: "Sand", unit: "cubic meters", anomalyThreshold: 50 },
           { id: "5", name: "Gravel", unit: "cubic meters", anomalyThreshold: 30 },
         ]);
+        
+        // Try to load projects
+        try {
+          const projectsData = await projectsApi.getAll(1, 100);
+          setProjects(projectsData?.projects || []);
+        } catch (projectError) {
+          console.error('Error loading projects:', projectError);
+          setProjects([]);
+        }
+        
+        // Try to load pending requests
+        try {
+          const requestsData = await materialsApi.getPending(1, 100);
+          const requests = requestsData?.requests || [];
+          // Filter for current user's requests
+          const userRequests = requests
+            .filter((r: any) => {
+              const requestedBy = typeof r.requestedBy === 'object' ? r.requestedBy._id : r.requestedBy;
+              return requestedBy === userId;
+            })
+            .map((r: any) => ({
+              id: r._id,
+              material: r.materialName,
+              quantity: `${r.quantity} ${r.unit}`,
+              date: new Date(r.createdAt).toLocaleDateString(),
+              status: r.status,
+            }));
+          setPendingRequests(userRequests);
+        } catch (requestError) {
+          console.error('Error loading pending requests:', requestError);
+          setPendingRequests([]);
+        }
       } catch (error) {
         console.error('Error loading data:', error);
+        // Ensure materials are set even on error
+        setMaterials([
+          { id: "1", name: "Cement", unit: "bags", anomalyThreshold: 100 },
+          { id: "2", name: "Steel Bars", unit: "tons", anomalyThreshold: 5 },
+          { id: "3", name: "Bricks", unit: "pieces", anomalyThreshold: 10000 },
+          { id: "4", name: "Sand", unit: "cubic meters", anomalyThreshold: 50 },
+          { id: "5", name: "Gravel", unit: "cubic meters", anomalyThreshold: 30 },
+        ]);
       } finally {
         setIsLoading(false);
       }
@@ -77,7 +116,13 @@ export default function MaterialsPage() {
   const isAnomaly = selectedMaterialData && quantity > selectedMaterialData.anomalyThreshold;
 
   const handleSubmit = async () => {
-    if (!selectedMaterial || !selectedMaterialData || projects.length === 0) return;
+    if (!selectedMaterial || !selectedMaterialData) return;
+    
+    // If no projects loaded, show error
+    if (projects.length === 0) {
+      alert("Projects are still loading. Please wait a moment and try again.");
+      return;
+    }
     
     setIsSubmitting(true);
     
@@ -93,6 +138,28 @@ export default function MaterialsPage() {
       });
 
       setShowSuccess(true);
+      
+      // Reload pending requests
+      try {
+        const requestsData = await materialsApi.getPending(1, 100);
+        const requests = requestsData?.requests || [];
+        const userRequests = requests
+          .filter((r: any) => {
+            const requestedBy = typeof r.requestedBy === 'object' ? r.requestedBy._id : r.requestedBy;
+            return requestedBy === userId;
+          })
+          .map((r: any) => ({
+            id: r._id,
+            material: r.materialName,
+            quantity: `${r.quantity} ${r.unit}`,
+            date: new Date(r.createdAt).toLocaleDateString(),
+            status: r.status,
+          }));
+        setPendingRequests(userRequests);
+      } catch (error) {
+        console.error('Error reloading requests:', error);
+      }
+      
       setTimeout(() => {
         setShowSuccess(false);
         setSelectedMaterial(null);
@@ -124,6 +191,28 @@ export default function MaterialsPage() {
       }));
       
       setShowSuccess(true);
+      
+      // Reload pending requests
+      try {
+        const requestsData = await materialsApi.getPending(1, 100);
+        const requests = requestsData?.requests || [];
+        const userRequests = requests
+          .filter((r: any) => {
+            const requestedBy = typeof r.requestedBy === 'object' ? r.requestedBy._id : r.requestedBy;
+            return requestedBy === userId;
+          })
+          .map((r: any) => ({
+            id: r._id,
+            material: r.materialName,
+            quantity: `${r.quantity} ${r.unit}`,
+            date: new Date(r.createdAt).toLocaleDateString(),
+            status: r.status,
+          }));
+        setPendingRequests(userRequests);
+      } catch (error) {
+        console.error('Error reloading requests:', error);
+      }
+      
       setTimeout(() => {
         setShowSuccess(false);
         setSelectedMaterial(null);
@@ -164,14 +253,11 @@ export default function MaterialsPage() {
       <div className="min-h-screen bg-background">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
-          <div className="flex items-center gap-0">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div className="-ml-2">
+          <div className="flex items-center gap-0 relative">
+            <div className="absolute left-0 mt-3">
               <Logo size="md" showText={false} />
             </div>
-            <div className="flex-1 ml-0">
+            <div className="flex-1 flex flex-col items-center justify-center">
               <h1 className="font-display font-semibold text-lg">Materials</h1>
               <p className="text-xs text-muted-foreground">Request & track materials</p>
             </div>
@@ -210,8 +296,14 @@ export default function MaterialsPage() {
 
         {/* Content */}
         <div className="p-4 space-y-6">
-          {/* New Request */}
-          <Card variant="gradient" className="animate-fade-up">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <>
+              {/* New Request */}
+              <Card variant="gradient" className="animate-fade-up">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Package className="w-4 h-4 text-primary" />
@@ -346,23 +438,29 @@ export default function MaterialsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {pendingRequests.map((request) => (
-                  <div key={request.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
-                    <div>
-                      <p className="font-medium text-sm text-foreground">{request.material}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {request.quantity} units · {request.date}
-                      </p>
+                {pendingRequests.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No pending requests</p>
+                ) : (
+                  pendingRequests.map((request) => (
+                    <div key={request.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
+                      <div>
+                        <p className="font-medium text-sm text-foreground">{request.material}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {request.quantity} · {request.date}
+                        </p>
+                      </div>
+                      <StatusBadge 
+                        status={request.status === "approved" ? "success" : request.status === "rejected" ? "error" : "pending"}
+                        label={request.status}
+                      />
                     </div>
-                    <StatusBadge 
-                      status={request.status === "approved" ? "success" : "pending"}
-                      label={request.status}
-                    />
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
+            </>
+          )}
         </div>
       </div>
     </MobileLayout>

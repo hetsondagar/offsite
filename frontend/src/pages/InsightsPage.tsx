@@ -91,14 +91,11 @@ export default function InsightsPage() {
       <div className="min-h-screen bg-background">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
-          <div className="flex items-center gap-0">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div className="-ml-2">
+          <div className="flex items-center gap-0 relative">
+            <div className="absolute left-0 mt-3">
               <Logo size="md" showText={false} />
             </div>
-            <div className="flex-1 ml-0">
+            <div className="flex-1 flex flex-col items-center justify-center">
               <h1 className="font-display font-semibold text-lg">AI Insights</h1>
               <p className="text-xs text-muted-foreground">Smart analysis & predictions</p>
             </div>
@@ -133,11 +130,9 @@ export default function InsightsPage() {
                   </div>
                 </CardContent>
               </Card>
-            </>
-          )}
 
-          {/* Delay Risk Predictor */}
-          <Card variant="gradient" className="animate-fade-up stagger-1">
+              {/* Delay Risk Predictor */}
+              <Card variant="gradient" className="animate-fade-up stagger-1">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Clock className="w-4 h-4 text-primary" />
@@ -189,9 +184,9 @@ export default function InsightsPage() {
             </CardContent>
           </Card>
 
-          {/* Material Anomalies */}
-          {materialAnomalies.length > 0 && (
-            <Card variant="gradient" className="animate-fade-up stagger-2">
+              {/* Material Anomalies */}
+              {materialAnomalies.length > 0 && (
+                <Card variant="gradient" className="animate-fade-up stagger-2">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Package className="w-4 h-4 text-primary" />
@@ -209,12 +204,12 @@ export default function InsightsPage() {
                   </div>
                 ))}
               </CardContent>
-            </Card>
-          )}
+                </Card>
+              )}
 
-          {/* Project Progress Chart */}
-          {projects.length > 0 && (
-            <Card variant="gradient" className="animate-fade-up stagger-3">
+              {/* Project Progress Chart */}
+              {projects.length > 0 && (
+                <Card variant="gradient" className="animate-fade-up stagger-3">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <BarChart3 className="w-4 h-4 text-primary" />
@@ -233,9 +228,9 @@ export default function InsightsPage() {
                     </BarChart>
                   </ResponsiveContainer>
                 </ChartContainer>
-              </CardContent>
-            </Card>
-          )}
+                </CardContent>
+              </Card>
+              )}
             </>
           )}
         </div>

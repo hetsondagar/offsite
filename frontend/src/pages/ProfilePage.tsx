@@ -91,14 +91,13 @@ export default function ProfilePage() {
       <div className="min-h-screen bg-background">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
-          <div className="flex items-center gap-0">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div className="-ml-2">
+          <div className="flex items-center gap-0 relative">
+            <div className="absolute left-0 mt-3">
               <Logo size="md" showText={false} />
             </div>
-            <h1 className="font-display font-semibold text-lg ml-0">Profile</h1>
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <h1 className="font-display font-semibold text-lg">Profile</h1>
+            </div>
           </div>
         </div>
 

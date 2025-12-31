@@ -177,7 +177,7 @@ export default function DPRPage() {
   // Permission check
   if (!hasPermission("canCreateDPR")) {
     return (
-      <MobileLayout role="engineer" hideNav>
+      <MobileLayout role="engineer">
         <div className="min-h-screen bg-background flex items-center justify-center p-6">
           <Card className="max-w-md">
             <CardContent className="p-6 text-center space-y-4">
@@ -199,22 +199,21 @@ export default function DPRPage() {
   }
 
   return (
-    <MobileLayout role="engineer" hideNav>
+    <MobileLayout role="engineer">
       <div className="min-h-screen bg-background">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
-          <div className="flex items-center gap-0">
-            <Button variant="ghost" size="icon" onClick={() => step > 1 ? setStep((step - 1) as Step) : navigate("/")}>
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div className="-ml-2">
+          <div className="flex items-center gap-0 relative">
+            <div className="absolute left-0 mt-3">
               <Logo size="md" showText={false} />
             </div>
-            <div className="flex-1 ml-0">
+            <div className="flex-1 flex flex-col items-center justify-center">
               <h1 className="font-display font-semibold text-lg">Create DPR</h1>
               <p className="text-xs text-muted-foreground">{stepTitles[step]}</p>
             </div>
-            <StatusBadge status="offline" label="Offline" />
+            <div className="absolute right-0">
+              <StatusBadge status="offline" label="Offline" />
+            </div>
           </div>
 
           {/* Progress */}
