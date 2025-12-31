@@ -59,13 +59,15 @@ export default function ProfilePage() {
     <MobileLayout role={role}>
       <div className="min-h-screen bg-background">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 p-4 safe-area-top">
-          <div className="flex items-center gap-4">
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
+          <div className="flex items-center gap-0">
             <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <Logo size="sm" showText={false} />
-            <h1 className="font-display font-semibold text-lg">Profile</h1>
+            <div className="-ml-2">
+              <Logo size="md" showText={false} />
+            </div>
+            <h1 className="font-display font-semibold text-lg ml-0">Profile</h1>
           </div>
         </div>
 

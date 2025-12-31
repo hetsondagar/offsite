@@ -17,10 +17,10 @@ export function Logo({ size = "md", showText = true, variant = "default" }: Logo
   }, []);
 
   const sizes = {
-    sm: { image: "h-6", text: "text-lg", container: "gap-2" },
-    md: { image: "h-8", text: "text-2xl", container: "gap-3" },
-    lg: { image: "h-32", text: "text-4xl", container: "gap-4" },
-    xl: { image: "h-48", text: "text-5xl", container: "gap-5" },
+    sm: { image: "h-10", text: "text-xl", container: "gap-0" },
+    md: { image: "h-20", text: "text-2xl", container: "gap-0" },
+    lg: { image: "h-32", text: "text-4xl", container: "gap-0" },
+    xl: { image: "h-48", text: "text-5xl", container: "gap-0" },
   };
 
   // Use light logo for light mode, dark logo for dark mode

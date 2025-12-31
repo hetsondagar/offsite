@@ -141,13 +141,15 @@ export default function DPRPage() {
     <MobileLayout role="engineer" hideNav>
       <div className="min-h-screen bg-background">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 p-4 safe-area-top">
-          <div className="flex items-center gap-4">
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
+          <div className="flex items-center gap-0">
             <Button variant="ghost" size="icon" onClick={() => step > 1 ? setStep((step - 1) as Step) : navigate("/")}>
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <Logo size="sm" showText={false} />
-            <div className="flex-1">
+            <div className="-ml-2">
+              <Logo size="md" showText={false} />
+            </div>
+            <div className="flex-1 ml-0">
               <h1 className="font-display font-semibold text-lg">Create DPR</h1>
               <p className="text-xs text-muted-foreground">{stepTitles[step]}</p>
             </div>
