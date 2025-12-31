@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Logo } from "@/components/common/Logo";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useAppSelector } from "@/store/hooks";
 import { 
   FolderKanban, 
   Users, 
@@ -19,10 +20,12 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { projectsApi } from "@/services/api/projects";
 import { insightsApi } from "@/services/api/insights";
+import { materialsApi } from "@/services/api/materials";
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
   const { hasPermission } = usePermissions();
+  const { role } = useAppSelector((state) => state.auth);
   const [projectOverview, setProjectOverview] = useState<any[]>([]);
   const [healthScore, setHealthScore] = useState(78);
   const [kpis, setKpis] = useState({
@@ -64,7 +67,7 @@ export default function ManagerDashboard() {
   };
 
   return (
-    <MobileLayout role="manager">
+    <MobileLayout role={role || "manager"}>
       <div className="p-4 space-y-6 safe-area-top">
         {/* Header */}
         <div className="flex flex-col items-center gap-4 opacity-0 animate-fade-up">

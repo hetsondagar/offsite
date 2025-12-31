@@ -20,7 +20,6 @@ const engineerNav: NavItem[] = [
 const managerNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: FolderKanban, label: "Projects", path: "/projects" },
-  { icon: Calendar, label: "Events", path: "/events" },
   { icon: CheckSquare, label: "Approvals", path: "/approvals" },
   { icon: Lightbulb, label: "Insights", path: "/insights" },
   { icon: User, label: "Profile", path: "/profile" },
@@ -29,8 +28,6 @@ const managerNav: NavItem[] = [
 const ownerNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: FolderKanban, label: "Projects", path: "/projects" },
-  { icon: Calendar, label: "Events", path: "/events" },
-  { icon: CheckSquare, label: "Approvals", path: "/approvals" },
   { icon: Lightbulb, label: "Insights", path: "/insights" },
   { icon: Receipt, label: "Invoices", path: "/invoicing" },
   { icon: User, label: "Profile", path: "/profile" },
@@ -55,12 +52,8 @@ export function BottomNav({ role }: BottomNavProps) {
       return true; // Home and Profile are always accessible
     });
   } else if (role === "owner") {
-    navItems = ownerNav.filter(item => {
-      if (item.path === "/approvals") return hasPermission("canApproveMaterialRequests");
-      if (item.path === "/insights") return hasPermission("canViewAIInsights");
-      if (item.path === "/invoicing") return hasPermission("canViewInvoices") || hasPermission("canManageInvoices");
-      return true;
-    });
+    // Owner should see all nav items - they have all permissions
+    navItems = ownerNav;
   } else {
     navItems = managerNav.filter(item => {
       if (item.path === "/approvals") return hasPermission("canApproveMaterialRequests");
@@ -71,7 +64,7 @@ export function BottomNav({ role }: BottomNavProps) {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-t border-border/50 safe-area-bottom">
-      <div className="flex items-center justify-around px-2 py-2">
+      <div className="flex items-center justify-around px-1 py-2">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
           const Icon = item.icon;
@@ -81,7 +74,7 @@ export function BottomNav({ role }: BottomNavProps) {
               key={item.path}
               to={item.path}
               className={cn(
-                "flex flex-col items-center justify-center min-w-[64px] py-2 px-3 rounded-xl transition-all duration-300",
+                "flex flex-col items-center justify-center min-w-[60px] py-2 px-2 rounded-xl transition-all duration-300",
                 isActive 
                   ? "text-primary bg-primary/10" 
                   : "text-muted-foreground hover:text-foreground"

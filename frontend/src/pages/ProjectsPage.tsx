@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { HealthScoreRing } from "@/components/common/HealthScoreRing";
 import { Logo } from "@/components/common/Logo";
+import { useAppSelector } from "@/store/hooks";
 import { 
   ArrowLeft, 
   Building2,
@@ -21,6 +22,7 @@ import { projectsApi, Project } from "@/services/api/projects";
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
+  const { role } = useAppSelector((state) => state.auth);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,7 +44,7 @@ export default function ProjectsPage() {
   };
 
   return (
-    <MobileLayout role="manager">
+    <MobileLayout role={role || "manager"}>
       <div className="min-h-screen bg-background">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { Logo } from "@/components/common/Logo";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useAppSelector } from "@/store/hooks";
 import { AlertCircle } from "lucide-react";
 import { 
   ArrowLeft, 
@@ -24,6 +25,7 @@ import { Loader2 } from "lucide-react";
 export default function InvoicingPage() {
   const navigate = useNavigate();
   const { hasPermission } = usePermissions();
+  const { role } = useAppSelector((state) => state.auth);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null);
@@ -54,7 +56,7 @@ export default function InvoicingPage() {
   // Permission check
   if (!hasPermission("canViewInvoices") && !hasPermission("canManageInvoices")) {
     return (
-      <MobileLayout role="owner">
+      <MobileLayout role={role || "owner"}>
         <div className="min-h-screen bg-background flex items-center justify-center p-6">
           <Card className="max-w-md">
             <CardContent className="p-6 text-center space-y-4">
@@ -81,7 +83,7 @@ export default function InvoicingPage() {
   };
 
   return (
-    <MobileLayout role="manager">
+    <MobileLayout role={role || "owner"}>
       <div className="min-h-screen bg-background">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">

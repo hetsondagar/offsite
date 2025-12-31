@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { HealthScoreRing } from "@/components/common/HealthScoreRing";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { Logo } from "@/components/common/Logo";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useAppSelector } from "@/store/hooks";
 import { AlertCircle } from "lucide-react";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { 
@@ -20,10 +21,14 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, AreaChart, Area } from "recharts";
+import { insightsApi } from "@/services/api/insights";
+import { projectsApi } from "@/services/api/projects";
+import { Loader2 } from "lucide-react";
 
 export default function InsightsPage() {
   const navigate = useNavigate();
   const { hasPermission } = usePermissions();
+  const { role } = useAppSelector((state) => state.auth);
   const [siteHealth, setSiteHealth] = useState<any>(null);
   const [delayRisks, setDelayRisks] = useState<any[]>([]);
   const [materialAnomalies, setMaterialAnomalies] = useState<any[]>([]);
@@ -65,7 +70,7 @@ export default function InsightsPage() {
   // Permission check
   if (!hasPermission("canViewAIInsights")) {
     return (
-      <MobileLayout role="manager">
+      <MobileLayout role={role || "manager"}>
         <div className="min-h-screen bg-background flex items-center justify-center p-6">
           <Card className="max-w-md">
             <CardContent className="p-6 text-center space-y-4">
@@ -87,7 +92,7 @@ export default function InsightsPage() {
   }
 
   return (
-    <MobileLayout role="manager">
+    <MobileLayout role={role || "manager"}>
       <div className="min-h-screen bg-background">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
