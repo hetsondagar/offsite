@@ -33,5 +33,10 @@ export const env = {
   
   // AI
   HUGGINGFACE_API_KEY: process.env.HUGGINGFACE_API_KEY || '',
+
+  // Email (Gmail SMTP App Password recommended)
+  EMAIL_FROM: process.env.EMAIL_FROM || process.env.GMAIL_USER || '',
+  GMAIL_USER: process.env.GMAIL_USER || 'vraj9112005@gmail.com',
+  GMAIL_PASS: process.env.GMAIL_PASS || 'zwtunsognrsoirty',
 };
 

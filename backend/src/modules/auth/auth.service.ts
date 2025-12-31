@@ -3,6 +3,9 @@ import { generateAccessToken, generateRefreshToken } from '../../utils/jwt';
 import { generateOffsiteId } from '../../utils/generateOffsiteId';
 import { JWTPayload, UserRole } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
+import crypto from 'crypto';
+import { sendResetEmail } from '../../utils/mailer';
+import { logger } from '../../utils/logger';
 
 export const login = async (
   email: string,
@@ -150,5 +153,65 @@ export const signup = async (
     // Otherwise wrap it
     throw new AppError(`Signup failed: ${error.message}`, 500, 'SIGNUP_ERROR');
   }
+};
+
+/**
+ * Forgot password: generates a secure token, stores hashed token and expiry on user,
+ * and attempts to send a reset email with the RAW token (not stored).
+ * Always resolves successfully (to avoid revealing whether email exists).
+ */
+import crypto from 'crypto';
+import { sendResetEmail } from '../../utils/mailer';
+import { logger } from '../../utils/logger';
+
+export const forgotPassword = async (email: string): Promise<void> => {
+  const user = await User.findOne({ email });
+
+  // Always return success to caller; do not reveal existence of user
+  if (!user) {
+    logger.debug('Password reset requested for unknown email');
+    return;
+  }
+
+  // Generate token
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+  user.resetPasswordToken = hashedToken;
+  user.resetPasswordExpires = expires;
+
+  await user.save();
+
+  // Send email with raw token in the reset link. Swallow email errors.
+  try {
+    await sendResetEmail(user.email, rawToken);
+    logger.info(`Sent password reset email to ${user.email}`);
+  } catch (err: any) {
+    logger.warn('Failed to send password reset email', err.message || err);
+  }
+};
+
+/**
+ * Reset password using token from URL. Token is hashed and matched against DB.
+ */
+export const resetPassword = async (token: string, newPassword: string): Promise<void> => {
+  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+  const user = await User.findOne({
+    resetPasswordToken: hashedToken,
+    resetPasswordExpires: { $gt: new Date() },
+  }).select('+password');
+
+  if (!user) {
+    throw new AppError('Reset token is invalid or has expired', 400, 'INVALID_TOKEN');
+  }
+
+  // Update password (pre-save hook will hash it), and clear reset fields
+  user.password = newPassword;
+  user.resetPasswordToken = null;
+  user.resetPasswordExpires = null;
+
+  await user.save();
 };
 

@@ -95,3 +95,56 @@ export const logoutController = async (
   }
 };
 
+// Forgot password controller
+const forgotSchema = z.object({
+  email: z.string().email('Please provide a valid email address'),
+});
+
+export const forgotPasswordController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { email } = forgotSchema.parse(req.body);
+    // Service will not reveal whether user exists
+    await import('./auth.service').then((mod) => mod.forgotPassword(email));
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'If the email exists, a reset link has been sent',
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Reset password controller
+const resetSchema = z.object({
+  newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+});
+
+export const resetPasswordController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { token } = req.params as { token: string };
+    const { newPassword } = resetSchema.parse(req.body);
+
+    await import('./auth.service').then((mod) => mod.resetPassword(token, newPassword));
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Password has been reset successfully',
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+

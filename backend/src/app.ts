@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import { env } from './config/env';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import { logger } from './utils/logger';
+import { requestLogger } from './middlewares/requestLogger';
 
 // Import routes
 import authRoutes from './modules/auth/auth.routes';
@@ -61,8 +62,21 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Root
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'OffSite API - Root',
+  });
+});
+
+// Logging (minimal)
+app.use(requestLogger);
+
 // API Routes
 app.use('/api/auth', authRoutes);
+// Also mount at /auth to support direct postman tests to /auth/forgot-password
+app.use('/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/tasks', taskRoutes);
