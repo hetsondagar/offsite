@@ -1,0 +1,267 @@
+import { useState, useEffect } from "react";
+import { MobileLayout } from "@/components/layout/MobileLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/common/StatusBadge";
+import { Logo } from "@/components/common/Logo";
+import { pendingApprovals, historyApprovals } from "@/data/dummy";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useAppSelector } from "@/store/hooks";
+import { AlertCircle } from "lucide-react";
+import { 
+  ArrowLeft, 
+  Package, 
+  Check,
+  X,
+  AlertTriangle,
+  ChevronRight,
+  User
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
+
+interface Approval {
+  id: string;
+  type: "material" | "expense" | "leave";
+  title: string;
+  description: string;
+  requestedBy: string;
+  project: string;
+  date: string;
+  quantity?: number;
+  unit?: string;
+  isAnomaly?: boolean;
+  anomalyReason?: string;
+  status: "pending" | "approved" | "rejected";
+}
+
+export default function ApprovalsPage() {
+  const navigate = useNavigate();
+  const { hasPermission } = usePermissions();
+  const userId = useAppSelector((state) => state.auth.userId);
+  const [approvals, setApprovals] = useState([...pendingApprovals]);
+  const [history, setHistory] = useState([...historyApprovals]);
+
+  const handleApprove = (id: string) => {
+    if (!hasPermission("canApproveMaterialRequests")) return;
+    
+    const approval = approvals.find(a => a.id === id);
+    if (approval) {
+      // Prevent self-approval
+      if (approval.requestedBy === userId) {
+        alert("You cannot approve your own request");
+        return;
+      }
+      
+      setApprovals(approvals.filter(a => a.id !== id));
+      setHistory([{ 
+        ...approval, 
+        status: "approved" as const,
+        approvedBy: userId || "unknown",
+        approvedAt: new Date().toISOString(),
+      }, ...history]);
+    }
+  };
+
+  const handleReject = (id: string) => {
+    if (!hasPermission("canApproveMaterialRequests")) return;
+    
+    const approval = approvals.find(a => a.id === id);
+    if (approval) {
+      // Prevent self-rejection
+      if (approval.requestedBy === userId) {
+        alert("You cannot reject your own request");
+        return;
+      }
+      
+      setApprovals(approvals.filter(a => a.id !== id));
+      setHistory([{ 
+        ...approval, 
+        status: "rejected" as const,
+        rejectedBy: userId || "unknown",
+        rejectedAt: new Date().toISOString(),
+      }, ...history]);
+    }
+  };
+
+  // Permission check
+  if (!hasPermission("canApproveMaterialRequests")) {
+    return (
+      <MobileLayout role="manager">
+        <div className="min-h-screen bg-background flex items-center justify-center p-6">
+          <Card className="max-w-md">
+            <CardContent className="p-6 text-center space-y-4">
+              <AlertCircle className="w-12 h-12 text-destructive mx-auto" />
+              <h2 className="font-display text-xl font-semibold text-foreground">
+                Access Denied
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                You don't have permission to approve requests. Only Project Managers can approve material requests.
+              </p>
+              <Button onClick={() => navigate("/")} className="w-full">
+                Go to Dashboard
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </MobileLayout>
+    );
+  }
+
+  return (
+    <MobileLayout role="manager">
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 p-4 safe-area-top">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <Logo size="sm" showText={false} />
+            <div className="flex-1">
+              <h1 className="font-display font-semibold text-lg">Approvals</h1>
+              <p className="text-xs text-muted-foreground">{approvals.length} pending requests</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 space-y-6">
+          {/* Pending Approvals */}
+          <div className="space-y-3">
+            <h2 className="font-display font-semibold text-base text-foreground">Pending</h2>
+            
+            {approvals.length === 0 ? (
+              <Card variant="gradient">
+                <CardContent className="p-8 text-center">
+                  <Check className="w-12 h-12 text-success mx-auto mb-3" />
+                  <p className="font-medium text-foreground">All caught up!</p>
+                  <p className="text-sm text-muted-foreground">No pending approvals</p>
+                </CardContent>
+              </Card>
+            ) : (
+              approvals.map((approval, index) => (
+                <Card 
+                  key={approval.id}
+                  variant="gradient"
+                  className={cn(
+                    "opacity-0 animate-fade-up",
+                    approval.isAnomaly && "border-warning/30"
+                  )}
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <CardContent className="p-4">
+                    {/* Anomaly Warning */}
+                    {approval.isAnomaly && (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-warning/10 border border-warning/30 mb-3">
+                        <AlertTriangle className="w-4 h-4 text-warning" />
+                        <span className="text-xs text-warning font-medium">
+                          {approval.anomalyReason}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-xl bg-primary/10">
+                        <Package className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h3 className="font-medium text-foreground">{approval.title}</h3>
+                            <p className="text-xs text-muted-foreground">{approval.description}</p>
+                          </div>
+                          {approval.quantity && (
+                            <div className="text-right shrink-0">
+                              <p className="font-display font-bold text-foreground">
+                                {approval.quantity}
+                              </p>
+                              <p className="text-xs text-muted-foreground">{approval.unit}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <User className="w-3 h-3" />
+                            {approval.requestedBy}
+                          </div>
+                          <span>•</span>
+                          <span>{approval.project}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">{approval.date}</p>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 mt-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 border-destructive/50 text-destructive hover:bg-destructive/10"
+                        onClick={() => handleReject(approval.id)}
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Reject
+                      </Button>
+                      <Button
+                        variant="success"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => handleApprove(approval.id)}
+                      >
+                        <Check className="w-4 h-4 mr-1" />
+                        Approve
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+
+          {/* History */}
+          <div className="space-y-3">
+            <h2 className="font-display font-semibold text-base text-foreground">History</h2>
+            
+            {history.map((approval, index) => (
+              <Card 
+                key={approval.id}
+                variant="gradient"
+                className="opacity-0 animate-fade-up"
+                style={{ animationDelay: `${(index + approvals.length) * 100}ms` }}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "p-2 rounded-xl",
+                        approval.status === "approved" ? "bg-success/10" : "bg-destructive/10"
+                      )}>
+                        {approval.status === "approved" ? (
+                          <Check className="w-4 h-4 text-success" />
+                        ) : (
+                          <X className="w-4 h-4 text-destructive" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm text-foreground">{approval.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {approval.quantity} {approval.unit} • {approval.date}
+                        </p>
+                      </div>
+                    </div>
+                    <StatusBadge 
+                      status={approval.status === "approved" ? "success" : "error"}
+                      label={approval.status}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+    </MobileLayout>
+  );
+}

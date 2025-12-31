@@ -1,0 +1,36 @@
+{
+  "name": "OffSite - Construction Field Management",
+  "short_name": "OffSite",
+  "description": "Mobile-first construction site management platform for Indian construction sites",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0d14",
+  "theme_color": "#ff6b35",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Create DPR",
+      "short_name": "DPR",
+      "description": "Create a daily progress report",
+      "url": "/dpr",
+      "icons": []
+    },
+    {
+      "name": "Mark Attendance",
+      "short_name": "Attendance",
+      "description": "Check in or check out",
+      "url": "/attendance",
+      "icons": []
+    }
+  ]
+}
+
