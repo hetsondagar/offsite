@@ -90,9 +90,12 @@ export const signup = async (
     // Generate OffSite ID ONCE at signup (never regenerated)
     const offsiteId = await generateOffsiteId(role);
     
-    // Check for duplicate phone if provided
-    if (phone && phone.trim().length > 0) {
-      const trimmedPhone = phone.trim();
+    // Check for duplicate phone if provided (only check non-empty phones)
+    // Phone is completely optional - skip this check if not provided
+    const trimmedPhone = phone?.trim();
+    if (trimmedPhone && trimmedPhone.length > 0) {
+      // Only check for existing users with the same phone number
+      // Since we only check when phone is non-empty, this will only match non-empty phones
       const existingUserWithPhone = await User.findOne({ phone: trimmedPhone });
       if (existingUserWithPhone) {
         throw new AppError('Phone number already exists. Please use a different phone number.', 409, 'DUPLICATE_ENTRY');
@@ -112,8 +115,9 @@ export const signup = async (
     };
     
     // Only add phone if provided and not empty - completely omit if not provided
-    if (phone && phone.trim().length > 0) {
-      userData.phone = phone.trim();
+    // Phone is completely optional - don't include it in userData if not provided
+    if (trimmedPhone && trimmedPhone.length > 0) {
+      userData.phone = trimmedPhone;
     }
     // Explicitly do NOT set phone field if not provided (don't set to undefined or empty string)
     
@@ -128,12 +132,10 @@ export const signup = async (
         // Provide more specific error messages
         if (field === 'email') {
           throw new AppError('Email already exists. Please login instead.', 409, 'DUPLICATE_ENTRY');
-        } else if (field === 'phone') {
-          // This shouldn't happen now since we removed unique index, but keep for safety
-          throw new AppError('Phone number already exists. Please use a different phone number.', 409, 'DUPLICATE_ENTRY');
         } else if (field === 'offsiteId') {
           throw new AppError('Account creation failed. Please try again.', 409, 'DUPLICATE_ENTRY');
         }
+        // Phone field no longer has unique constraint, so this shouldn't happen
         throw new AppError(`${field.charAt(0).toUpperCase() + field.slice(1)} already exists`, 409, 'DUPLICATE_ENTRY');
       }
       // Handle validation errors

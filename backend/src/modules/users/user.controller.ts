@@ -65,6 +65,45 @@ export const getUserById = async (
  * Update user profile
  * IMPORTANT: Prevents updates to offsiteId (immutable field)
  */
+/**
+ * Search user by OffSite ID
+ */
+export const getUserByOffsiteId = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    const { offsiteId } = req.params;
+
+    if (!offsiteId) {
+      throw new AppError('OffSite ID is required', 400, 'VALIDATION_ERROR');
+    }
+
+    const user = await User.findOne({ offsiteId: offsiteId.trim() })
+      .populate('assignedProjects', 'name location')
+      .select('-__v -password');
+
+    if (!user) {
+      throw new AppError('User not found with this OffSite ID', 404, 'USER_NOT_FOUND');
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'User found successfully',
+      data: user,
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const updateUser = async (
   req: Request,
   res: Response,

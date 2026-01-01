@@ -21,6 +21,7 @@ export interface Permissions {
   canManageUsers: boolean;
   canSetApprovalRules: boolean;
   canExportReports: boolean;
+  canSendNotifications: boolean;
 }
 
 const rolePermissions: Record<UserRole, Permissions> = {
@@ -45,6 +46,7 @@ const rolePermissions: Record<UserRole, Permissions> = {
     canManageUsers: false,
     canSetApprovalRules: false,
     canExportReports: false,
+    canSendNotifications: false,
   },
   manager: {
     canCreateDPR: false,
@@ -67,6 +69,7 @@ const rolePermissions: Record<UserRole, Permissions> = {
     canManageUsers: false,
     canSetApprovalRules: false,
     canExportReports: true,
+    canSendNotifications: true,
   },
   owner: {
     canCreateDPR: false,
@@ -89,6 +92,7 @@ const rolePermissions: Record<UserRole, Permissions> = {
     canManageUsers: true,
     canSetApprovalRules: true,
     canExportReports: true,
+    canSendNotifications: true,
   },
 };
 

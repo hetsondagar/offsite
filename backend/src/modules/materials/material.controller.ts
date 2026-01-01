@@ -6,6 +6,8 @@ import { detectMaterialAnomaly } from '../../utils/anomalyDetector';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 import { logger } from '../../utils/logger';
+import { createNotification } from '../notifications/notification.service';
+import { User } from '../users/user.model';
 
 const createMaterialRequestSchema = z.object({
   projectId: z.string(),
@@ -143,11 +145,33 @@ export const approveRequest = async (
     request.approvedAt = new Date();
     await request.save();
 
-    await request.populate('requestedBy', 'name phone');
+    await request.populate('requestedBy', 'name phone offsiteId');
     await request.populate('approvedBy', 'name phone');
     await request.populate('projectId', 'name');
 
     logger.info(`Material request approved: ${id} by ${req.user.userId}`);
+
+    // Send notification to the requester
+    try {
+      const requester = request.requestedBy as any;
+      if (requester && requester._id) {
+        await createNotification({
+          userId: requester._id.toString(),
+          offsiteId: requester.offsiteId,
+          type: 'material_approved',
+          title: 'Material Request Approved',
+          message: `Your material request for ${request.materialName} (${request.quantity} ${request.unit}) has been approved.`,
+          data: {
+            materialRequestId: request._id.toString(),
+            projectId: request.projectId?._id?.toString(),
+            projectName: request.projectId?.name,
+          },
+        });
+      }
+    } catch (notifError: any) {
+      logger.warn('Failed to send approval notification:', notifError.message);
+      // Don't fail the request if notification fails
+    }
 
     const response: ApiResponse = {
       success: true,
@@ -193,11 +217,33 @@ export const rejectRequest = async (
     request.rejectedAt = new Date();
     await request.save();
 
-    await request.populate('requestedBy', 'name phone');
+    await request.populate('requestedBy', 'name phone offsiteId');
     await request.populate('rejectedBy', 'name phone');
     await request.populate('projectId', 'name');
 
     logger.info(`Material request rejected: ${id} by ${req.user.userId}`);
+
+    // Send notification to the requester
+    try {
+      const requester = request.requestedBy as any;
+      if (requester && requester._id) {
+        await createNotification({
+          userId: requester._id.toString(),
+          offsiteId: requester.offsiteId,
+          type: 'material_rejected',
+          title: 'Material Request Rejected',
+          message: `Your material request for ${request.materialName} (${request.quantity} ${request.unit}) has been rejected.`,
+          data: {
+            materialRequestId: request._id.toString(),
+            projectId: request.projectId?._id?.toString(),
+            projectName: request.projectId?.name,
+          },
+        });
+      }
+    } catch (notifError: any) {
+      logger.warn('Failed to send rejection notification:', notifError.message);
+      // Don't fail the request if notification fails
+    }
 
     const response: ApiResponse = {
       success: true,

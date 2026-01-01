@@ -53,12 +53,15 @@ const userSchema = new Schema<IUser>(
     phone: {
       type: String,
       trim: true,
+      required: false, // Explicitly mark as optional
       default: undefined, // Don't set default, leave it undefined if not provided
       // Only validate if phone is provided
       validate: {
         validator: function(v: string | undefined) {
           // If phone is provided, it must not be empty after trimming
-          return !v || v.trim().length > 0;
+          // If undefined or null, validation passes (field is optional)
+          if (v === undefined || v === null) return true;
+          return v.trim().length > 0;
         },
         message: 'Phone number cannot be empty',
       },
