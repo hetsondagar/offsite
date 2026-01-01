@@ -3,6 +3,8 @@ import {
   getSiteHealth,
   getDelayRisks,
   getMaterialAnomalies,
+  getLabourGap,
+  getApprovalDelays,
 } from './insights.controller';
 import { authenticateUser } from '../../middlewares/auth.middleware';
 import { authorizePermission } from '../../middlewares/role.middleware';
@@ -26,6 +28,18 @@ router.get(
   authenticateUser,
   authorizePermission('canViewAIInsights'),
   getMaterialAnomalies
+);
+router.get(
+  '/labour-gap',
+  authenticateUser,
+  authorizePermission('canViewAIInsights'),
+  getLabourGap
+);
+router.get(
+  '/approval-delays',
+  authenticateUser,
+  authorizePermission('canViewAIInsights'),
+  getApprovalDelays
 );
 
 export default router;

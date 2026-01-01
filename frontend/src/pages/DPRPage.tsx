@@ -30,7 +30,7 @@ import { projectsApi } from "@/services/api/projects";
 import { tasksApi } from "@/services/api/tasks";
 import { dprApi } from "@/services/api/dpr";
 
-type Step = 1 | 2 | 3 | 4 | 5;
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 export default function DPRPage() {
   const navigate = useNavigate();
@@ -51,6 +51,14 @@ export default function DPRPage() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+  
+  // Work stoppage state
+  const [workStoppageOccurred, setWorkStoppageOccurred] = useState(false);
+  const [workStoppageReason, setWorkStoppageReason] = useState<string>("");
+  const [workStoppageDuration, setWorkStoppageDuration] = useState<number>(0);
+  const [workStoppageRemarks, setWorkStoppageRemarks] = useState("");
+  const [workStoppageEvidencePhotos, setWorkStoppageEvidencePhotos] = useState<File[]>([]);
+  const [workStoppageEvidencePreviews, setWorkStoppageEvidencePreviews] = useState<string[]>([]);
 
   // Check permission
   useEffect(() => {
@@ -135,19 +143,58 @@ export default function DPRPage() {
     }
   };
 
+  const handleWorkStoppagePhotoUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.multiple = true;
+    input.onchange = (e: any) => {
+      const files = Array.from(e.target.files) as File[];
+      setWorkStoppageEvidencePhotos(prev => [...prev, ...files]);
+      
+      // Create previews
+      files.forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = (e: any) => {
+          setWorkStoppageEvidencePreviews(prev => [...prev, e.target.result]);
+        };
+        reader.readAsDataURL(file);
+      });
+    };
+    input.click();
+  };
+
   const handleSubmit = async () => {
     if (!selectedProject || !selectedTask) return;
+    
+    // Validate work stoppage if occurred
+    if (workStoppageOccurred && (!workStoppageReason || workStoppageDuration <= 0)) {
+      alert('Please provide reason and duration for work stoppage');
+      return;
+    }
     
     setIsSubmitting(true);
     
     try {
+      // Prepare work stoppage data
+      const workStoppage = workStoppageOccurred ? {
+        occurred: true,
+        reason: workStoppageReason as any,
+        durationHours: workStoppageDuration,
+        remarks: workStoppageRemarks || undefined,
+        evidencePhotos: [], // Will be populated after upload
+      } : {
+        occurred: false,
+      };
+
       // Submit to API with actual photo files
       await dprApi.create({
         projectId: selectedProject,
         taskId: selectedTask,
         notes: notes,
         generateAISummary: true, // Always generate AI summary
-      }, photos.length > 0 ? photos : undefined);
+        workStoppage: workStoppage as any,
+      }, photos.length > 0 ? photos : undefined, workStoppageEvidencePhotos.length > 0 ? workStoppageEvidencePhotos : undefined);
 
       setShowSuccess(true);
       setTimeout(() => navigate("/"), 2000);
@@ -164,12 +211,34 @@ export default function DPRPage() {
         photoBase64.push(base64);
       }
       
+      // Convert work stoppage evidence photos to base64
+      const stoppageEvidenceBase64: string[] = [];
+      for (const photo of workStoppageEvidencePhotos) {
+        const reader = new FileReader();
+        const base64 = await new Promise<string>((resolve) => {
+          reader.onload = (e: any) => resolve(e.target.result);
+          reader.readAsDataURL(photo);
+        });
+        stoppageEvidenceBase64.push(base64);
+      }
+
+      const workStoppageData = workStoppageOccurred ? {
+        occurred: true,
+        reason: workStoppageReason,
+        durationHours: workStoppageDuration,
+        remarks: workStoppageRemarks || undefined,
+        evidencePhotos: stoppageEvidenceBase64,
+      } : {
+        occurred: false,
+      };
+      
       const dprId = await saveDPR({
         projectId: selectedProject,
         taskId: selectedTask,
         photos: photoBase64,
         notes: notes,
         aiSummary: aiSummary,
+        workStoppage: workStoppageData as any,
         timestamp: Date.now(),
         createdBy: userId || "unknown",
         createdAt: new Date().toISOString(),
@@ -185,6 +254,7 @@ export default function DPRPage() {
           photos: photoBase64,
           notes: notes,
           aiSummary: aiSummary,
+          workStoppage: workStoppageData,
           createdBy: userId,
           createdAt: new Date().toISOString(),
         },
@@ -202,7 +272,8 @@ export default function DPRPage() {
     2: "Upload Photos",
     3: "Select Task",
     4: "Add Notes",
-    5: "Review & Submit",
+    5: "Work Stoppage",
+    6: "Review & Submit",
   };
 
   // Permission check
@@ -249,7 +320,7 @@ export default function DPRPage() {
 
           {/* Progress */}
           <div className="flex gap-1 mt-4">
-            {[1, 2, 3, 4, 5].map((s) => (
+            {[1, 2, 3, 4, 5, 6].map((s) => (
               <div
                 key={s}
                 className={cn(
@@ -483,13 +554,156 @@ export default function DPRPage() {
                 size="lg"
                 onClick={() => setStep(5)}
               >
+                Continue
+              </Button>
+            </div>
+          )}
+
+          {/* Step 5: Work Stoppage */}
+          {step === 5 && (
+            <div className="space-y-4 animate-fade-up">
+              <Card variant="gradient">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Work Stoppage</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Was work stopped or significantly slowed today?
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex gap-3">
+                    <Button
+                      variant={workStoppageOccurred ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => setWorkStoppageOccurred(true)}
+                    >
+                      Yes
+                    </Button>
+                    <Button
+                      variant={!workStoppageOccurred ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => {
+                        setWorkStoppageOccurred(false);
+                        setWorkStoppageReason("");
+                        setWorkStoppageDuration(0);
+                        setWorkStoppageRemarks("");
+                        setWorkStoppageEvidencePhotos([]);
+                        setWorkStoppageEvidencePreviews([]);
+                      }}
+                    >
+                      No
+                    </Button>
+                  </div>
+
+                  {workStoppageOccurred && (
+                    <div className="space-y-4 pt-4 border-t border-border/50">
+                      <div>
+                        <label className="text-sm font-medium text-foreground mb-2 block">
+                          Reason *
+                        </label>
+                        <select
+                          value={workStoppageReason}
+                          onChange={(e) => setWorkStoppageReason(e.target.value)}
+                          className="w-full p-3 rounded-xl bg-muted/50 border border-border/50 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          required
+                        >
+                          <option value="">Select reason</option>
+                          <option value="MATERIAL_DELAY">Material Delay</option>
+                          <option value="LABOUR_SHORTAGE">Labour Shortage</option>
+                          <option value="WEATHER">Weather</option>
+                          <option value="MACHINE_BREAKDOWN">Machine Breakdown</option>
+                          <option value="APPROVAL_PENDING">Approval Pending</option>
+                          <option value="SAFETY_ISSUE">Safety Issue</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium text-foreground mb-2 block">
+                          Duration (Hours) *
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={workStoppageDuration || ""}
+                          onChange={(e) => setWorkStoppageDuration(parseFloat(e.target.value) || 0)}
+                          placeholder="e.g., 2.5"
+                          className="bg-muted/50 text-foreground"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium text-foreground mb-2 block">
+                          Remarks (Optional)
+                        </label>
+                        <textarea
+                          value={workStoppageRemarks}
+                          onChange={(e) => setWorkStoppageRemarks(e.target.value)}
+                          placeholder="Additional details about the stoppage..."
+                          className="w-full h-24 p-3 rounded-xl bg-muted/50 border border-border/50 text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium text-foreground mb-2 block">
+                          Evidence Photos (Optional)
+                        </label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full"
+                          onClick={handleWorkStoppagePhotoUpload}
+                        >
+                          <Camera className="w-4 h-4 mr-2" />
+                          Add Evidence Photos
+                        </Button>
+                        {workStoppageEvidencePreviews.length > 0 && (
+                          <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
+                            {workStoppageEvidencePreviews.map((preview, index) => (
+                              <div key={index} className="relative shrink-0">
+                                <img 
+                                  src={preview} 
+                                  alt={`Evidence ${index + 1}`}
+                                  className="w-16 h-16 rounded-lg object-cover"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setWorkStoppageEvidencePhotos(prev => prev.filter((_, i) => i !== index));
+                                    setWorkStoppageEvidencePreviews(prev => prev.filter((_, i) => i !== index));
+                                  }}
+                                  className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center text-xs"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Button 
+                className="w-full" 
+                size="lg"
+                onClick={() => {
+                  if (workStoppageOccurred && (!workStoppageReason || workStoppageDuration <= 0)) {
+                    alert('Please provide reason and duration for work stoppage');
+                    return;
+                  }
+                  setStep(6);
+                }}
+              >
                 Continue to Review
               </Button>
             </div>
           )}
 
-          {/* Step 5: Review & Submit */}
-          {step === 5 && (
+          {/* Step 6: Review & Submit */}
+          {step === 6 && (
             <div className="space-y-4 animate-fade-up">
               <Card variant="gradient">
                 <CardHeader className="pb-3">
@@ -530,6 +744,30 @@ export default function DPRPage() {
                       <p className="text-sm text-foreground mt-1">
                         {aiSummary || notes}
                       </p>
+                    </div>
+                  )}
+
+                  {workStoppageOccurred && (
+                    <div className="p-3 rounded-xl bg-warning/10 border border-warning/30">
+                      <span className="text-xs text-warning font-medium mb-2 block">Work Stoppage Reported</span>
+                      <div className="space-y-1 text-sm">
+                        <p className="text-foreground">
+                          <span className="text-muted-foreground">Reason:</span> {workStoppageReason.replace('_', ' ')}
+                        </p>
+                        <p className="text-foreground">
+                          <span className="text-muted-foreground">Duration:</span> {workStoppageDuration} hours
+                        </p>
+                        {workStoppageRemarks && (
+                          <p className="text-foreground">
+                            <span className="text-muted-foreground">Remarks:</span> {workStoppageRemarks}
+                          </p>
+                        )}
+                        {workStoppageEvidencePreviews.length > 0 && (
+                          <div className="mt-2">
+                            <span className="text-muted-foreground text-xs">Evidence Photos: {workStoppageEvidencePreviews.length}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </CardContent>

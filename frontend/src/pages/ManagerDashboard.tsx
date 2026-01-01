@@ -85,9 +85,42 @@ export default function ManagerDashboard() {
           
           const attendanceCounts = await Promise.all(attendancePromises);
           const totalCheckedIn = attendanceCounts.reduce((sum, count) => sum + count, 0);
-          // Assuming average team size per project - in production, get from project members
-          const estimatedTeamSize = projects.length * 5; // Placeholder
-          attendancePercentage = estimatedTeamSize > 0 ? Math.round((totalCheckedIn / estimatedTeamSize) * 100) : 0;
+          
+          // Calculate actual team size from project members (engineers only)
+          let totalEngineers = 0;
+          for (const project of projects) {
+            if (project.members && Array.isArray(project.members)) {
+              // Count engineers in project members
+              const engineerCount = project.members.filter((member: any) => {
+                const memberRole = typeof member === 'object' ? member.role : null;
+                return memberRole === 'engineer';
+              }).length;
+              totalEngineers += engineerCount;
+            }
+          }
+          
+          // If members not populated, fetch from API
+          if (totalEngineers === 0) {
+            // Fallback: try to get member count from project detail
+            try {
+              const projectDetails = await Promise.all(
+                projects.slice(0, 3).map((p: any) => 
+                  projectsApi.getById(p._id).catch(() => null)
+                )
+              );
+              const validProjects = projectDetails.filter(p => p !== null);
+              totalEngineers = validProjects.reduce((sum: number, p: any) => {
+                if (p?.project?.members) {
+                  return sum + p.project.members.filter((m: any) => m.role === 'engineer').length;
+                }
+                return sum;
+              }, 0);
+            } catch (error) {
+              console.error('Error fetching project details for attendance calculation:', error);
+            }
+          }
+          
+          attendancePercentage = totalEngineers > 0 ? Math.round((totalCheckedIn / totalEngineers) * 100) : 0;
         }
       } catch (error) {
         console.error('Error calculating attendance:', error);

@@ -16,13 +16,23 @@ export const env = {
   JWT_REFRESH_EXPIRY: process.env.JWT_REFRESH_EXPIRY || '7d',
   
   // OTP
-  OTP_SECRET: process.env.OTP_SECRET || 'mock-otp-secret',
+  OTP_SECRET: (() => {
+    const secret = process.env.OTP_SECRET;
+    if (!secret) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('OTP_SECRET must be set in production environment');
+      }
+      return 'mock-otp-secret-dev-only';
+    }
+    return secret;
+  })(),
   OTP_EXPIRY: process.env.OTP_EXPIRY || '5m',
   
   // Cloudinary
-  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || '',
-  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || '',
-  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || '',
+  CLOUDINARY_URL: process.env.CLOUDINARY_URL || 'cloudinary://325231953691433:4Z0bNThOPM0iMZuo9PtiwmwnfVc@dkemsv6ho',
+  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || 'dkemsv6ho',
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || '325231953691433',
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || '4Z0bNThOPM0iMZuo9PtiwmwnfVc',
   
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
@@ -43,5 +53,8 @@ export const env = {
   EMAIL_FROM: process.env.EMAIL_FROM || process.env.GMAIL_USER || '',
   GMAIL_USER: process.env.GMAIL_USER || 'vraj9112005@gmail.com',
   GMAIL_PASS: process.env.GMAIL_PASS || 'zwtunsognrsoirty',
+  
+  // MapTiler
+  MAPTILER_API_KEY: process.env.VITE_MAPTILER_KEY || process.env.MAPTILER_API_KEY || 'g51nNpCPKcQQstInYAW2',
 };
 

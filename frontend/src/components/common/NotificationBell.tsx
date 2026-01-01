@@ -41,12 +41,14 @@ export function NotificationBell() {
 
   const handleAcceptInvitation = async (invitationId: string) => {
     try {
-      await notificationsApi.acceptInvitation(invitationId);
-      toast.success('Project invitation accepted!');
+      const result = await notificationsApi.acceptInvitation(invitationId);
+      toast.success('Project invitation accepted! You have been added to the project.');
       await loadInvitations();
       setIsOpen(false);
       // Refresh the page to show updated projects
-      window.location.reload();
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (error: any) {
       console.error('Error accepting invitation:', error);
       toast.error(error.message || 'Failed to accept invitation');

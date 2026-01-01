@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { ThemeProvider, useTheme } from "next-themes";
+import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -27,20 +27,64 @@ import SyncPage from "./pages/SyncPage";
 import InvoicingPage from "./pages/InvoicingPage";
 import EventsPage from "./pages/EventsPage";
 import AICommandCenter from "./pages/AICommandCenter";
+import TasksPage from "./pages/TasksPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 function FaviconUpdater() {
-  const { theme, resolvedTheme } = useTheme();
-
   useEffect(() => {
-    const favicon = document.getElementById('favicon') as HTMLLinkElement;
-    if (favicon) {
-      const currentTheme = resolvedTheme || theme || 'dark';
-      favicon.href = currentTheme === 'dark' ? '/logodark.png' : '/logo.png';
+    // Function to update favicon based on browser's color scheme preference
+    const updateFavicon = () => {
+      const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const faviconPath = isDarkMode ? '/logodark.png' : '/logo.png';
+      
+      // Update the main favicon (id="favicon")
+      const favicon = document.getElementById('favicon') as HTMLLinkElement;
+      if (favicon) {
+        favicon.href = faviconPath;
+      }
+
+      // Update all other favicon links (excluding media query ones)
+      const faviconLinks = document.querySelectorAll('link[rel="icon"]:not([media])');
+      faviconLinks.forEach((link) => {
+        const linkElement = link as HTMLLinkElement;
+        linkElement.href = faviconPath;
+      });
+
+      // Also update apple-touch-icon
+      const appleTouchIcon = document.getElementById('apple-touch-icon') as HTMLLinkElement;
+      if (appleTouchIcon) {
+        appleTouchIcon.href = faviconPath;
+      }
+    };
+
+    // Initial update
+    updateFavicon();
+
+    // Listen for changes in color scheme preference
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
+      updateFavicon();
+    };
+
+    // Modern browsers (addEventListener)
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleChange);
+    } else {
+      // Fallback for older browsers (addListener)
+      mediaQuery.addListener(handleChange);
     }
-  }, [theme, resolvedTheme]);
+
+    // Cleanup
+    return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', handleChange);
+      } else if (mediaQuery.removeListener) {
+        mediaQuery.removeListener(handleChange);
+      }
+    };
+  }, []);
 
   return null;
 }
@@ -78,7 +122,7 @@ function AppContent() {
         <FaviconUpdater />
         <Toaster />
         <Sonner />
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_relativeSplatPath: true }}>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
@@ -97,6 +141,7 @@ function AppContent() {
             <Route path="/invoicing" element={<InvoicingPage />} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/ai-command" element={<AICommandCenter />} />
+            <Route path="/tasks" element={<TasksPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

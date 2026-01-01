@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { MaterialRequest } from './material.model';
 import { MaterialCatalog } from './material-catalog.model';
 import { detectMaterialAnomaly } from '../../utils/anomalyDetector';
+import { calculateApprovalDelay } from '../../services/approvalDelay.service';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 import { logger } from '../../utils/logger';
@@ -78,26 +79,49 @@ export const getPendingRequests = async (
     const skip = (page - 1) * limit;
 
     const query: any = { status: 'pending' };
+    
     if (req.user.role === 'engineer') {
+      // Engineers can only see their own requests
       query.requestedBy = req.user.userId;
+    } else if (req.user.role === 'manager') {
+      // Managers can see requests from projects they are members of
+      const { Project } = await import('../projects/project.model');
+      const userProjects = await Project.find({
+        members: req.user.userId,
+      }).select('_id');
+      const projectIds = userProjects.map((p) => p._id);
+      query.projectId = { $in: projectIds };
     }
+    // Owners can see all requests (no filter)
 
     const [requests, total] = await Promise.all([
       MaterialRequest.find(query)
-        .populate('requestedBy', 'name phone')
-        .populate('projectId', 'name')
+        .populate('requestedBy', 'name phone offsiteId')
+        .populate('projectId', 'name location')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
-        .select('-__v'),
+        .select('-__v'), // reason field is included by default
       MaterialRequest.countDocuments(query),
     ]);
+
+    // Add approval delay information to each pending request
+    const requestsWithDelay = requests.map((request: any) => {
+      const requestObj = request.toObject();
+      if (request.status === 'pending') {
+        const delay = calculateApprovalDelay(request);
+        requestObj.delayHours = delay.delayHours;
+        requestObj.delayDays = delay.delayDays;
+        requestObj.delaySeverity = delay.severity;
+      }
+      return requestObj;
+    });
 
     const response: ApiResponse = {
       success: true,
       message: 'Pending requests retrieved successfully',
       data: {
-        requests,
+        requests: requestsWithDelay,
         pagination: {
           page,
           limit,

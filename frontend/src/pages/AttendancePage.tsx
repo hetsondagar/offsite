@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,8 @@ import {
   Check,
   Loader2,
   Navigation,
-  WifiOff
+  WifiOff,
+  RefreshCw
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,15 @@ import { useAppDispatch } from "@/store/hooks";
 import { addPendingItem } from "@/store/slices/offlineSlice";
 import { attendanceApi } from "@/services/api/attendance";
 import { projectsApi } from "@/services/api/projects";
+import { toast } from "sonner";
+
+const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || 'g51nNpCPKcQQstInYAW2';
+
+interface LocationData {
+  latitude: number;
+  longitude: number;
+  address: string;
+}
 
 export default function AttendancePage() {
   const navigate = useNavigate();
@@ -33,10 +43,13 @@ export default function AttendancePage() {
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
-  const [location, setLocation] = useState<string | null>(null);
+  const [location, setLocation] = useState<LocationData | null>(null);
   const [checkInTime, setCheckInTime] = useState<string | null>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
 
   // Load projects
   useEffect(() => {
@@ -46,9 +59,15 @@ export default function AttendancePage() {
         setProjects(data?.projects || []);
         if (data?.projects && data.projects.length > 0) {
           setSelectedProject(data.projects[0]._id);
+        } else {
+          toast.warning('No projects available. Please contact your administrator.');
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error loading projects:', error);
+        const errorMessage = error?.message || 'Failed to load projects';
+        toast.error(errorMessage);
+        // Set empty projects array to prevent further errors
+        setProjects([]);
       }
     };
     loadProjects();
@@ -61,35 +80,195 @@ export default function AttendancePage() {
     }
   }, [hasPermission, navigate]);
 
+  // Initialize MapTiler map when location is available
+  useEffect(() => {
+    if (location && mapContainerRef.current && !mapInstanceRef.current) {
+      // Check if MapTiler SDK is already loaded
+      // @ts-ignore
+      const maptiler = window.maptilerSdk || window.maptiler;
+      if (maptiler && mapContainerRef.current) {
+        // @ts-ignore
+        maptiler.config.apiKey = MAPTILER_KEY;
+        // @ts-ignore
+        const map = new maptiler.Map({
+          container: mapContainerRef.current,
+          style: 'https://api.maptiler.com/maps/streets-v2/style.json?key=' + MAPTILER_KEY,
+          center: [location.longitude, location.latitude],
+          zoom: 16,
+        });
+
+        // Add marker
+        // @ts-ignore
+        new maptiler.Marker({ color: '#3b82f6' })
+          .setLngLat([location.longitude, location.latitude])
+          .addTo(map);
+
+        mapInstanceRef.current = map;
+        return;
+      }
+
+      // Load MapTiler SDK from CDN (more reliable than GL JS)
+      const script = document.createElement('script');
+      script.src = `https://unpkg.com/@maptiler/sdk@latest/dist/maptiler-sdk.umd.js`;
+      script.onload = () => {
+        // @ts-ignore
+        const maptiler = window.maptilerSdk || window.maptiler;
+        if (maptiler && mapContainerRef.current) {
+          // @ts-ignore
+          maptiler.config.apiKey = MAPTILER_KEY;
+          // @ts-ignore
+          const map = new maptiler.Map({
+            container: mapContainerRef.current,
+            style: 'https://api.maptiler.com/maps/streets-v2/style.json?key=' + MAPTILER_KEY,
+            center: [location.longitude, location.latitude],
+            zoom: 16,
+          });
+
+          // Add marker
+          // @ts-ignore
+          new maptiler.Marker({ color: '#3b82f6' })
+            .setLngLat([location.longitude, location.latitude])
+            .addTo(map);
+
+          mapInstanceRef.current = map;
+        }
+      };
+      script.onerror = () => {
+        console.error('Failed to load MapTiler SDK');
+        toast.error('Failed to load map library');
+      };
+      document.head.appendChild(script);
+
+      const link = document.createElement('link');
+      link.href = 'https://unpkg.com/@maptiler/sdk@latest/dist/maptiler-sdk.css';
+      link.rel = 'stylesheet';
+      link.onerror = () => {
+        console.error('Failed to load MapTiler SDK CSS');
+      };
+      document.head.appendChild(link);
+    }
+
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, [location]);
+
   const handleGetLocation = async () => {
     setIsLocating(true);
-    // Simulate GPS location
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setLocation("Building A, Site 3 - Riverside Apartments");
-    setIsLocating(false);
+    setLocationError(null);
+
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser');
+      setIsLocating(false);
+      toast.error('Geolocation not supported');
+      return;
+    }
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          reject,
+          {
+            enableHighAccuracy: true,
+            timeout: 30000, // Increased to 30 seconds
+            maximumAge: 60000, // Accept cached position up to 1 minute old
+          }
+        );
+      });
+
+      const { latitude, longitude } = position.coords;
+
+      // Reverse geocode using MapTiler
+      try {
+        const response = await fetch(
+          `https://api.maptiler.com/geocoding/${longitude},${latitude}.json?key=${MAPTILER_KEY}`
+        );
+        
+        if (!response.ok) {
+          throw new Error('Geocoding service unavailable');
+        }
+        
+        const data = await response.json();
+
+        let address = `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        if (data.features && data.features.length > 0) {
+          const feature = data.features[0];
+          address = feature.properties?.label || feature.place_name || address;
+        }
+
+        setLocation({
+          latitude,
+          longitude,
+          address,
+        });
+        toast.success('Location captured successfully');
+      } catch (geocodeError) {
+        console.error('Geocoding error:', geocodeError);
+        // Still set location with coordinates even if geocoding fails
+        setLocation({
+          latitude,
+          longitude,
+          address: `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+        });
+        toast.success('Location captured (address lookup failed)');
+      }
+    } catch (error: any) {
+      console.error('Location error:', error);
+      
+      // Provide user-friendly error messages based on error code
+      let errorMessage = 'Failed to get location. ';
+      if (error.code === 1) {
+        errorMessage += 'Please enable location permissions in your browser settings.';
+      } else if (error.code === 2) {
+        errorMessage += 'Location unavailable. Please check your GPS settings.';
+      } else if (error.code === 3) {
+        errorMessage += 'Location request timed out. Please try again or check your GPS signal.';
+      } else {
+        errorMessage += error.message || 'Please enable location permissions.';
+      }
+      
+      setLocationError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsLocating(false);
+    }
   };
 
   const handleCheckIn = async () => {
     if (!selectedProject) {
-      alert("Please select a project first");
+      toast.error("Please select a project first");
       return;
     }
     
     if (!location) {
-      await handleGetLocation();
+      toast.error("Please get your location first");
+      return;
     }
+
     setIsLoading(true);
     
     try {
       // Try to submit to API first
-      await attendanceApi.checkIn(selectedProject, location || 'Unknown');
+      const result = await attendanceApi.checkIn(
+        selectedProject, 
+        location.latitude, 
+        location.longitude,
+        location.address
+      );
       setIsCheckedIn(true);
       setCheckInTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
-    } catch (error) {
+      toast.success('Checked in successfully!');
+    } catch (error: any) {
       // If API fails, save to IndexedDB for offline sync
       const attId = await saveAttendance({
         type: 'checkin',
-        location: location || 'Unknown',
+        location: location.address,
+        latitude: location.latitude,
+        longitude: location.longitude,
         timestamp: Date.now(),
         userId: userId || "unknown",
         markedAt: new Date().toISOString(),
@@ -102,7 +281,9 @@ export default function AttendancePage() {
         data: {
           id: attId,
           type: 'checkin',
-          location: location || 'Unknown',
+          location: location.address,
+          latitude: location.latitude,
+          longitude: location.longitude,
           userId: userId,
           projectId: selectedProject,
           timestamp: new Date().toISOString(),
@@ -111,6 +292,7 @@ export default function AttendancePage() {
       
       setIsCheckedIn(true);
       setCheckInTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+      toast.success('Checked in (offline mode)');
     } finally {
       setIsLoading(false);
     }
@@ -118,22 +300,76 @@ export default function AttendancePage() {
 
   const handleCheckOut = async () => {
     if (!selectedProject) {
-      alert("Please select a project first");
+      toast.error("Please select a project first");
       return;
     }
     
     setIsLoading(true);
     
     try {
+      // Get current location for checkout
+      let checkoutLocation: LocationData | null = null;
+      if (navigator.geolocation) {
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 15000, // 15 seconds for checkout (shorter since it's optional)
+              maximumAge: 60000, // Accept cached position
+            });
+          });
+
+          const { latitude, longitude } = position.coords;
+          
+          // Try to get address
+          try {
+            const response = await fetch(
+              `https://api.maptiler.com/geocoding/${longitude},${latitude}.json?key=${MAPTILER_KEY}`
+            );
+            
+            if (response.ok) {
+              const data = await response.json();
+              let address = `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+              if (data.features && data.features.length > 0) {
+                address = data.features[0].properties?.label || address;
+              }
+              checkoutLocation = { latitude, longitude, address };
+            } else {
+              checkoutLocation = { 
+                latitude, 
+                longitude, 
+                address: `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}` 
+              };
+            }
+          } catch {
+            checkoutLocation = { 
+              latitude, 
+              longitude, 
+              address: `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}` 
+            };
+          }
+        } catch (error) {
+          // Location not available, will use check-in location
+          console.warn('Checkout location not available, using check-in location:', error);
+        }
+      }
+
       // Try to submit to API first
-      await attendanceApi.checkOut(selectedProject);
+      await attendanceApi.checkOut(
+        selectedProject,
+        checkoutLocation?.latitude,
+        checkoutLocation?.longitude
+      );
       setIsCheckedIn(false);
       setCheckInTime(null);
-    } catch (error) {
+      toast.success('Checked out successfully!');
+    } catch (error: any) {
       // If API fails, save to IndexedDB for offline sync
       const attId = await saveAttendance({
         type: 'checkout',
-        location: location || 'Unknown',
+        location: checkoutLocation?.address || location?.address || 'Unknown',
+        latitude: checkoutLocation?.latitude || location?.latitude,
+        longitude: checkoutLocation?.longitude || location?.longitude,
         timestamp: Date.now(),
         userId: userId || "unknown",
         markedAt: new Date().toISOString(),
@@ -146,7 +382,9 @@ export default function AttendancePage() {
         data: {
           id: attId,
           type: 'checkout',
-          location: location || 'Unknown',
+          location: checkoutLocation?.address || location?.address || 'Unknown',
+          latitude: checkoutLocation?.latitude || location?.latitude,
+          longitude: checkoutLocation?.longitude || location?.longitude,
           userId: userId,
           projectId: selectedProject,
           timestamp: new Date().toISOString(),
@@ -155,6 +393,7 @@ export default function AttendancePage() {
       
       setIsCheckedIn(false);
       setCheckInTime(null);
+      toast.success('Checked out (offline mode)');
     } finally {
       setIsLoading(false);
     }
@@ -214,44 +453,105 @@ export default function AttendancePage() {
             </CardContent>
           </Card>
 
-          {/* Location Card */}
+          {/* Project Selector */}
+          {projects.length > 0 && (
+            <Card variant="gradient">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Select Project</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <select
+                  value={selectedProject || ''}
+                  onChange={(e) => setSelectedProject(e.target.value)}
+                  className="w-full p-2 rounded-lg bg-background border border-border text-foreground"
+                >
+                  {projects.map((project) => (
+                    <option key={project._id} value={project._id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Location Card with Map */}
           <Card variant="gradient" className="animate-fade-up stagger-1">
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <MapPin className="w-4 h-4 text-primary" />
-                Your Location
+              <CardTitle className="flex items-center justify-between text-base">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-primary" />
+                  Your Location
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleGetLocation}
+                  disabled={isLocating}
+                >
+                  {isLocating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                </Button>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              {location ? (
-                <div className="flex items-start gap-3">
-                  <div className="relative">
-                    <div className="w-3 h-3 bg-success rounded-full" />
-                    <div className="absolute inset-0 w-3 h-3 bg-success rounded-full animate-ping-location" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">{location}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Location verified via GPS</p>
-                  </div>
+            <CardContent className="space-y-4">
+              {locationError && (
+                <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+                  {locationError}
                 </div>
+              )}
+              
+              {location ? (
+                <>
+                  <div className="flex items-start gap-3">
+                    <div className="relative">
+                      <div className="w-3 h-3 bg-success rounded-full" />
+                      <div className="absolute inset-0 w-3 h-3 bg-success rounded-full animate-ping" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-foreground">{location.address}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">Location verified via GPS</p>
+                    </div>
+                  </div>
+                  
+                  {/* Map Display */}
+                  <div 
+                    ref={mapContainerRef}
+                    className="w-full h-48 rounded-lg overflow-hidden border border-border"
+                    style={{ minHeight: '192px' }}
+                  />
+                </>
               ) : (
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground text-sm">Tap to get location</span>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={handleGetLocation}
-                    disabled={isLocating}
-                  >
-                    {isLocating ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Navigation className="w-4 h-4 mr-2" />
-                        Locate
-                      </>
-                    )}
-                  </Button>
+                <div className="flex flex-col items-center justify-center py-8 space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                    <Navigation className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-muted-foreground text-sm mb-2">Location not captured</p>
+                    <Button 
+                      variant="outline" 
+                      onClick={handleGetLocation}
+                      disabled={isLocating}
+                    >
+                      {isLocating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Getting location...
+                        </>
+                      ) : (
+                        <>
+                          <Navigation className="w-4 h-4 mr-2" />
+                          Get My Location
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -274,7 +574,7 @@ export default function AttendancePage() {
                   size="xl"
                   className="w-full h-32 flex-col gap-3"
                   onClick={handleCheckIn}
-                  disabled={isLoading}
+                  disabled={isLoading || !location || !selectedProject}
                 >
                   {isLoading ? (
                     <Loader2 className="w-12 h-12 animate-spin" />
@@ -303,7 +603,7 @@ export default function AttendancePage() {
                   size="xl"
                   className="w-full h-32 flex-col gap-3 border-destructive/50 text-destructive hover:bg-destructive/10"
                   onClick={handleCheckOut}
-                  disabled={isLoading}
+                  disabled={isLoading || !selectedProject}
                 >
                   {isLoading ? (
                     <Loader2 className="w-12 h-12 animate-spin" />
@@ -332,6 +632,9 @@ export default function AttendancePage() {
                     <div>
                       <p className="font-medium text-foreground">Checked In</p>
                       <p className="text-xs text-muted-foreground">at {checkInTime}</p>
+                      {location && (
+                        <p className="text-xs text-muted-foreground mt-1">{location.address}</p>
+                      )}
                     </div>
                   </div>
                   <StatusBadge status="success" label="Active" pulse />
@@ -345,31 +648,6 @@ export default function AttendancePage() {
             <WifiOff className="w-4 h-4" />
             <span className="text-xs">Works offline. Will sync when connected.</span>
           </div>
-
-          {/* Today's History */}
-          <Card variant="gradient" className="animate-fade-up stagger-4">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Today's Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {isCheckedIn && (
-                  <div className="flex items-center justify-between py-2 border-b border-border/30">
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-success" />
-                      <span className="text-sm text-foreground">Checked In</span>
-                    </div>
-                    <span className="text-sm text-muted-foreground">{checkInTime}</span>
-                  </div>
-                )}
-                {!isCheckedIn && (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No activity yet today
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </MobileLayout>

@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Favicons will be dynamically updated by JavaScript based on browser color scheme -->
     <link rel="icon" type="image/png" sizes="32x32" href="/logo.png" id="favicon" />
     <link rel="icon" type="image/png" sizes="48x48" href="/logo.png" />
     <link rel="icon" type="image/png" sizes="64x64" href="/logo.png" />
@@ -10,9 +11,10 @@
     <link rel="icon" type="image/png" sizes="128x128" href="/logo.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/logo.png" />
     <link rel="icon" type="image/png" sizes="256x256" href="/logo.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/logo.png" id="apple-touch-icon" />
+    <!-- Fallback for browsers that support media queries in link tags -->
     <link rel="icon" type="image/png" href="/logo.png" media="(prefers-color-scheme: light)" />
     <link rel="icon" type="image/png" href="/logodark.png" media="(prefers-color-scheme: dark)" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/logo.png" />
     <!-- TODO: Set the document title to the name of your application -->
     <title>OffSite App</title>
     <meta name="description" content="OffSite Application" />
@@ -28,6 +30,7 @@
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#ff6b35" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   </head>

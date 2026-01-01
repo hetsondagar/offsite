@@ -61,10 +61,12 @@ export const acceptInvitation = async (
     }
 
     const { id } = req.params;
+    const userId = new mongoose.Types.ObjectId(req.user.userId);
 
+    // Find invitation - ensure userId matches using ObjectId
     const invitation = await ProjectInvitation.findOne({
       _id: id,
-      userId: req.user.userId,
+      userId: userId,
       status: 'pending',
     }).populate('projectId');
 
@@ -72,32 +74,86 @@ export const acceptInvitation = async (
       throw new AppError('Invitation not found or already processed', 404, 'INVITATION_NOT_FOUND');
     }
 
+    logger.info(`Processing invitation acceptance: ${id} for user ${req.user.userId}`);
+
+    // Get project
+    const project = await Project.findById(invitation.projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    // Convert projectId to ObjectId for comparison
+    const projectId = new mongoose.Types.ObjectId(project._id);
+
+    // Check if user is already a member
+    const isAlreadyMember = project.members.some(
+      (memberId) => memberId.toString() === userId.toString()
+    );
+
+    if (isAlreadyMember) {
+      logger.warn(`User ${req.user.userId} is already a member of project ${project._id}`);
+      // Still update invitation status
+      invitation.status = 'accepted';
+      invitation.respondedAt = new Date();
+      await invitation.save();
+
+      const response: ApiResponse = {
+        success: true,
+        message: 'You are already a member of this project',
+        data: invitation,
+      };
+      return res.status(200).json(response);
+    }
+
+    // Add user to project members using $addToSet to prevent duplicates
+    await Project.findByIdAndUpdate(projectId, {
+      $addToSet: { members: userId },
+    });
+
+    // Update user's assignedProjects using $addToSet to prevent duplicates
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { assignedProjects: projectId },
+    });
+
     // Update invitation status
     invitation.status = 'accepted';
     invitation.respondedAt = new Date();
     await invitation.save();
 
-    // Add user to project members
-    const project = await Project.findById(invitation.projectId);
-    if (project) {
-      const memberId = req.user.userId;
-      if (!project.members.includes(memberId as any)) {
-        project.members.push(memberId as any);
-        await project.save();
+    logger.info(`Invitation accepted: ${id} by user ${req.user.userId}. User added to project ${project._id}`);
+
+    // Send notification to project owner (optional)
+    try {
+      const projectOwner = await User.findById(project.members[0]); // Assuming first member is owner, or find by role
+      if (projectOwner && projectOwner._id.toString() !== userId.toString()) {
+        await createNotification({
+          userId: projectOwner._id.toString(),
+          offsiteId: projectOwner.offsiteId,
+          type: 'project_update',
+          title: 'Project Member Joined',
+          message: `A ${invitation.role === 'engineer' ? 'Site Engineer' : 'Project Manager'} has accepted the invitation to join "${project.name}".`,
+          data: {
+            projectId: project._id.toString(),
+            projectName: project.name,
+            invitationId: invitation._id.toString(),
+          },
+        });
       }
-
-      // Update user's assignedProjects
-      await User.findByIdAndUpdate(memberId, {
-        $addToSet: { assignedProjects: project._id },
-      });
+    } catch (notifError: any) {
+      logger.warn('Failed to send notification to project owner:', notifError.message);
     }
-
-    logger.info(`Invitation accepted: ${id} by user ${req.user.userId}`);
 
     const response: ApiResponse = {
       success: true,
-      message: 'Invitation accepted successfully',
-      data: invitation,
+      message: 'Invitation accepted successfully. You have been added to the project.',
+      data: {
+        invitation,
+        project: {
+          _id: project._id,
+          name: project.name,
+          location: project.location,
+        },
+      },
     };
 
     res.status(200).json(response);

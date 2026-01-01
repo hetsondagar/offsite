@@ -2,12 +2,13 @@ import { apiGet, apiPost, apiPatch } from '@/lib/api';
 
 export interface Task {
   _id: string;
-  projectId: string;
+  projectId: string | { _id: string; name: string; location?: string };
   title: string;
   description?: string;
   status: 'pending' | 'in-progress' | 'completed';
-  assignedTo: string;
+  assignedTo: string | { _id: string; name: string; phone?: string; offsiteId?: string };
   dueDate?: string;
+  plannedLabourCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -26,6 +27,7 @@ export const tasksApi = {
     description?: string;
     assignedTo?: string;
     dueDate?: string;
+    plannedLabourCount?: number;
   }) => {
     const response = await apiPost<Task>('/tasks', data);
     return response.data;

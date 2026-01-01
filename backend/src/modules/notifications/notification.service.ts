@@ -71,9 +71,14 @@ export const createBulkNotifications = async (
     const { userIds, offsiteIds, ...notificationData } = params;
 
     if (userIds && userIds.length > 0) {
+      // Get users to include offsiteId in notifications
+      const users = await User.find({ _id: { $in: userIds } }).select('_id offsiteId');
+      const userMap = new Map(users.map((user) => [user._id.toString(), user.offsiteId]));
+
       // Create notifications for multiple user IDs
       const notifications = userIds.map((userId) => ({
         userId,
+        offsiteId: userMap.get(userId) || undefined,
         type: notificationData.type,
         title: notificationData.title,
         message: notificationData.message,

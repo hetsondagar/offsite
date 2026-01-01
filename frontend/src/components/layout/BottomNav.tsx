@@ -11,24 +11,24 @@ interface NavItem {
 
 const engineerNav: NavItem[] = [
   { icon: Home, label: "Home", path: "/" },
+  { icon: CheckSquare, label: "Tasks", path: "/tasks" },
   { icon: FileText, label: "DPR", path: "/dpr" },
   { icon: MapPin, label: "Attendance", path: "/attendance" },
-  { icon: Package, label: "Materials", path: "/materials" },
   { icon: User, label: "Profile", path: "/profile" },
 ];
 
 const managerNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: FolderKanban, label: "Projects", path: "/projects" },
-  { icon: CheckSquare, label: "Approvals", path: "/approvals" },
-  { icon: Lightbulb, label: "Insights", path: "/insights" },
+  { icon: CheckSquare, label: "Tasks", path: "/tasks" },
+  { icon: Package, label: "Approvals", path: "/approvals" },
   { icon: User, label: "Profile", path: "/profile" },
 ];
 
 const ownerNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: FolderKanban, label: "Projects", path: "/projects" },
-  { icon: Lightbulb, label: "Insights", path: "/insights" },
+  { icon: CheckSquare, label: "Tasks", path: "/tasks" },
   { icon: Receipt, label: "Invoices", path: "/invoicing" },
   { icon: User, label: "Profile", path: "/profile" },
 ];

@@ -163,9 +163,13 @@ export const getProjects = async (
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    // If user is engineer, only show assigned projects
+    // Security: Only owners can see all projects, engineers and managers only see projects they are members of
     const query: any = {};
-    if (req.user.role === 'engineer') {
+    if (req.user.role === 'owner') {
+      // Owners can see all projects
+      // No filter needed
+    } else {
+      // Engineers and managers can only see projects they are members of
       query.members = req.user.userId;
     }
 
@@ -217,6 +221,21 @@ export const getProjectById = async (
 
     if (!project) {
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    // Security: Only team members (or owners) can access project details
+    const userId = req.user.userId.toString();
+    const isOwner = req.user.role === 'owner';
+    const isMember = project.members.some(
+      (member: any) => member._id.toString() === userId || member.toString() === userId
+    );
+
+    if (!isOwner && !isMember) {
+      throw new AppError(
+        'Access denied. You must be a team member to view this project.',
+        403,
+        'FORBIDDEN'
+      );
     }
 
     // Recalculate health score

@@ -34,6 +34,9 @@ interface Approval {
   isAnomaly?: boolean;
   anomalyReason?: string;
   status: "pending" | "approved" | "rejected";
+  delayHours?: number;
+  delayDays?: number;
+  delaySeverity?: 'normal' | 'warning' | 'critical';
 }
 
 export default function ApprovalsPage() {
@@ -55,20 +58,39 @@ export default function ApprovalsPage() {
         // Transform to approval format
         const pending = requests
           .filter((r: any) => r.status === 'pending')
-          .map((r: any) => ({
-            id: r._id,
-            type: 'material' as const,
-            title: r.materialName,
-            description: `Quantity: ${r.quantity} ${r.unit}`,
-            requestedBy: typeof r.requestedBy === 'object' ? r.requestedBy.name : 'Unknown',
-            project: typeof r.projectId === 'object' ? r.projectId.name : 'Unknown',
-            date: new Date(r.createdAt).toLocaleDateString(),
-            quantity: r.quantity,
-            unit: r.unit,
-            isAnomaly: r.anomalyDetected,
-            anomalyReason: r.anomalyReason,
-            status: r.status,
-          }));
+          .map((r: any) => {
+            // Calculate approval delay
+            const now = new Date();
+            const requestedAt = new Date(r.createdAt);
+            const delayMs = now.getTime() - requestedAt.getTime();
+            const delayHours = Math.floor(delayMs / (1000 * 60 * 60));
+            const delayDays = Math.floor(delayHours / 24);
+            
+            let delaySeverity: 'normal' | 'warning' | 'critical' = 'normal';
+            if (delayHours >= 24) {
+              delaySeverity = 'critical';
+            } else if (delayHours >= 6) {
+              delaySeverity = 'warning';
+            }
+            
+            return {
+              id: r._id,
+              type: 'material' as const,
+              title: r.materialName,
+              description: `Quantity: ${r.quantity} ${r.unit}`,
+              requestedBy: typeof r.requestedBy === 'object' ? r.requestedBy.name : 'Unknown',
+              project: typeof r.projectId === 'object' ? r.projectId.name : 'Unknown',
+              date: new Date(r.createdAt).toLocaleDateString(),
+              quantity: r.quantity,
+              unit: r.unit,
+              isAnomaly: r.anomalyDetected,
+              anomalyReason: r.anomalyReason,
+              status: r.status,
+              delayHours: r.delayHours || delayHours, // Use from API if available
+              delayDays: r.delayDays || delayDays,
+              delaySeverity: r.delaySeverity || delaySeverity,
+            };
+          });
         
         const historyData = requests
           .filter((r: any) => r.status !== 'pending')
@@ -277,7 +299,19 @@ export default function ApprovalsPage() {
                           <span>•</span>
                           <span>{approval.project}</span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">{approval.date}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-xs text-muted-foreground">{approval.date}</p>
+                          {approval.delayHours !== undefined && approval.delayHours > 0 && (
+                            <span className={cn(
+                              "text-xs px-2 py-0.5 rounded-full",
+                              approval.delaySeverity === 'critical' && "bg-destructive/20 text-destructive",
+                              approval.delaySeverity === 'warning' && "bg-warning/20 text-warning",
+                              approval.delaySeverity === 'normal' && "bg-muted text-muted-foreground"
+                            )}>
+                              {approval.delayDays > 0 ? `${approval.delayDays}d` : `${approval.delayHours}h`} delay
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 

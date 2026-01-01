@@ -139,8 +139,11 @@ export class RiskAssessmentService {
         : 'overdue'
       : 'no-deadline';
 
-    // Budget remaining (mock - would come from actual budget data)
-    const budgetRemaining = 75; // Percentage
+    // Budget remaining - calculate from project budget if available
+    // For now, use a conservative estimate based on progress
+    // TODO: Add budget field to Project model for accurate calculation
+    const projectProgress = project.progress || 0;
+    const budgetRemaining = Math.max(0, 100 - projectProgress); // Estimate based on progress
 
     return {
       stage: project.status,

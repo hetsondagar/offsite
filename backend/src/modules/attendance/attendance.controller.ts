@@ -3,14 +3,20 @@ import { z } from 'zod';
 import { Attendance } from './attendance.model';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
+import { reverseGeocode } from '../../services/maptiler.service';
+import { logger } from '../../utils/logger';
 
 const checkInSchema = z.object({
   projectId: z.string(),
-  location: z.string().min(1).max(500),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  location: z.string().optional(), // Optional fallback address
 });
 
 const checkOutSchema = z.object({
   projectId: z.string(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
 });
 
 export const checkIn = async (
@@ -23,7 +29,7 @@ export const checkIn = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    const { projectId, location } = checkInSchema.parse(req.body);
+    const { projectId, latitude, longitude, location: fallbackLocation } = checkInSchema.parse(req.body);
 
     // Check if user already checked in today
     const today = new Date();
@@ -42,11 +48,24 @@ export const checkIn = async (
       throw new AppError('Already checked in today', 400, 'ALREADY_CHECKED_IN');
     }
 
+    // Get address from coordinates using MapTiler
+    let locationAddress = fallbackLocation || 'Location not available';
+    try {
+      const geocodeResult = await reverseGeocode(latitude, longitude);
+      locationAddress = geocodeResult.formattedAddress || geocodeResult.address || locationAddress;
+      logger.info(`Reverse geocoded location for user ${req.user.userId}: ${locationAddress}`);
+    } catch (geocodeError: any) {
+      logger.warn(`Failed to reverse geocode location: ${geocodeError.message}`);
+      // Use fallback location if geocoding fails
+    }
+
     const attendance = new Attendance({
       userId: req.user.userId,
       projectId,
       type: 'checkin',
-      location,
+      location: locationAddress,
+      latitude,
+      longitude,
       timestamp: new Date(),
       synced: true,
     });
@@ -77,13 +96,50 @@ export const checkOut = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    const { projectId } = checkOutSchema.parse(req.body);
+    const { projectId, latitude, longitude } = checkOutSchema.parse(req.body);
+
+    // Get today's check-in to use same location if coordinates not provided
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const todayCheckIn = await Attendance.findOne({
+      userId: req.user.userId,
+      projectId,
+      type: 'checkin',
+      timestamp: { $gte: today, $lt: tomorrow },
+    });
+
+    let locationAddress = 'Location not available';
+    let checkoutLatitude: number | undefined;
+    let checkoutLongitude: number | undefined;
+
+    if (latitude && longitude) {
+      // Get address from coordinates using MapTiler
+      try {
+        const geocodeResult = await reverseGeocode(latitude, longitude);
+        locationAddress = geocodeResult.formattedAddress || geocodeResult.address || locationAddress;
+        checkoutLatitude = latitude;
+        checkoutLongitude = longitude;
+        logger.info(`Reverse geocoded checkout location for user ${req.user.userId}: ${locationAddress}`);
+      } catch (geocodeError: any) {
+        logger.warn(`Failed to reverse geocode checkout location: ${geocodeError.message}`);
+      }
+    } else if (todayCheckIn) {
+      // Use check-in location if coordinates not provided
+      locationAddress = todayCheckIn.location || 'Same as check-in';
+      checkoutLatitude = todayCheckIn.latitude;
+      checkoutLongitude = todayCheckIn.longitude;
+    }
 
     const attendance = new Attendance({
       userId: req.user.userId,
       projectId,
       type: 'checkout',
-      location: 'Same as check-in', // In production, get from GPS
+      location: locationAddress,
+      latitude: checkoutLatitude,
+      longitude: checkoutLongitude,
       timestamp: new Date(),
       synced: true,
     });

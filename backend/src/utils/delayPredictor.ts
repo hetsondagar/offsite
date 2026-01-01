@@ -1,6 +1,7 @@
 import { Task } from '../modules/tasks/task.model';
 import { MaterialRequest } from '../modules/materials/material.model';
 import { Attendance } from '../modules/attendance/attendance.model';
+import { DPR } from '../modules/dpr/dpr.model';
 
 export type RiskLevel = 'Low' | 'Medium' | 'High';
 
@@ -42,6 +43,28 @@ export const predictDelayRisk = async (
     status: 'pending',
     createdAt: { $lt: fortyEightHoursAgo },
   });
+
+  // Check work stoppage reasons from recent DPRs (last 7 days)
+  const recentDPRs = await DPR.find({
+    projectId,
+    createdAt: { $gte: sevenDaysAgo },
+    'workStoppage.occurred': true,
+  });
+
+  // Count stoppage reasons
+  const stoppageReasons: Record<string, number> = {};
+  let totalStoppageHours = 0;
+  recentDPRs.forEach((dpr: any) => {
+    if (dpr.workStoppage?.reason) {
+      const reason = dpr.workStoppage.reason;
+      stoppageReasons[reason] = (stoppageReasons[reason] || 0) + 1;
+      totalStoppageHours += dpr.workStoppage.durationHours || 0;
+    }
+  });
+
+  // Get top stoppage reason
+  const topStoppageReason = Object.entries(stoppageReasons)
+    .sort(([, a], [, b]) => b - a)[0]?.[0] || null;
   
   // Check attendance (last 7 days)
   const attendanceRecords = await Attendance.find({
@@ -57,13 +80,24 @@ export const predictDelayRisk = async (
   const hasOverdueTasks = overdueTasks.length > 0;
   const hasPendingMaterials = pendingMaterials.length > 0;
   const lowAttendance = attendanceRate < 70;
+  const hasWorkStoppages = recentDPRs.length > 0;
+  const hasRepeatedStoppages = topStoppageReason && stoppageReasons[topStoppageReason] >= 3;
   
   // Determine risk level
   let risk: RiskLevel = 'Low';
   let probability = 20;
   let cause = 'No significant risks detected';
   
-  if (hasOverdueTasks && hasPendingMaterials && lowAttendance) {
+  // Work stoppages significantly increase risk
+  if (hasRepeatedStoppages) {
+    risk = 'High';
+    probability = 80;
+    cause = `Repeated work stoppages due to ${topStoppageReason?.replace('_', ' ').toLowerCase()} (${stoppageReasons[topStoppageReason]} occurrences)`;
+  } else if (hasWorkStoppages && totalStoppageHours > 8) {
+    risk = 'High';
+    probability = 70;
+    cause = `Significant work stoppage: ${totalStoppageHours} hours lost`;
+  } else if (hasOverdueTasks && hasPendingMaterials && lowAttendance) {
     risk = 'High';
     probability = 85;
     cause = 'Multiple critical issues: overdue tasks, pending materials, low attendance';
@@ -75,6 +109,10 @@ export const predictDelayRisk = async (
       : hasOverdueTasks && lowAttendance
       ? 'Overdue tasks and low attendance'
       : 'Pending material approvals and low attendance';
+  } else if (hasWorkStoppages) {
+    risk = 'Medium';
+    probability = 55;
+    cause = `Work stoppages reported: ${topStoppageReason?.replace('_', ' ').toLowerCase()}`;
   } else if (hasOverdueTasks || hasPendingMaterials || lowAttendance) {
     risk = 'Medium';
     probability = 50;
@@ -94,6 +132,14 @@ export const predictDelayRisk = async (
   }
   if (lowAttendance) {
     probability += Math.max(0, 70 - attendanceRate);
+  }
+  if (hasWorkStoppages) {
+    // Add risk based on total stoppage hours
+    probability += Math.min(Math.floor(totalStoppageHours / 2), 15);
+  }
+  if (hasRepeatedStoppages) {
+    // Additional penalty for repeated stoppages
+    probability += 10;
   }
   
   probability = Math.min(100, probability);

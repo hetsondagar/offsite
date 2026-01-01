@@ -1,5 +1,21 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export type WorkStoppageReason = 
+  | 'MATERIAL_DELAY'
+  | 'LABOUR_SHORTAGE'
+  | 'WEATHER'
+  | 'MACHINE_BREAKDOWN'
+  | 'APPROVAL_PENDING'
+  | 'SAFETY_ISSUE';
+
+export interface WorkStoppage {
+  occurred: boolean;
+  reason?: WorkStoppageReason;
+  durationHours?: number;
+  remarks?: string;
+  evidencePhotos?: string[]; // Cloudinary URLs
+}
+
 export interface IDPR extends Document {
   projectId: mongoose.Types.ObjectId;
   taskId: mongoose.Types.ObjectId;
@@ -7,6 +23,7 @@ export interface IDPR extends Document {
   photos: string[]; // Cloudinary URLs
   notes?: string;
   aiSummary?: string;
+  workStoppage?: WorkStoppage;
   synced: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -41,6 +58,27 @@ const dprSchema = new Schema<IDPR>(
     aiSummary: {
       type: String,
       trim: true,
+    },
+    workStoppage: {
+      occurred: {
+        type: Boolean,
+        default: false,
+      },
+      reason: {
+        type: String,
+        enum: ['MATERIAL_DELAY', 'LABOUR_SHORTAGE', 'WEATHER', 'MACHINE_BREAKDOWN', 'APPROVAL_PENDING', 'SAFETY_ISSUE'],
+      },
+      durationHours: {
+        type: Number,
+        min: 0,
+      },
+      remarks: {
+        type: String,
+        trim: true,
+      },
+      evidencePhotos: [{
+        type: String,
+      }],
     },
     synced: {
       type: Boolean,

@@ -5,7 +5,9 @@ export interface IAttendance extends Document {
   userId: mongoose.Types.ObjectId;
   projectId: mongoose.Types.ObjectId;
   type: AttendanceType;
-  location: string;
+  location: string; // Formatted address
+  latitude?: number; // GPS latitude
+  longitude?: number; // GPS longitude
   timestamp: Date;
   synced: boolean;
   createdAt: Date;
@@ -33,6 +35,16 @@ const attendanceSchema = new Schema<IAttendance>(
       type: String,
       required: true,
       trim: true,
+    },
+    latitude: {
+      type: Number,
+      min: -90,
+      max: 90,
+    },
+    longitude: {
+      type: Number,
+      min: -180,
+      max: 180,
     },
     timestamp: {
       type: Date,

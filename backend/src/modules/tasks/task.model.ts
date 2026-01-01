@@ -8,6 +8,7 @@ export interface ITask extends Document {
   status: TaskStatus;
   assignedTo: mongoose.Types.ObjectId;
   dueDate?: Date;
+  plannedLabourCount?: number; // Number of labourers planned per day for this task
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +41,11 @@ const taskSchema = new Schema<ITask>(
     },
     dueDate: {
       type: Date,
+    },
+    plannedLabourCount: {
+      type: Number,
+      min: 0,
+      default: 0,
     },
   },
   {

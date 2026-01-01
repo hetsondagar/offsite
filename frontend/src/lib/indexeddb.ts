@@ -10,6 +10,13 @@ interface OffSiteDB extends DBSchema {
       photos: string[];
       notes: string;
       aiSummary: string;
+      workStoppage?: {
+        occurred: boolean;
+        reason?: string;
+        durationHours?: number;
+        remarks?: string;
+        evidencePhotos?: string[];
+      };
       timestamp: number;
       synced: boolean;
     };
@@ -20,6 +27,8 @@ interface OffSiteDB extends DBSchema {
       id: string;
       type: 'checkin' | 'checkout';
       location: string;
+      latitude?: number;
+      longitude?: number;
       timestamp: number;
       synced: boolean;
     };

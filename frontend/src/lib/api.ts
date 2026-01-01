@@ -41,10 +41,25 @@ export const apiRequest = async <T = any>(
     headers,
   });
 
+  // Check if response is JSON before parsing
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    const text = await response.text();
+    throw new Error(
+      response.status === 404
+        ? 'Resource not found'
+        : response.status === 401
+        ? 'Unauthorized. Please login again.'
+        : response.status === 403
+        ? 'Access denied'
+        : `Server error: ${response.status} ${response.statusText}`
+    );
+  }
+
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.message || 'Request failed');
+    throw new Error(data.message || `Request failed: ${response.status} ${response.statusText}`);
   }
 
   return data;
