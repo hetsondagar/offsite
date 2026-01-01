@@ -23,7 +23,7 @@ import { useNavigate } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, AreaChart, Area } from "recharts";
 import { insightsApi } from "@/services/api/insights";
 import { projectsApi } from "@/services/api/projects";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 
 export default function InsightsPage() {
   const navigate = useNavigate();
@@ -104,6 +104,15 @@ export default function InsightsPage() {
               <h1 className="font-display font-semibold text-lg">AI Insights</h1>
               <p className="text-xs text-muted-foreground">Smart analysis & predictions</p>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/ai-command")}
+              className="absolute right-0"
+            >
+              <Sparkles className="w-4 h-4 mr-1" />
+              AI Command
+            </Button>
           </div>
         </div>
 

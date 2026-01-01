@@ -149,10 +149,19 @@ export const signup = async (
               // Get the native MongoDB collection
               const collection = User.collection;
               
-              // Prepare document without phone field - use native MongoDB format
+              // Hash password manually since we're bypassing Mongoose pre-save hook
+              const salt = await bcrypt.genSalt(10);
+              const hashedPassword = await bcrypt.hash(password, salt);
+              
+              // Import mongoose for ObjectId
+              const mongoose = require('mongoose');
+              
+              // Prepare document - CRITICAL: Do NOT include phone field at all
+              // Not as null, not as undefined, not as empty string - completely omit it
               const userDoc: any = {
+                _id: new mongoose.Types.ObjectId(),
                 email: email.toLowerCase().trim(),
-                password: userData.password, // Will be hashed by pre-save hook if we use User model
+                password: hashedPassword,
                 name: name.trim(),
                 role,
                 offsiteId,
@@ -162,11 +171,10 @@ export const signup = async (
                 updatedAt: new Date(),
               };
               
-              // Hash password manually since we're bypassing Mongoose pre-save hook
-              const salt = await bcrypt.genSalt(10);
-              userDoc.password = await bcrypt.hash(password, salt);
+              // Explicitly ensure phone is NOT in the document
+              // Do not set userDoc.phone at all - it should not exist in the object
               
-              // Insert directly into collection - phone field is completely omitted
+              // Insert directly into collection
               const result = await collection.insertOne(userDoc);
               
               // Fetch the created user using Mongoose to get proper document
@@ -176,7 +184,11 @@ export const signup = async (
                 throw new Error('Failed to retrieve created user');
               }
               
-              logger.info('Successfully created user after phone index workaround', { email, userId: newUser._id });
+              logger.info('Successfully created user using native MongoDB insert (phone field omitted)', { 
+                email, 
+                userId: newUser._id,
+                hasPhoneField: 'phone' in newUser.toObject()
+              });
               
               // Continue with token generation
               const payload: JWTPayload = {
@@ -201,12 +213,24 @@ export const signup = async (
                 },
               };
             } catch (retryError: any) {
-              logger.error('Workaround failed, database index needs to be dropped', {
+              logger.error('Native MongoDB insert workaround failed', {
                 email,
                 retryError: retryError.message,
+                retryErrorCode: retryError.code,
+                retryKeyPattern: retryError.keyPattern,
                 stack: retryError.stack,
               });
-              throw new AppError('Account creation failed due to database configuration. Please contact support. The phone field unique index needs to be dropped from the database. Run: db.users.dropIndex("phone_1")', 409, 'DUPLICATE_ENTRY');
+              
+              // Provide clear error message
+              if (retryError.code === 11000 && retryError.keyPattern?.phone) {
+                throw new AppError(
+                  'Account creation failed. The database has a unique index on the phone field that prevents creating accounts without a phone number. Please contact your database administrator to drop the index by running: db.users.dropIndex("phone_1") in MongoDB.',
+                  409,
+                  'DUPLICATE_ENTRY'
+                );
+              }
+              
+              throw retryError;
             }
           }
           throw new AppError('Phone number already exists. Please use a different phone number.', 409, 'DUPLICATE_ENTRY');

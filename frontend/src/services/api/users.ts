@@ -30,7 +30,7 @@ export const usersApi = {
   },
 
   searchByOffsiteId: async (offsiteId: string) => {
-    const response = await apiGet<User>('/notifications/search/user', { offsiteId });
+    const response = await apiGet<User>(`/users/offsite/${offsiteId}`);
     return response.data;
   },
 };

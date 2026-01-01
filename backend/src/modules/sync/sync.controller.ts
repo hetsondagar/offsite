@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { DPR } from '../dpr/dpr.model';
 import { Attendance } from '../attendance/attendance.model';
 import { MaterialRequest } from '../materials/material.model';
+import { Invoice } from '../invoices/invoice.model';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 import { logger } from '../../utils/logger';
@@ -11,6 +12,7 @@ const syncBatchSchema = z.object({
   dprs: z.array(z.any()).optional().default([]),
   attendance: z.array(z.any()).optional().default([]),
   materials: z.array(z.any()).optional().default([]),
+  invoices: z.array(z.any()).optional().default([]),
 });
 
 export const syncBatch = async (
@@ -23,16 +25,18 @@ export const syncBatch = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    const { dprs, attendance, materials } = syncBatchSchema.parse(req.body);
+    const { dprs, attendance, materials, invoices } = syncBatchSchema.parse(req.body);
 
     const syncedIds: {
       dprs: string[];
       attendance: string[];
       materials: string[];
+      invoices: string[];
     } = {
       dprs: [],
       attendance: [],
       materials: [],
+      invoices: [],
     };
 
     // Sync DPRs
@@ -136,6 +140,56 @@ export const syncBatch = async (
         }
       } catch (error) {
         logger.error(`Error syncing material ${matData.id}:`, error);
+      }
+    }
+
+    // Sync Invoices (owner only, drafts only)
+    if (req.user.role === 'owner') {
+      for (const invoiceData of invoices) {
+        try {
+          // Only sync DRAFT invoices (offline drafts)
+          if (invoiceData.status !== 'DRAFT') {
+            logger.warn(`Skipping non-draft invoice ${invoiceData.id}`);
+            continue;
+          }
+
+          const existing = await Invoice.findById(invoiceData.id);
+          const incomingTimestamp = invoiceData.timestamp || invoiceData.createdAt;
+
+          if (existing) {
+            // If invoice is already finalized, skip
+            if (existing.status === 'FINALIZED') {
+              logger.warn(`Skipping finalized invoice ${invoiceData.id}`);
+              syncedIds.invoices.push(invoiceData.id);
+              continue;
+            }
+
+            const existingTimestamp = existing.createdAt.getTime();
+            if (incomingTimestamp > existingTimestamp) {
+              // Update with newer data (but don't allow status changes to FINALIZED)
+              Object.assign(existing, {
+                ...invoiceData,
+                status: 'DRAFT', // Ensure it remains a draft
+                ownerId: req.user.userId,
+              });
+              await existing.save();
+              syncedIds.invoices.push(invoiceData.id);
+            } else {
+              syncedIds.invoices.push(invoiceData.id);
+            }
+          } else {
+            // Create new draft invoice
+            const invoice = new Invoice({
+              ...invoiceData,
+              ownerId: req.user.userId,
+              status: 'DRAFT', // Ensure it's a draft
+            });
+            await invoice.save();
+            syncedIds.invoices.push(invoiceData.id);
+          }
+        } catch (error) {
+          logger.error(`Error syncing invoice ${invoiceData.id}:`, error);
+        }
       }
     }
 

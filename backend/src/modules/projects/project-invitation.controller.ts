@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import mongoose from 'mongoose';
 import { ProjectInvitation } from './project-invitation.model';
 import { Project } from './project.model';
 import { User } from '../users/user.model';
@@ -20,14 +21,19 @@ export const getMyInvitations = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
+    // Convert userId to ObjectId for proper matching
+    const userId = new mongoose.Types.ObjectId(req.user.userId);
+    
     const invitations = await ProjectInvitation.find({
-      userId: req.user.userId,
+      userId: userId,
       status: 'pending',
     })
       .populate('projectId', 'name location startDate endDate')
       .populate('invitedBy', 'name offsiteId')
       .sort({ createdAt: -1 })
       .select('-__v');
+    
+    logger.info(`Found ${invitations.length} pending invitations for user ${req.user.userId}`);
 
     const response: ApiResponse = {
       success: true,

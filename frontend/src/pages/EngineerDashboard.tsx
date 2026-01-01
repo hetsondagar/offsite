@@ -14,8 +14,12 @@ import { attendanceApi } from "@/services/api/attendance";
 import { materialsApi } from "@/services/api/materials";
 import { projectsApi } from "@/services/api/projects";
 import { tasksApi } from "@/services/api/tasks";
+import { notificationsApi } from "@/services/api/notifications";
 import { useAppSelector } from "@/store/hooks";
-import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, UserPlus, X } from "lucide-react";
+import { toast } from "sonner";
+import { NotificationBell } from "@/components/common/NotificationBell";
 
 export default function EngineerDashboard() {
   const navigate = useNavigate();
@@ -25,6 +29,7 @@ export default function EngineerDashboard() {
   const [todayAttendance, setTodayAttendance] = useState<any>(null);
   const [todayTasks, setTodayTasks] = useState<any[]>([]);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
@@ -81,6 +86,16 @@ export default function EngineerDashboard() {
           });
           setPendingRequests(userRequests);
           
+          // Load pending project invitations
+          try {
+            const invitationsData = await notificationsApi.getMyInvitations();
+            console.log('Loaded invitations:', invitationsData);
+            setPendingInvitations(Array.isArray(invitationsData) ? invitationsData : []);
+          } catch (error) {
+            console.error('Error loading invitations:', error);
+            setPendingInvitations([]);
+          }
+          
           // Build recent activity from DPRs and materials
           const activities: any[] = [];
           
@@ -129,6 +144,30 @@ export default function EngineerDashboard() {
     return `${diffDays}d ago`;
   };
 
+  const handleAcceptInvitation = async (invitationId: string) => {
+    try {
+      await notificationsApi.acceptInvitation(invitationId);
+      toast.success('Project invitation accepted!');
+      // Reload dashboard data
+      loadDashboardData();
+    } catch (error: any) {
+      console.error('Error accepting invitation:', error);
+      toast.error(error.message || 'Failed to accept invitation');
+    }
+  };
+
+  const handleRejectInvitation = async (invitationId: string) => {
+    try {
+      await notificationsApi.rejectInvitation(invitationId);
+      toast.success('Invitation rejected');
+      // Reload dashboard data
+      loadDashboardData();
+    } catch (error: any) {
+      console.error('Error rejecting invitation:', error);
+      toast.error(error.message || 'Failed to reject invitation');
+    }
+  };
+
   return (
     <MobileLayout role="engineer">
       <div className="p-4 space-y-6 safe-area-top">
@@ -139,13 +178,16 @@ export default function EngineerDashboard() {
             <Logo size="xl" showText={false} />
           </div>
           
-          {/* Time and Theme Toggle */}
+          {/* Time, Notifications, and Theme Toggle */}
           <div className="flex items-center justify-between w-full">
             <div className="text-left">
               <p className="text-sm font-medium text-foreground">{currentTime}</p>
               <p className="text-xs text-muted-foreground">{currentDate}</p>
             </div>
-            <ThemeToggle variant="icon" />
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              <ThemeToggle variant="icon" />
+            </div>
           </div>
         </div>
 
@@ -153,6 +195,56 @@ export default function EngineerDashboard() {
         <div className="opacity-0 animate-fade-up stagger-1">
           <OfflineBanner pendingItems={2} />
         </div>
+
+        {/* Pending Project Invitations */}
+        {pendingInvitations.length > 0 && (
+          <Card className="opacity-0 animate-fade-up stagger-1 border-primary/20 bg-primary/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <UserPlus className="w-5 h-5 text-primary" />
+                Project Invitations ({pendingInvitations.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {pendingInvitations.map((invitation: any) => (
+                <div key={invitation._id} className="p-3 rounded-lg border bg-card">
+                  <div className="space-y-2">
+                    <div>
+                      <p className="font-medium text-sm">{invitation.projectId?.name || 'Project'}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Invited as {invitation.role === 'engineer' ? 'Site Engineer' : 'Project Manager'}
+                      </p>
+                      {invitation.projectId?.location && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          📍 {invitation.projectId.location}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => handleAcceptInvitation(invitation._id)}
+                      >
+                        <UserPlus className="w-4 h-4 mr-1" />
+                        Accept
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => handleRejectInvitation(invitation._id)}
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Today at a Glance */}
         <Card variant="gradient" className="opacity-0 animate-fade-up stagger-2">

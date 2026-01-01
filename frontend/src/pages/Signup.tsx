@@ -53,18 +53,25 @@ export default function Signup() {
     setError(null);
 
     try {
+      // Build request body - only include phone if it's provided and not empty
+      const requestBody: any = {
+        email,
+        password,
+        name,
+        role: selectedRole,
+      };
+      
+      // Only include phone if it's provided and not empty
+      if (phone && phone.trim().length > 0) {
+        requestBody.phone = phone.trim();
+      }
+
       const response = await fetch(`${API_BASE_URL}/auth/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          email,
-          password,
-          name,
-          role: selectedRole,
-          phone: phone || undefined,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();

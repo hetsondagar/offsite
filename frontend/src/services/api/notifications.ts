@@ -58,7 +58,10 @@ export const notificationsApi = {
 
   getMyInvitations: async () => {
     const response = await apiGet<ProjectInvitation[]>('/projects/invitations/me');
-    return response.data;
+    // The API returns { success: true, data: invitations[] }
+    // So response.data is already the array
+    const data = response.data;
+    return Array.isArray(data) ? data : [];
   },
 
   acceptInvitation: async (id: string) => {

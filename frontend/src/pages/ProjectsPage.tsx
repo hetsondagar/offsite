@@ -272,7 +272,11 @@ export default function ProjectsPage() {
                   {/* Expanded View */}
                   {selectedProject === project._id && (
                     <div className="mt-4 pt-4 border-t border-border/50 space-y-3 animate-fade-up">
-                      <Button variant="outline" className="w-full justify-between">
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-between"
+                        onClick={() => navigate(`/projects/${project._id}`)}
+                      >
                         View Project Details
                         <ChevronRight className="w-4 h-4" />
                       </Button>

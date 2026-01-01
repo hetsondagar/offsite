@@ -22,6 +22,7 @@ import invoiceRoutes from './modules/invoices/invoice.routes';
 import syncRoutes from './modules/sync/sync.routes';
 import eventRoutes from './modules/events/event.routes';
 import notificationRoutes from './modules/notifications/notification.routes';
+import aiRoutes from './modules/ai/ai.routes';
 
 const app: Application = express();
 
@@ -89,6 +90,7 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/ai', aiRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

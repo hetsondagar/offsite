@@ -31,8 +31,13 @@ export const env = {
   // CORS
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:8080',
   
-  // AI
+  // AI / LLM
   HUGGINGFACE_API_KEY: process.env.HUGGINGFACE_API_KEY || '',
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
+  AZURE_OPENAI_ENDPOINT: process.env.AZURE_OPENAI_ENDPOINT || '',
+  AZURE_OPENAI_API_KEY: process.env.AZURE_OPENAI_API_KEY || '',
+  LLM_PROVIDER: (process.env.LLM_PROVIDER || 'openai') as 'openai' | 'gemini' | 'azure',
 
   // Email (Gmail SMTP App Password recommended)
   EMAIL_FROM: process.env.EMAIL_FROM || process.env.GMAIL_USER || '',

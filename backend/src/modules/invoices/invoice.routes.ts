@@ -1,28 +1,23 @@
 import { Router } from 'express';
-import { createInvoice, getInvoices, getInvoiceById } from './invoice.controller';
+import {
+  createInvoice,
+  getInvoices,
+  getInvoiceById,
+  finalizeInvoice,
+  downloadInvoicePDF,
+  updatePaymentStatus,
+} from './invoice.controller';
 import { authenticateUser } from '../../middlewares/auth.middleware';
-import { authorizePermission } from '../../middlewares/role.middleware';
+import { authorizeRoles } from '../../middlewares/role.middleware';
 
 const router = Router();
 
-router.post(
-  '/',
-  authenticateUser,
-  authorizePermission('canManageInvoices'),
-  createInvoice
-);
-router.get(
-  '/',
-  authenticateUser,
-  authorizePermission('canViewInvoices'),
-  getInvoices
-);
-router.get(
-  '/:id',
-  authenticateUser,
-  authorizePermission('canViewInvoices'),
-  getInvoiceById
-);
+// All routes are owner-only
+router.post('/', authenticateUser, authorizeRoles('owner'), createInvoice);
+router.get('/', authenticateUser, authorizeRoles('owner'), getInvoices);
+router.get('/:id', authenticateUser, authorizeRoles('owner'), getInvoiceById);
+router.post('/:id/finalize', authenticateUser, authorizeRoles('owner'), finalizeInvoice);
+router.get('/:id/pdf', authenticateUser, authorizeRoles('owner'), downloadInvoicePDF);
+router.patch('/:id/payment-status', authenticateUser, authorizeRoles('owner'), updatePaymentStatus);
 
 export default router;
-

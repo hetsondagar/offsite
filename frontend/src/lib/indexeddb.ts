@@ -35,6 +35,16 @@ interface OffSiteDB extends DBSchema {
       synced: boolean;
     };
   };
+  aiCache: {
+    key: string;
+    value: {
+      id: string;
+      type: 'risk' | 'anomalies';
+      siteId: string;
+      data: any;
+      timestamp: number;
+    };
+  };
 }
 
 let dbInstance: IDBPDatabase<OffSiteDB> | null = null;
@@ -55,6 +65,11 @@ export async function getDB(): Promise<IDBPDatabase<OffSiteDB>> {
       }
       if (!db.objectStoreNames.contains('materials')) {
         db.createObjectStore('materials', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('aiCache')) {
+        const aiStore = db.createObjectStore('aiCache', { keyPath: 'id' });
+        aiStore.createIndex('siteId', 'siteId');
+        aiStore.createIndex('type', 'type');
       }
     },
   });
@@ -146,5 +161,38 @@ export async function markMaterialSynced(id: string) {
     mat.synced = true;
     await db.put('materials', mat);
   }
+}
+
+// AI Cache operations
+export async function saveAICache(
+  type: 'risk' | 'anomalies',
+  siteId: string,
+  data: any
+) {
+  const db = await getDB();
+  const id = `${type}_${siteId}`;
+  await db.put('aiCache', {
+    id,
+    type,
+    siteId,
+    data,
+    timestamp: Date.now(),
+  });
+}
+
+export async function getAICache(
+  type: 'risk' | 'anomalies',
+  siteId: string
+): Promise<any | null> {
+  const db = await getDB();
+  const id = `${type}_${siteId}`;
+  const cached = await db.get('aiCache', id);
+  
+  // Cache valid for 1 hour
+  if (cached && Date.now() - cached.timestamp < 60 * 60 * 1000) {
+    return cached.data;
+  }
+  
+  return null;
 }
 

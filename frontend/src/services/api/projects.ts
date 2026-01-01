@@ -21,7 +21,41 @@ export const projectsApi = {
   },
 
   getById: async (id: string) => {
-    const response = await apiGet<Project>(`/projects/${id}`);
+    const response = await apiGet<{
+      project: Project;
+      statistics: {
+        tasks: {
+          total: number;
+          byStatus: {
+            pending: number;
+            'in-progress': number;
+            completed: number;
+          };
+          recent: any[];
+        };
+        dprs: {
+          total: number;
+          recent: any[];
+        };
+        materials: {
+          total: number;
+          byStatus: {
+            pending: number;
+            approved: number;
+            rejected: number;
+          };
+          recent: any[];
+        };
+        attendance: {
+          total: number;
+          todayCheckIns: number;
+          recent: any[];
+        };
+        events: {
+          total: number;
+        };
+      };
+    }>(`/projects/${id}`);
     return response.data;
   },
 
@@ -34,6 +68,14 @@ export const projectsApi = {
     managerOffsiteIds?: string[];
   }) => {
     const response = await apiPost<Project>('/projects', data);
+    return response.data;
+  },
+
+  addMembers: async (id: string, data: {
+    engineerOffsiteIds?: string[];
+    managerOffsiteIds?: string[];
+  }) => {
+    const response = await apiPost<{ invitations: number }>(`/projects/${id}/members`, data);
     return response.data;
   },
 };

@@ -19,12 +19,14 @@ import DPRPage from "./pages/DPRPage";
 import AttendancePage from "./pages/AttendancePage";
 import MaterialsPage from "./pages/MaterialsPage";
 import ProjectsPage from "./pages/ProjectsPage";
+import ProjectDetailPage from "./pages/ProjectDetailPage";
 import ApprovalsPage from "./pages/ApprovalsPage";
 import InsightsPage from "./pages/InsightsPage";
 import ProfilePage from "./pages/ProfilePage";
 import SyncPage from "./pages/SyncPage";
 import InvoicingPage from "./pages/InvoicingPage";
 import EventsPage from "./pages/EventsPage";
+import AICommandCenter from "./pages/AICommandCenter";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -87,12 +89,14 @@ function AppContent() {
             <Route path="/attendance" element={<AttendancePage />} />
             <Route path="/materials" element={<MaterialsPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/projects/:id" element={<ProjectDetailPage />} />
             <Route path="/approvals" element={<ApprovalsPage />} />
             <Route path="/insights" element={<InsightsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/sync" element={<SyncPage />} />
             <Route path="/invoicing" element={<InvoicingPage />} />
             <Route path="/events" element={<EventsPage />} />
+            <Route path="/ai-command" element={<AICommandCenter />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
