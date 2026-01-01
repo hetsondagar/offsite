@@ -13,6 +13,8 @@ import { setOnlineStatus } from "./store/slices/offlineSlice";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import DPRPage from "./pages/DPRPage";
 import AttendancePage from "./pages/AttendancePage";
 import MaterialsPage from "./pages/MaterialsPage";
@@ -78,6 +80,8 @@ function AppContent() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
             <Route path="/" element={<Index />} />
             <Route path="/dpr" element={<DPRPage />} />
             <Route path="/attendance" element={<AttendancePage />} />

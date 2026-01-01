@@ -53,6 +53,15 @@ const userSchema = new Schema<IUser>(
     phone: {
       type: String,
       trim: true,
+      default: undefined, // Don't set default, leave it undefined if not provided
+      // Only validate if phone is provided
+      validate: {
+        validator: function(v: string | undefined) {
+          // If phone is provided, it must not be empty after trimming
+          return !v || v.trim().length > 0;
+        },
+        message: 'Phone number cannot be empty',
+      },
     },
     role: {
       type: String,
@@ -94,6 +103,15 @@ userSchema.pre('save', async function (next) {
   next();
 });
 
+// Clean up phone field - remove empty strings and set to undefined
+userSchema.pre('save', function (next) {
+  // If phone is an empty string, set it to undefined so sparse index works correctly
+  if (this.phone !== undefined && this.phone !== null && this.phone.trim() === '') {
+    this.phone = undefined;
+  }
+  next();
+});
+
 // Method to compare password
 userSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
@@ -101,7 +119,9 @@ userSchema.methods.comparePassword = async function (candidatePassword: string):
 
 // Indexes for fast lookup
 userSchema.index({ email: 1 }, { unique: true });
-userSchema.index({ phone: 1 });
+// Non-unique index on phone for fast lookups (phone is optional, so we don't enforce uniqueness)
+// If uniqueness is needed, it can be enforced at application level when phone is provided
+userSchema.index({ phone: 1 }, { sparse: true });
 userSchema.index({ role: 1 });
 userSchema.index({ offsiteId: 1 }, { unique: true }); // Critical: Unique index for offsiteId
 // Index reset token to support lookups during password reset

@@ -211,3 +211,51 @@ export const rejectRequest = async (
   }
 };
 
+/**
+ * Get materials catalog - Standard list of available materials
+ */
+export const getMaterialsCatalog = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    let materials = await MaterialCatalog.find({ isActive: true })
+      .sort({ name: 1 })
+      .select('-__v');
+
+    // If catalog is empty, seed with default materials
+    if (materials.length === 0) {
+      const defaultMaterials = [
+        { name: 'Cement', unit: 'bags', defaultAnomalyThreshold: 1.3, category: 'Construction' },
+        { name: 'Steel Bars', unit: 'tons', defaultAnomalyThreshold: 1.3, category: 'Construction' },
+        { name: 'Bricks', unit: 'pieces', defaultAnomalyThreshold: 1.3, category: 'Construction' },
+        { name: 'Sand', unit: 'cubic meters', defaultAnomalyThreshold: 1.3, category: 'Construction' },
+        { name: 'Gravel', unit: 'cubic meters', defaultAnomalyThreshold: 1.3, category: 'Construction' },
+        { name: 'Concrete Mix', unit: 'cubic meters', defaultAnomalyThreshold: 1.3, category: 'Construction' },
+        { name: 'Steel Rods', unit: 'kg', defaultAnomalyThreshold: 1.3, category: 'Construction' },
+        { name: 'Tiles', unit: 'pieces', defaultAnomalyThreshold: 1.3, category: 'Finishing' },
+      ];
+
+      await MaterialCatalog.insertMany(defaultMaterials);
+      materials = await MaterialCatalog.find({ isActive: true })
+        .sort({ name: 1 })
+        .select('-__v');
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Materials catalog retrieved successfully',
+      data: materials,
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+

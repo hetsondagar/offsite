@@ -90,17 +90,34 @@ export const signup = async (
     // Generate OffSite ID ONCE at signup (never regenerated)
     const offsiteId = await generateOffsiteId(role);
     
+    // Check for duplicate phone if provided
+    if (phone && phone.trim().length > 0) {
+      const trimmedPhone = phone.trim();
+      const existingUserWithPhone = await User.findOne({ phone: trimmedPhone });
+      if (existingUserWithPhone) {
+        throw new AppError('Phone number already exists. Please use a different phone number.', 409, 'DUPLICATE_ENTRY');
+      }
+    }
+    
     // Create new user with offsiteId
-    const user = new User({
+    // Only include phone if it's provided and not empty
+    const userData: any = {
       email: email.toLowerCase().trim(),
       password,
       name: name.trim(),
       role,
-      phone: phone ? phone.trim() : undefined,
       offsiteId, // Set once, never changes
       assignedProjects: [],
       isActive: true,
-    });
+    };
+    
+    // Only add phone if provided and not empty - completely omit if not provided
+    if (phone && phone.trim().length > 0) {
+      userData.phone = phone.trim();
+    }
+    // Explicitly do NOT set phone field if not provided (don't set to undefined or empty string)
+    
+    const user = new User(userData);
     
     try {
       await user.save();
@@ -108,6 +125,15 @@ export const signup = async (
       // Handle MongoDB duplicate key errors
       if (error.code === 11000) {
         const field = Object.keys(error.keyPattern)[0];
+        // Provide more specific error messages
+        if (field === 'email') {
+          throw new AppError('Email already exists. Please login instead.', 409, 'DUPLICATE_ENTRY');
+        } else if (field === 'phone') {
+          // This shouldn't happen now since we removed unique index, but keep for safety
+          throw new AppError('Phone number already exists. Please use a different phone number.', 409, 'DUPLICATE_ENTRY');
+        } else if (field === 'offsiteId') {
+          throw new AppError('Account creation failed. Please try again.', 409, 'DUPLICATE_ENTRY');
+        }
         throw new AppError(`${field.charAt(0).toUpperCase() + field.slice(1)} already exists`, 409, 'DUPLICATE_ENTRY');
       }
       // Handle validation errors
@@ -160,10 +186,6 @@ export const signup = async (
  * and attempts to send a reset email with the RAW token (not stored).
  * Always resolves successfully (to avoid revealing whether email exists).
  */
-import crypto from 'crypto';
-import { sendResetEmail } from '../../utils/mailer';
-import { logger } from '../../utils/logger';
-
 export const forgotPassword = async (email: string): Promise<void> => {
   const user = await User.findOne({ email });
 
