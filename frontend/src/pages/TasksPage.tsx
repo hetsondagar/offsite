@@ -11,7 +11,7 @@ import {
   Clock, 
   AlertCircle,
   Calendar,
-  User,
+  User as UserIcon,
   Building2,
   Filter,
   Loader2,
@@ -526,7 +526,7 @@ export default function TasksPage() {
                           <span>{getProjectName(task.projectId)}</span>
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
-                          <User className="w-3 h-3" />
+                          <UserIcon className="w-3 h-3" />
                           <span>Assigned to: {getAssignedUserName(task.assignedTo)}</span>
                         </div>
                         {task.dueDate && (
