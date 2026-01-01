@@ -207,6 +207,63 @@ Comprehensive logging for:
 - Error tracking
 - Background job execution
 
+---
+
+## Project status & Roadmap
+
+### Quick status
+- **Backend features**: Most core modules implemented (Auth, Users, Projects, Tasks, DPR, Attendance, Materials, Insights, Invoices, Sync) — **Mostly ✅**
+- **Tests**: Unit and integration tests are minimal or missing — **⚠️**
+- **API docs**: OpenAPI / Postman collection not added — **⚠️**
+- **CI/CD**: Not configured — **⚠️**
+
+### Per-module checklist
+- **Auth**
+  - [x] Routes, controller, service, JWT access/refresh
+  - [ ] Add comprehensive unit & integration tests
+- **Users**
+  - [x] Model, routes, controller
+  - [ ] Add pagination/filtering endpoints
+- **Projects**
+  - [x] Create / list / detail
+  - [ ] Add project-level role management APIs
+- **Tasks**
+  - [x] Create, update status
+  - [ ] Add bulk update endpoints, tests
+- **DPR**
+  - [x] Create with photo upload
+  - [ ] Attach AI-backend integration for real summaries
+- **Attendance**
+  - [x] GPS checkin/checkout & project queries
+  - [ ] Add geofencing validation (optional)
+- **Materials (includes approvals)**
+  - [x] Request, approve, reject logic (via Materials routes)
+  - [ ] Add approval SLA enforcement & audit trails
+- **Insights**
+  - [x] Site health, delay risk, anomalies utilities
+  - [ ] Expose full metrics & history endpoints
+- **Invoices**
+  - [x] Create/list/get invoice endpoints (GST-ready)
+  - [ ] Export / download as PDF generator
+- **Sync**
+  - [x] Batch sync endpoint with basic conflict-resolution
+  - [ ] Document sync protocol & add edge-case tests
+
+### Roadmap (next priorities)
+1. Add unit & integration tests (Jest + supertest) across critical endpoints ✅
+2. Create OpenAPI spec / Postman collection for frontend integration
+3. Implement CI pipeline (lint, build, test)
+4. Harden security: rate-limiting, monitoring, secrets rotation
+5. Finalize sync contract and add e2e sync tests
+6. Add example environment & deployment docs (Docker, Kubernetes / Azure)
+
+---
+
+If you want, I can:
+- Generate an OpenAPI spec from current routes
+- Add a `TODO.md` with actionable issues per module
+- Create initial test scaffolding for backend routes
+
 ## License
 
 MIT

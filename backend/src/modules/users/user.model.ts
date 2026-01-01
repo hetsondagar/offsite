@@ -11,6 +11,9 @@ export interface IUser extends Document {
   offsiteId: string; // Unique OffSite ID (e.g., OSSE0023, OSPM0042, OSOW0001)
   assignedProjects: mongoose.Types.ObjectId[];
   isActive: boolean;
+  // Password reset fields
+  resetPasswordToken?: string | null;
+  resetPasswordExpires?: Date | null;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -36,6 +39,16 @@ const userSchema = new Schema<IUser>(
       required: true,
       minlength: 6,
       select: false, // Don't return password by default
+    },
+    // Fields used for password reset flow
+    resetPasswordToken: {
+      type: String,
+      select: false,
+      default: null,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      default: null,
     },
     phone: {
       type: String,
@@ -91,6 +104,8 @@ userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ phone: 1 });
 userSchema.index({ role: 1 });
 userSchema.index({ offsiteId: 1 }, { unique: true }); // Critical: Unique index for offsiteId
+// Index reset token to support lookups during password reset
+userSchema.index({ resetPasswordToken: 1, resetPasswordExpires: 1 });
 
 export const User = mongoose.model<IUser>('User', userSchema);
 
