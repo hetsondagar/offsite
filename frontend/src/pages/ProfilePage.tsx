@@ -127,19 +127,22 @@ export default function ProfilePage() {
                       </h2>
                       <p className="text-sm text-muted-foreground">{userData?.email || email || "user@example.com"}</p>
                       {(userData?.phone || phone) && (
-                        <p className="text-xs text-muted-foreground">{userData?.phone || phone}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{userData?.phone || phone}</p>
                       )}
                       {userData?.offsiteId && (
-                        <div className="mt-1 flex items-center gap-2">
-                          <span className="text-xs font-mono font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="text-xs font-medium text-muted-foreground">OffSite ID:</span>
+                          <span className="text-sm font-mono font-bold text-primary bg-primary/10 border border-primary/30 px-3 py-1 rounded-lg">
                             {userData.offsiteId}
                           </span>
                         </div>
                       )}
-                      <StatusBadge 
-                        status={role === "owner" ? "success" : "info"} 
-                        label={getRoleLabel()} 
-                      />
+                      <div className="mt-2">
+                        <StatusBadge 
+                          status={role === "owner" ? "success" : "info"} 
+                          label={getRoleLabel()} 
+                        />
+                      </div>
                     </>
                   )}
                 </div>

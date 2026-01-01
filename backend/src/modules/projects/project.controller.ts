@@ -1,16 +1,21 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { Project } from './project.model';
+import { ProjectInvitation } from './project-invitation.model';
+import { User } from '../users/user.model';
 import { ApiResponse, PaginationParams } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 import { calculateProjectHealthScore } from '../../utils/siteHealth';
+import { createNotification } from '../notifications/notification.service';
+import { logger } from '../../utils/logger';
 
 const createProjectSchema = z.object({
   name: z.string().min(1).max(200),
   location: z.string().min(1).max(500),
   startDate: z.string().transform((str) => new Date(str)),
   endDate: z.string().transform((str) => new Date(str)).optional(),
-  members: z.array(z.string()).optional(),
+  engineerOffsiteIds: z.array(z.string()).optional(), // Array of OffSite IDs for engineers
+  managerOffsiteIds: z.array(z.string()).optional(), // Array of OffSite IDs for managers
 });
 
 export const createProject = async (
@@ -25,9 +30,13 @@ export const createProject = async (
 
     const data = createProjectSchema.parse(req.body);
     
+    // Create project with owner as initial member
     const project = new Project({
-      ...data,
-      members: data.members || [req.user.userId],
+      name: data.name,
+      location: data.location,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      members: [req.user.userId], // Owner is automatically a member
       status: 'active',
       progress: 0,
       healthScore: 0,
@@ -35,10 +44,99 @@ export const createProject = async (
 
     await project.save();
 
+    // Find users by OffSite IDs and create invitations
+    const invitations: any[] = [];
+    const foundUserIds: string[] = [];
+
+    // Process engineer invitations
+    if (data.engineerOffsiteIds && data.engineerOffsiteIds.length > 0) {
+      const engineers = await User.find({ 
+        offsiteId: { $in: data.engineerOffsiteIds },
+        role: 'engineer'
+      }).select('_id offsiteId name');
+
+      for (const engineer of engineers) {
+        const invitation = new ProjectInvitation({
+          projectId: project._id,
+          userId: engineer._id,
+          offsiteId: engineer.offsiteId,
+          invitedBy: req.user.userId,
+          role: 'engineer',
+          status: 'pending',
+        });
+        await invitation.save();
+        invitations.push(invitation);
+
+        // Send notification
+        try {
+          await createNotification({
+            userId: engineer._id.toString(),
+            offsiteId: engineer.offsiteId,
+            type: 'project_update',
+            title: 'Project Invitation',
+            message: `You have been invited to join the project "${data.name}" as a Site Engineer.`,
+            data: {
+              projectId: project._id.toString(),
+              projectName: data.name,
+              invitationId: invitation._id.toString(),
+              role: 'engineer',
+            },
+          });
+        } catch (notifError: any) {
+          logger.warn('Failed to send invitation notification:', notifError.message);
+        }
+      }
+    }
+
+    // Process manager invitations
+    if (data.managerOffsiteIds && data.managerOffsiteIds.length > 0) {
+      const managers = await User.find({ 
+        offsiteId: { $in: data.managerOffsiteIds },
+        role: 'manager'
+      }).select('_id offsiteId name');
+
+      for (const manager of managers) {
+        const invitation = new ProjectInvitation({
+          projectId: project._id,
+          userId: manager._id,
+          offsiteId: manager.offsiteId,
+          invitedBy: req.user.userId,
+          role: 'manager',
+          status: 'pending',
+        });
+        await invitation.save();
+        invitations.push(invitation);
+
+        // Send notification
+        try {
+          await createNotification({
+            userId: manager._id.toString(),
+            offsiteId: manager.offsiteId,
+            type: 'project_update',
+            title: 'Project Invitation',
+            message: `You have been invited to join the project "${data.name}" as a Project Manager.`,
+            data: {
+              projectId: project._id.toString(),
+              projectName: data.name,
+              invitationId: invitation._id.toString(),
+              role: 'manager',
+            },
+          });
+        } catch (notifError: any) {
+          logger.warn('Failed to send invitation notification:', notifError.message);
+        }
+      }
+    }
+
+    logger.info(`Project created: ${project._id} with ${invitations.length} invitations`);
+
     const response: ApiResponse = {
       success: true,
       message: 'Project created successfully',
-      data: project,
+      data: {
+        project,
+        invitations: invitations.length,
+      },
     };
 
     res.status(201).json(response);
@@ -68,7 +166,7 @@ export const getProjects = async (
 
     const [projects, total] = await Promise.all([
       Project.find(query)
-        .populate('members', 'name phone role')
+        .populate('members', 'name phone role offsiteId')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -105,7 +203,7 @@ export const getProjectById = async (
     const { id } = req.params;
 
     const project = await Project.findById(id)
-      .populate('members', 'name phone role')
+      .populate('members', 'name phone role offsiteId')
       .select('-__v');
 
     if (!project) {

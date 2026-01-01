@@ -24,7 +24,9 @@ import {
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { projectsApi, Project } from "@/services/api/projects";
+import { usersApi } from "@/services/api/users";
 import { toast } from "sonner";
+import { Search, X, UserPlus } from "lucide-react";
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
@@ -40,6 +42,12 @@ export default function ProjectsPage() {
     startDate: "",
     endDate: "",
   });
+  const [engineerSearch, setEngineerSearch] = useState("");
+  const [managerSearch, setManagerSearch] = useState("");
+  const [selectedEngineers, setSelectedEngineers] = useState<Array<{ offsiteId: string; name: string }>>([]);
+  const [selectedManagers, setSelectedManagers] = useState<Array<{ offsiteId: string; name: string }>>([]);
+  const [searchResults, setSearchResults] = useState<Array<{ offsiteId: string; name: string; role: string }>>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     loadProjects();
@@ -58,6 +66,72 @@ export default function ProjectsPage() {
     }
   };
 
+  const handleSearchUser = async (offsiteId: string, type: 'engineer' | 'manager') => {
+    if (!offsiteId || offsiteId.trim().length === 0) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const user = await usersApi.searchByOffsiteId(offsiteId.trim());
+      
+      // Check if user role matches the search type
+      if ((type === 'engineer' && user.role !== 'engineer') || 
+          (type === 'manager' && user.role !== 'manager')) {
+        toast.error(`This OffSite ID belongs to a ${user.role}, not a ${type}`);
+        setSearchResults([]);
+        return;
+      }
+
+      // Check if already selected
+      const isEngineerSelected = selectedEngineers.some(e => e.offsiteId === user.offsiteId);
+      const isManagerSelected = selectedManagers.some(m => m.offsiteId === user.offsiteId);
+      
+      if (isEngineerSelected || isManagerSelected) {
+        toast.error('This user is already added');
+        setSearchResults([]);
+        return;
+      }
+
+      setSearchResults([{
+        offsiteId: user.offsiteId,
+        name: user.name,
+        role: user.role,
+      }]);
+    } catch (error: any) {
+      console.error('Error searching user:', error);
+      toast.error(error.message || 'User not found');
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleAddEngineer = (user: { offsiteId: string; name: string }) => {
+    if (!selectedEngineers.some(e => e.offsiteId === user.offsiteId)) {
+      setSelectedEngineers([...selectedEngineers, user]);
+      setEngineerSearch("");
+      setSearchResults([]);
+    }
+  };
+
+  const handleAddManager = (user: { offsiteId: string; name: string }) => {
+    if (!selectedManagers.some(m => m.offsiteId === user.offsiteId)) {
+      setSelectedManagers([...selectedManagers, user]);
+      setManagerSearch("");
+      setSearchResults([]);
+    }
+  };
+
+  const handleRemoveEngineer = (offsiteId: string) => {
+    setSelectedEngineers(selectedEngineers.filter(e => e.offsiteId !== offsiteId));
+  };
+
+  const handleRemoveManager = (offsiteId: string) => {
+    setSelectedManagers(selectedManagers.filter(m => m.offsiteId !== offsiteId));
+  };
+
   const handleCreateProject = async () => {
     if (!newProject.name || !newProject.location || !newProject.startDate) {
       toast.error('Please fill in all required fields');
@@ -71,11 +145,13 @@ export default function ProjectsPage() {
         location: newProject.location.trim(),
         startDate: new Date(newProject.startDate).toISOString(),
         endDate: newProject.endDate ? new Date(newProject.endDate).toISOString() : undefined,
+        engineerOffsiteIds: selectedEngineers.map(e => e.offsiteId),
+        managerOffsiteIds: selectedManagers.map(m => m.offsiteId),
       };
 
       await projectsApi.create(projectData);
       
-      toast.success('Project created successfully!');
+      toast.success('Project created successfully! Invitations sent to selected members.');
       setIsCreateDialogOpen(false);
       setNewProject({
         name: "",
@@ -83,6 +159,10 @@ export default function ProjectsPage() {
         startDate: "",
         endDate: "",
       });
+      setSelectedEngineers([]);
+      setSelectedManagers([]);
+      setEngineerSearch("");
+      setManagerSearch("");
       
       // Reload projects
       await loadProjects();
@@ -263,6 +343,168 @@ export default function ProjectsPage() {
                     className="bg-background text-foreground"
                     min={newProject.startDate}
                   />
+                </div>
+
+                {/* Site Engineers Section */}
+                <div className="space-y-2">
+                  <Label>Site Engineers (Optional)</Label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search by OffSite ID (e.g., OSSE0001)"
+                        value={engineerSearch}
+                        onChange={(e) => {
+                          setEngineerSearch(e.target.value);
+                          if (e.target.value.trim().length > 0) {
+                            handleSearchUser(e.target.value, 'engineer');
+                          } else {
+                            setSearchResults([]);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && engineerSearch.trim().length > 0) {
+                            handleSearchUser(engineerSearch, 'engineer');
+                          }
+                        }}
+                        className="bg-background text-foreground pl-10"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleSearchUser(engineerSearch, 'engineer')}
+                      disabled={!engineerSearch.trim() || isSearching}
+                    >
+                      {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                  
+                  {/* Search Results */}
+                  {searchResults.length > 0 && engineerSearch && (
+                    <div className="mt-2 p-2 bg-muted rounded-lg border border-border">
+                      {searchResults.map((user) => (
+                        <div key={user.offsiteId} className="flex items-center justify-between p-2 hover:bg-background rounded">
+                          <div>
+                            <p className="text-sm font-medium">{user.name}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{user.offsiteId}</p>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleAddEngineer(user)}
+                          >
+                            <UserPlus className="w-4 h-4 mr-1" />
+                            Add
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Selected Engineers */}
+                  {selectedEngineers.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {selectedEngineers.map((engineer) => (
+                        <div key={engineer.offsiteId} className="flex items-center justify-between p-2 bg-primary/10 rounded-lg border border-primary/20">
+                          <div>
+                            <p className="text-sm font-medium">{engineer.name}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{engineer.offsiteId}</p>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleRemoveEngineer(engineer.offsiteId)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Project Managers Section */}
+                <div className="space-y-2">
+                  <Label>Project Managers (Optional)</Label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search by OffSite ID (e.g., OSPM0001)"
+                        value={managerSearch}
+                        onChange={(e) => {
+                          setManagerSearch(e.target.value);
+                          if (e.target.value.trim().length > 0) {
+                            handleSearchUser(e.target.value, 'manager');
+                          } else {
+                            setSearchResults([]);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && managerSearch.trim().length > 0) {
+                            handleSearchUser(managerSearch, 'manager');
+                          }
+                        }}
+                        className="bg-background text-foreground pl-10"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleSearchUser(managerSearch, 'manager')}
+                      disabled={!managerSearch.trim() || isSearching}
+                    >
+                      {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                  
+                  {/* Search Results */}
+                  {searchResults.length > 0 && managerSearch && (
+                    <div className="mt-2 p-2 bg-muted rounded-lg border border-border">
+                      {searchResults.map((user) => (
+                        <div key={user.offsiteId} className="flex items-center justify-between p-2 hover:bg-background rounded">
+                          <div>
+                            <p className="text-sm font-medium">{user.name}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{user.offsiteId}</p>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleAddManager(user)}
+                          >
+                            <UserPlus className="w-4 h-4 mr-1" />
+                            Add
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Selected Managers */}
+                  {selectedManagers.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {selectedManagers.map((manager) => (
+                        <div key={manager.offsiteId} className="flex items-center justify-between p-2 bg-primary/10 rounded-lg border border-primary/20">
+                          <div>
+                            <p className="text-sm font-medium">{manager.name}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{manager.offsiteId}</p>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleRemoveManager(manager.offsiteId)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex gap-3">

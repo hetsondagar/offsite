@@ -4,6 +4,7 @@ import { generateOffsiteId } from '../../utils/generateOffsiteId';
 import { JWTPayload, UserRole } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 import { sendResetEmail } from '../../utils/mailer';
 import { logger } from '../../utils/logger';
 
@@ -134,8 +135,82 @@ export const signup = async (
           throw new AppError('Email already exists. Please login instead.', 409, 'DUPLICATE_ENTRY');
         } else if (field === 'offsiteId') {
           throw new AppError('Account creation failed. Please try again.', 409, 'DUPLICATE_ENTRY');
+        } else if (field === 'phone') {
+          // If phone wasn't provided but we get a phone duplicate error, it's likely an old database index issue
+          if (!trimmedPhone || trimmedPhone.length === 0) {
+            logger.error('Phone duplicate error occurred even though phone was not provided. Old unique index may still exist in database. Attempting workaround...', {
+              email,
+              errorKeyPattern: error.keyPattern,
+            });
+            
+            // Workaround: Use native MongoDB insert to completely bypass Mongoose schema
+            // This ensures phone field is not included at all in the document
+            try {
+              // Get the native MongoDB collection
+              const collection = User.collection;
+              
+              // Prepare document without phone field - use native MongoDB format
+              const userDoc: any = {
+                email: email.toLowerCase().trim(),
+                password: userData.password, // Will be hashed by pre-save hook if we use User model
+                name: name.trim(),
+                role,
+                offsiteId,
+                assignedProjects: [],
+                isActive: true,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              };
+              
+              // Hash password manually since we're bypassing Mongoose pre-save hook
+              const salt = await bcrypt.genSalt(10);
+              userDoc.password = await bcrypt.hash(password, salt);
+              
+              // Insert directly into collection - phone field is completely omitted
+              const result = await collection.insertOne(userDoc);
+              
+              // Fetch the created user using Mongoose to get proper document
+              const newUser = await User.findById(result.insertedId);
+              
+              if (!newUser) {
+                throw new Error('Failed to retrieve created user');
+              }
+              
+              logger.info('Successfully created user after phone index workaround', { email, userId: newUser._id });
+              
+              // Continue with token generation
+              const payload: JWTPayload = {
+                userId: newUser._id.toString(),
+                role: newUser.role,
+                email: newUser.email,
+              };
+              
+              const accessToken = generateAccessToken(payload);
+              const refreshToken = generateRefreshToken(payload);
+              
+              return {
+                accessToken,
+                refreshToken,
+                user: {
+                  id: newUser._id.toString(),
+                  name: newUser.name,
+                  email: newUser.email,
+                  phone: newUser.phone,
+                  role: newUser.role,
+                  offsiteId: newUser.offsiteId,
+                },
+              };
+            } catch (retryError: any) {
+              logger.error('Workaround failed, database index needs to be dropped', {
+                email,
+                retryError: retryError.message,
+                stack: retryError.stack,
+              });
+              throw new AppError('Account creation failed due to database configuration. Please contact support. The phone field unique index needs to be dropped from the database. Run: db.users.dropIndex("phone_1")', 409, 'DUPLICATE_ENTRY');
+            }
+          }
+          throw new AppError('Phone number already exists. Please use a different phone number.', 409, 'DUPLICATE_ENTRY');
         }
-        // Phone field no longer has unique constraint, so this shouldn't happen
         throw new AppError(`${field.charAt(0).toUpperCase() + field.slice(1)} already exists`, 409, 'DUPLICATE_ENTRY');
       }
       // Handle validation errors

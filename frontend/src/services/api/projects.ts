@@ -30,7 +30,8 @@ export const projectsApi = {
     location: string;
     startDate: string;
     endDate?: string;
-    members?: string[];
+    engineerOffsiteIds?: string[];
+    managerOffsiteIds?: string[];
   }) => {
     const response = await apiPost<Project>('/projects', data);
     return response.data;

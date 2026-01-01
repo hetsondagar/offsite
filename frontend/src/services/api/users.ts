@@ -23,5 +23,15 @@ export const usersApi = {
     const response = await apiGet<User>(`/users/${id}`);
     return response.data;
   },
+
+  getByOffsiteId: async (offsiteId: string) => {
+    const response = await apiGet<User>(`/users/offsite/${offsiteId}`);
+    return response.data;
+  },
+
+  searchByOffsiteId: async (offsiteId: string) => {
+    const response = await apiGet<User>('/notifications/search/user', { offsiteId });
+    return response.data;
+  },
 };
 

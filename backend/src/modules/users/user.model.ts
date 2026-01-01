@@ -54,14 +54,17 @@ const userSchema = new Schema<IUser>(
       type: String,
       trim: true,
       required: false, // Explicitly mark as optional
-      default: undefined, // Don't set default, leave it undefined if not provided
+      // Don't set default - field should be completely omitted if not provided
       // Only validate if phone is provided
       validate: {
         validator: function(v: string | undefined) {
           // If phone is provided, it must not be empty after trimming
           // If undefined or null, validation passes (field is optional)
           if (v === undefined || v === null) return true;
-          return v.trim().length > 0;
+          if (typeof v === 'string') {
+            return v.trim().length > 0;
+          }
+          return false;
         },
         message: 'Phone number cannot be empty',
       },
@@ -106,10 +109,13 @@ userSchema.pre('save', async function (next) {
   next();
 });
 
-// Clean up phone field - remove empty strings and set to undefined
+// Clean up phone field - remove empty strings and completely unset the field
 userSchema.pre('save', function (next) {
-  // If phone is an empty string, set it to undefined so sparse index works correctly
-  if (this.phone !== undefined && this.phone !== null && this.phone.trim() === '') {
+  // If phone is an empty string, null, or undefined, completely remove it from the document
+  if (this.phone === undefined || this.phone === null || (typeof this.phone === 'string' && this.phone.trim() === '')) {
+    // Use unset to completely remove the field from the document
+    this.set('phone', undefined, { strict: false });
+    // Also mark it as undefined so it's not saved
     this.phone = undefined;
   }
   next();
