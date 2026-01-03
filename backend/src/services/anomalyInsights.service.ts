@@ -2,9 +2,7 @@ import { Attendance } from '../modules/attendance/attendance.model';
 import { MaterialRequest } from '../modules/materials/material.model';
 import { DPR } from '../modules/dpr/dpr.model';
 import { Project } from '../modules/projects/project.model';
-import { llmService } from './llm.service';
-import { ragService } from './rag.service';
-import { z } from 'zod';
+import { huggingFaceService } from './ai/huggingface.service';
 import { logger } from '../utils/logger';
 
 export interface Anomaly {
@@ -216,61 +214,76 @@ export class AnomalyInsightsService {
   }
 
   /**
-   * Get AI explanation for anomaly
+   * Get AI explanation for anomaly using Hugging Face
    */
   async getAIExplanation(anomaly: Omit<Anomaly, 'explanation' | 'businessImpact' | 'recommendedAction'>): Promise<{
     explanation: string;
     businessImpact: string;
     recommendedAction: string;
   }> {
-    // Get RAG context
-    const ragContext = await ragService.getRAGContext(
-      `${anomaly.anomalyType} ${anomaly.patternDetected}`
-    );
-
-    const systemPrompt = `You are a construction site anomaly analysis AI. Analyze detected anomalies and explain their business impact.
-
-${ragContext}
+    const prompt = `You are a construction site anomaly analysis AI. Analyze detected anomalies and explain their business impact.
 
 IMPORTANT RULES:
 - Do NOT detect anomalies (they are already detected)
 - Focus on explaining what the pattern means
 - Explain business impact in construction context
-- Provide actionable recommendations based on policy documents
-- Output ONLY valid JSON, no markdown formatting`;
+- Provide actionable recommendations
+- Use ONLY the data provided below
 
-    const userPrompt = `Analyze this anomaly:
+Anomaly Details:
+- Type: ${anomaly.anomalyType}
+- Pattern Detected: ${anomaly.patternDetected}
+- Historical Comparison: ${anomaly.historicalComparison}
+- Project Stage: ${anomaly.projectStage}
+- Severity: ${anomaly.severity}
+- Confidence: ${anomaly.confidence}
 
-Type: ${anomaly.anomalyType}
-Pattern: ${anomaly.patternDetected}
-Historical Comparison: ${anomaly.historicalComparison}
-Project Stage: ${anomaly.projectStage}
-Severity: ${anomaly.severity}
-Confidence: ${anomaly.confidence}
+Provide a clear analysis with:
+1. Explanation: What this anomaly pattern indicates
+2. Business Impact: How this affects the project (cost, timeline, quality)
+3. Recommended Action: Specific action to take
 
-Provide analysis in this EXACT JSON format:
-{
-  "explanation": "What this anomaly pattern indicates",
-  "businessImpact": "How this affects the project (cost, timeline, quality)",
-  "recommendedAction": "Specific action to take based on guidelines"
-}`;
+Format your response clearly with labeled sections.`;
 
     try {
-      const response = await llmService.chatCompletion([
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ]);
-
-      const parsed = JSON.parse(response.content);
+      const aiResponse = await huggingFaceService.generateText(prompt, 400);
       
-      const schema = z.object({
-        explanation: z.string(),
-        businessImpact: z.string(),
-        recommendedAction: z.string(),
+      if (!aiResponse) {
+        throw new Error('AI service unavailable');
+      }
+
+      // Parse the response
+      let explanation = '';
+      let businessImpact = '';
+      let recommendedAction = '';
+
+      const lines = aiResponse.split('\n').filter(l => l.trim());
+      
+      lines.forEach((line, index) => {
+        const lowerLine = line.toLowerCase();
+        if (lowerLine.includes('explanation') || lowerLine.includes('indicates')) {
+          explanation = line.replace(/^.*explanation[:\-]?\s*/i, '').trim() || lines[index + 1]?.trim() || '';
+        }
+        if (lowerLine.includes('business impact') || lowerLine.includes('affects')) {
+          businessImpact = line.replace(/^.*business impact[:\-]?\s*/i, '').trim() || lines[index + 1]?.trim() || '';
+        }
+        if (lowerLine.includes('recommended action') || lowerLine.includes('action')) {
+          recommendedAction = line.replace(/^.*recommended action[:\-]?\s*/i, '').trim() || lines[index + 1]?.trim() || '';
+        }
       });
 
-      const validated = schema.parse(parsed);
-      return validated;
+      // If parsing failed, use the full response as explanation
+      if (!explanation && !businessImpact && !recommendedAction) {
+        explanation = aiResponse.substring(0, 200);
+        businessImpact = 'May impact project timeline and resource allocation';
+        recommendedAction = 'Review data source and verify process compliance';
+      }
+
+      return {
+        explanation: explanation || `Detected ${anomaly.anomalyType} pattern: ${anomaly.patternDetected}`,
+        businessImpact: businessImpact || 'May impact project timeline and resource allocation',
+        recommendedAction: recommendedAction || 'Review data source and verify process compliance',
+      };
     } catch (error: any) {
       logger.error('Error getting AI explanation:', error);
       // Fallback

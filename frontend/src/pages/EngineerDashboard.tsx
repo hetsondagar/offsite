@@ -25,6 +25,7 @@ export default function EngineerDashboard() {
   const navigate = useNavigate();
   const { hasPermission } = usePermissions();
   const { userId } = useAppSelector((state) => state.auth);
+  const { isOnline, pendingItems } = useAppSelector((state) => state.offline);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [todayAttendance, setTodayAttendance] = useState<any>(null);
   const [todayTasks, setTodayTasks] = useState<any[]>([]);
@@ -191,10 +192,12 @@ export default function EngineerDashboard() {
           </div>
         </div>
 
-        {/* Offline Banner (demo) */}
-        <div className="opacity-0 animate-fade-up stagger-1">
-          <OfflineBanner pendingItems={2} />
-        </div>
+        {/* Offline Banner - only show when actually offline or has pending items */}
+        {(!isOnline || pendingItems.length > 0) && (
+          <div className="opacity-0 animate-fade-up stagger-1">
+            <OfflineBanner pendingItems={pendingItems.length} />
+          </div>
+        )}
 
         {/* Pending Project Invitations */}
         {pendingInvitations.length > 0 && (

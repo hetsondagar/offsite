@@ -66,9 +66,19 @@ export const calculateProjectHealthScore = async (
   const engineerMembers = project?.members?.filter((member: any) => member.role === 'engineer') || [];
   const expectedUsers = engineerMembers.length;
   
-  // Calculate unique users who checked in
-  const uniqueUsers = new Set(attendanceRecords.map(a => a.userId.toString()));
-  const attendancePercentage = expectedUsers > 0 ? (uniqueUsers.size / expectedUsers) * 100 : 0;
+  // Calculate unique users who checked in today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayAttendanceRecords = attendanceRecords.filter(a => {
+    const attDate = new Date(a.timestamp);
+    attDate.setHours(0, 0, 0, 0);
+    return attDate.getTime() === today.getTime();
+  });
+  const uniqueUsersToday = new Set(todayAttendanceRecords.map(a => a.userId.toString()));
+  
+  // If no engineers assigned, attendance is 0%
+  // If engineers assigned but no one checked in today, attendance is 0%
+  const attendancePercentage = expectedUsers > 0 ? (uniqueUsersToday.size / expectedUsers) * 100 : 0;
   
   // Get pending approvals
   const pendingApprovals = await MaterialRequest.countDocuments({

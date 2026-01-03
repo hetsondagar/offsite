@@ -29,6 +29,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { projectsApi } from "@/services/api/projects";
 import { tasksApi } from "@/services/api/tasks";
 import { dprApi } from "@/services/api/dpr";
+import { insightsApi } from "@/services/api/insights";
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -37,6 +38,7 @@ export default function DPRPage() {
   const dispatch = useAppDispatch();
   const { hasPermission } = usePermissions();
   const userId = useAppSelector((state) => state.auth.userId);
+  const { isOnline } = useAppSelector((state) => state.offline);
   const [step, setStep] = useState<Step>(1);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
@@ -51,6 +53,11 @@ export default function DPRPage() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+  const [oldDPRs, setOldDPRs] = useState<any[]>([]);
+  const [isLoadingOldDPRs, setIsLoadingOldDPRs] = useState(false);
+  const [showOldDPRs, setShowOldDPRs] = useState(false);
+  const [submittedDPRId, setSubmittedDPRId] = useState<string | null>(null);
+  const [dprAISummary, setDprAISummary] = useState<string>("");
   
   // Work stoppage state
   const [workStoppageOccurred, setWorkStoppageOccurred] = useState(false);
@@ -188,7 +195,7 @@ export default function DPRPage() {
       };
 
       // Submit to API with actual photo files
-      await dprApi.create({
+      const response = await dprApi.create({
         projectId: selectedProject,
         taskId: selectedTask,
         notes: notes,
@@ -196,8 +203,29 @@ export default function DPRPage() {
         workStoppage: workStoppage as any,
       }, photos.length > 0 ? photos : undefined, workStoppageEvidencePhotos.length > 0 ? workStoppageEvidencePhotos : undefined);
 
+      // Store the created DPR ID
+      if (response?._id) {
+        setSubmittedDPRId(response._id);
+        // Load AI summary if available
+        if (response.aiSummary) {
+          setDprAISummary(response.aiSummary);
+        } else {
+          // Fetch AI summary from insights API
+          try {
+            const aiSummaryData = await insightsApi.getDPRSummary(selectedProject, response._id);
+            if (aiSummaryData?.summary) {
+              setDprAISummary(aiSummaryData.summary);
+            }
+          } catch (error) {
+            console.error('Error loading AI summary:', error);
+          }
+        }
+        // Load old DPRs for this project
+        await loadOldDPRs(selectedProject);
+      }
+
       setShowSuccess(true);
-      setTimeout(() => navigate("/"), 2000);
+      // Don't navigate away immediately - let user see the success and view old DPRs
     } catch (error) {
       // If API fails, save to IndexedDB for offline sync
       // Convert File objects to base64 for storage
@@ -314,7 +342,7 @@ export default function DPRPage() {
               <p className="text-xs text-muted-foreground">{stepTitles[step]}</p>
             </div>
             <div className="absolute right-0">
-              <StatusBadge status="offline" label="Offline" />
+              <StatusBadge status={isOnline ? "success" : "offline"} label={isOnline ? "Online" : "Offline"} />
             </div>
           </div>
 
@@ -356,11 +384,139 @@ export default function DPRPage() {
                   <Check className="w-10 h-10 text-success" />
                 </motion.div>
                 <h2 className="font-display text-2xl font-bold text-foreground">DPR Submitted!</h2>
-                <p className="text-muted-foreground">Your report has been saved offline</p>
+                <p className="text-muted-foreground">
+                  {isOnline ? "Your report has been saved successfully" : "Your report has been saved offline"}
+                </p>
+                
+                {/* AI Summary */}
+                {dprAISummary && (
+                  <Card className="mt-4 max-w-md mx-auto">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-sm">
+                        <Sparkles className="w-4 h-4 text-primary" />
+                        AI Summary
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-foreground">{dprAISummary}</p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* View Old DPRs Button */}
+                {showOldDPRs && oldDPRs.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <Button 
+                      onClick={() => {
+                        setShowSuccess(false);
+                        setShowOldDPRs(true);
+                      }}
+                      variant="outline"
+                    >
+                      View Old DPRs ({oldDPRs.length})
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        setShowSuccess(false);
+                        // Reset form
+                        setStep(1);
+                        setSelectedProject(null);
+                        setSelectedTask(null);
+                        setPhotos([]);
+                        setPhotoPreviews([]);
+                        setNotes("");
+                        setAiSummary("");
+                        setDprAISummary("");
+                        setWorkStoppageOccurred(false);
+                        setWorkStoppageReason("");
+                        setWorkStoppageDuration(0);
+                        setWorkStoppageRemarks("");
+                        setWorkStoppageEvidencePhotos([]);
+                        setWorkStoppageEvidencePreviews([]);
+                        setSubmittedDPRId(null);
+                      }}
+                    >
+                      Create New DPR
+                    </Button>
+                  </div>
+                )}
               </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Old DPRs View */}
+        {showOldDPRs && !showSuccess && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-xl font-semibold">Previous DPRs</h2>
+              <Button variant="ghost" size="sm" onClick={() => {
+                setShowOldDPRs(false);
+                setStep(1);
+              }}>
+                Create New
+              </Button>
+            </div>
+            {isLoadingOldDPRs ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : oldDPRs.length > 0 ? (
+              <div className="space-y-3">
+                {oldDPRs.map((dpr: any) => (
+                  <Card key={dpr._id}>
+                    <CardContent className="pt-6">
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="font-medium">{dpr.taskId?.title || 'Task'}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {new Date(dpr.createdAt).toLocaleDateString('en-US', { 
+                                weekday: 'short', 
+                                month: 'short', 
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
+                          {dpr.aiSummary && (
+                            <StatusBadge status="success" label="AI Summary" />
+                          )}
+                        </div>
+                        {dpr.notes && (
+                          <p className="text-sm text-foreground">{dpr.notes}</p>
+                        )}
+                        {dpr.aiSummary && (
+                          <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Sparkles className="w-4 h-4 text-primary" />
+                              <p className="text-xs font-medium text-primary">AI Summary</p>
+                            </div>
+                            <p className="text-sm text-foreground">{dpr.aiSummary}</p>
+                          </div>
+                        )}
+                        {dpr.photos && dpr.photos.length > 0 && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <ImageIcon className="w-3 h-3" />
+                            <span>{dpr.photos.length} photo(s)</span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="pt-6 text-center py-8">
+                  <p className="text-sm text-muted-foreground">No previous DPRs found</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
 
         {/* Content */}
         <div className="p-4 space-y-4">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,11 +50,20 @@ export default function ProjectDetailPage() {
   const [selectedManagers, setSelectedManagers] = useState<Array<{ offsiteId: string; name: string }>>([]);
   const [searchResults, setSearchResults] = useState<Array<{ offsiteId: string; name: string; role: string }>>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [lastSearchQuery, setLastSearchQuery] = useState<string>('');
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (id) {
       loadProjectDetails();
     }
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
   }, [id]);
 
   const loadProjectDetails = async () => {
@@ -71,15 +80,25 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const handleSearchUser = async (offsiteId: string, type: 'engineer' | 'manager') => {
-    if (!offsiteId || offsiteId.trim().length === 0) {
+  const handleSearchUser = async (offsiteId: string, type: 'engineer' | 'manager', showErrorToast: boolean = false) => {
+    const trimmedId = offsiteId.trim().toUpperCase();
+    
+    if (!trimmedId || trimmedId.length === 0) {
       setSearchResults([]);
+      setLastSearchQuery('');
+      return;
+    }
+
+    // Don't search if it's the same query
+    if (trimmedId === lastSearchQuery) {
       return;
     }
 
     setIsSearching(true);
+    setLastSearchQuery(trimmedId);
+    
     try {
-      const user = await usersApi.searchByOffsiteId(offsiteId.trim());
+      const user = await usersApi.searchByOffsiteId(trimmedId);
       
       // Check if user role matches the search type
       if ((type === 'engineer' && user.role !== 'engineer') || 
@@ -90,8 +109,8 @@ export default function ProjectDetailPage() {
       }
 
       // Check if already selected
-      const isEngineerSelected = selectedEngineers.some(e => e.offsiteId === user.offsiteId);
-      const isManagerSelected = selectedManagers.some(m => m.offsiteId === user.offsiteId);
+      const isEngineerSelected = selectedEngineers.some(e => e.offsiteId.toUpperCase() === user.offsiteId.toUpperCase());
+      const isManagerSelected = selectedManagers.some(m => m.offsiteId.toUpperCase() === user.offsiteId.toUpperCase());
       
       if (isEngineerSelected || isManagerSelected) {
         toast.error('This user is already added');
@@ -100,7 +119,7 @@ export default function ProjectDetailPage() {
       }
 
       // Check if already a member
-      if (projectData?.project?.members?.some((m: any) => m.offsiteId === user.offsiteId)) {
+      if (projectData?.project?.members?.some((m: any) => m.offsiteId?.toUpperCase() === user.offsiteId.toUpperCase())) {
         toast.error('This user is already a member of this project');
         setSearchResults([]);
         return;
@@ -113,7 +132,10 @@ export default function ProjectDetailPage() {
       }]);
     } catch (error: any) {
       console.error('Error searching user:', error);
-      toast.error(error.message || 'User not found');
+      // Only show error toast if explicitly requested (button click or Enter key)
+      if (showErrorToast && trimmedId.length > 0) {
+        toast.error(error.message || 'User not found');
+      }
       setSearchResults([]);
     } finally {
       setIsSearching(false);
@@ -395,16 +417,34 @@ export default function ProjectDetailPage() {
                               placeholder="Search by OffSite ID (e.g., OSSE0001)"
                               value={engineerSearch}
                               onChange={(e) => {
-                                setEngineerSearch(e.target.value);
-                                if (e.target.value.trim().length > 0) {
-                                  handleSearchUser(e.target.value, 'engineer');
-                                } else {
-                                  setSearchResults([]);
+                                const value = e.target.value;
+                                setEngineerSearch(value);
+                                
+                                // Clear previous timeout
+                                if (searchTimeoutRef.current) {
+                                  clearTimeout(searchTimeoutRef.current);
                                 }
+                                
+                                if (value.trim().length === 0) {
+                                  setSearchResults([]);
+                                  setLastSearchQuery('');
+                                  return;
+                                }
+                                
+                                // Debounce search - only search after user stops typing for 500ms
+                                // Don't show error toast for debounced searches
+                                searchTimeoutRef.current = setTimeout(() => {
+                                  handleSearchUser(value, 'engineer', false);
+                                }, 500);
                               }}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' && engineerSearch.trim().length > 0) {
-                                  handleSearchUser(engineerSearch, 'engineer');
+                                  // Clear timeout and search immediately on Enter
+                                  if (searchTimeoutRef.current) {
+                                    clearTimeout(searchTimeoutRef.current);
+                                  }
+                                  // Show error toast on explicit search (Enter key)
+                                  handleSearchUser(engineerSearch, 'engineer', true);
                                 }
                               }}
                               className="bg-background text-foreground pl-10"
@@ -413,7 +453,13 @@ export default function ProjectDetailPage() {
                           <Button
                             type="button"
                             variant="outline"
-                            onClick={() => handleSearchUser(engineerSearch, 'engineer')}
+                            onClick={() => {
+                              if (searchTimeoutRef.current) {
+                                clearTimeout(searchTimeoutRef.current);
+                              }
+                              // Show error toast on explicit search (button click)
+                              handleSearchUser(engineerSearch, 'engineer', true);
+                            }}
                             disabled={!engineerSearch.trim() || isSearching}
                           >
                             {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
@@ -476,16 +522,34 @@ export default function ProjectDetailPage() {
                               placeholder="Search by OffSite ID (e.g., OSPM0001)"
                               value={managerSearch}
                               onChange={(e) => {
-                                setManagerSearch(e.target.value);
-                                if (e.target.value.trim().length > 0) {
-                                  handleSearchUser(e.target.value, 'manager');
-                                } else {
-                                  setSearchResults([]);
+                                const value = e.target.value;
+                                setManagerSearch(value);
+                                
+                                // Clear previous timeout
+                                if (searchTimeoutRef.current) {
+                                  clearTimeout(searchTimeoutRef.current);
                                 }
+                                
+                                if (value.trim().length === 0) {
+                                  setSearchResults([]);
+                                  setLastSearchQuery('');
+                                  return;
+                                }
+                                
+                                // Debounce search - only search after user stops typing for 500ms
+                                // Don't show error toast for debounced searches
+                                searchTimeoutRef.current = setTimeout(() => {
+                                  handleSearchUser(value, 'manager', false);
+                                }, 500);
                               }}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' && managerSearch.trim().length > 0) {
-                                  handleSearchUser(managerSearch, 'manager');
+                                  // Clear timeout and search immediately on Enter
+                                  if (searchTimeoutRef.current) {
+                                    clearTimeout(searchTimeoutRef.current);
+                                  }
+                                  // Show error toast on explicit search (Enter key)
+                                  handleSearchUser(managerSearch, 'manager', true);
                                 }
                               }}
                               className="bg-background text-foreground pl-10"
@@ -494,7 +558,13 @@ export default function ProjectDetailPage() {
                           <Button
                             type="button"
                             variant="outline"
-                            onClick={() => handleSearchUser(managerSearch, 'manager')}
+                            onClick={() => {
+                              if (searchTimeoutRef.current) {
+                                clearTimeout(searchTimeoutRef.current);
+                              }
+                              // Show error toast on explicit search (button click)
+                              handleSearchUser(managerSearch, 'manager', true);
+                            }}
                             disabled={!managerSearch.trim() || isSearching}
                           >
                             {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
@@ -653,7 +723,14 @@ export default function ProjectDetailPage() {
             <CardContent>
               <div className="space-y-3">
                 {statistics.dprs.recent.map((dpr: any) => (
-                  <div key={dpr._id} className="p-3 rounded-lg border">
+                  <div 
+                    key={dpr._id} 
+                    className="p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => {
+                      setSelectedDPR(dpr);
+                      setIsDPRModalOpen(true);
+                    }}
+                  >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <p className="font-medium">
@@ -753,6 +830,89 @@ export default function ProjectDetailPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* DPR Detail Modal */}
+        <Dialog open={isDPRModalOpen} onOpenChange={setIsDPRModalOpen}>
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>DPR Details</DialogTitle>
+            </DialogHeader>
+            {selectedDPR && (
+              <div className="space-y-4">
+                <div className="p-3 rounded-xl bg-muted/50">
+                  <span className="text-xs text-muted-foreground">Task</span>
+                  <p className="font-medium text-foreground">{selectedDPR.taskId?.title || 'Unknown Task'}</p>
+                </div>
+
+                <div className="p-3 rounded-xl bg-muted/50">
+                  <span className="text-xs text-muted-foreground">Created By</span>
+                  <p className="font-medium text-foreground">{selectedDPR.createdBy?.name || 'Unknown'}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatDate(selectedDPR.createdAt)}
+                  </p>
+                </div>
+
+                {selectedDPR.notes && (
+                  <div className="p-3 rounded-xl bg-muted/50">
+                    <span className="text-xs text-muted-foreground">Notes</span>
+                    <p className="text-sm text-foreground mt-1">{selectedDPR.notes}</p>
+                  </div>
+                )}
+
+                {selectedDPR.photos && selectedDPR.photos.length > 0 && (
+                  <div className="p-3 rounded-xl bg-muted/50">
+                    <span className="text-xs text-muted-foreground mb-2 block">Photos ({selectedDPR.photos.length})</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedDPR.photos.map((photo: string, index: number) => (
+                        <img
+                          key={index}
+                          src={photo}
+                          alt={`DPR photo ${index + 1}`}
+                          className="w-full h-32 object-cover rounded-lg"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedDPR.aiSummary && (
+                  <div className="p-3 rounded-xl bg-primary/5 border border-primary/20">
+                    <span className="text-xs font-medium text-primary mb-1 block">AI Summary</span>
+                    <p className="text-sm text-foreground">{selectedDPR.aiSummary}</p>
+                  </div>
+                )}
+
+                {selectedDPR.workStoppage?.occurred && (
+                  <div className="p-3 rounded-xl bg-destructive/5 border border-destructive/20">
+                    <span className="text-xs font-medium text-destructive mb-2 block">Work Stoppage</span>
+                    <div className="space-y-1 text-sm">
+                      <p><span className="text-muted-foreground">Reason:</span> {selectedDPR.workStoppage.reason?.replace('_', ' ')}</p>
+                      <p><span className="text-muted-foreground">Duration:</span> {selectedDPR.workStoppage.durationHours} hours</p>
+                      {selectedDPR.workStoppage.remarks && (
+                        <p><span className="text-muted-foreground">Remarks:</span> {selectedDPR.workStoppage.remarks}</p>
+                      )}
+                      {selectedDPR.workStoppage.evidencePhotos && selectedDPR.workStoppage.evidencePhotos.length > 0 && (
+                        <div className="mt-2">
+                          <span className="text-xs text-muted-foreground">Evidence Photos:</span>
+                          <div className="grid grid-cols-2 gap-2 mt-1">
+                            {selectedDPR.workStoppage.evidencePhotos.map((photo: string, index: number) => (
+                              <img
+                                key={index}
+                                src={photo}
+                                alt={`Evidence ${index + 1}`}
+                                className="w-full h-24 object-cover rounded-lg"
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </MobileLayout>
   );

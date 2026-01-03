@@ -84,7 +84,10 @@ export const getUserByOffsiteId = async (
       throw new AppError('OffSite ID is required', 400, 'VALIDATION_ERROR');
     }
 
-    const user = await User.findOne({ offsiteId: offsiteId.trim() })
+    // Case-insensitive search for OffSite ID
+    const user = await User.findOne({ 
+      offsiteId: { $regex: new RegExp(`^${offsiteId.trim()}$`, 'i') }
+    })
       .populate('assignedProjects', 'name location')
       .select('-__v -password');
 

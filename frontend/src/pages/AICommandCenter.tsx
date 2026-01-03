@@ -44,14 +44,24 @@ export default function AICommandCenter() {
       return;
     }
     loadProjects();
-  }, [hasPermission, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   useEffect(() => {
     if (selectedProjectId) {
       loadRiskAssessment();
       loadAnomalies();
+      
+      // Auto-refresh every 60 seconds to get latest data
+      const refreshInterval = setInterval(() => {
+        loadRiskAssessment();
+        loadAnomalies();
+      }, 60000);
+      
+      return () => clearInterval(refreshInterval);
     }
-  }, [selectedProjectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId]); // Only when selectedProjectId changes
 
   const loadProjects = async () => {
     try {
@@ -328,7 +338,12 @@ export default function AICommandCenter() {
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="p-2 rounded bg-muted/50">
                       <p className="text-muted-foreground">DPR Delay</p>
-                      <p className="font-medium">{riskAssessment.signals.dprDelayDays} days</p>
+                      <p className="font-medium">
+                        {riskAssessment.signals.dprDelayHours !== undefined && riskAssessment.signals.dprDelayHours < 24 
+                          ? `${riskAssessment.signals.dprDelayHours.toFixed(1)} hours`
+                          : `${riskAssessment.signals.dprDelayDays} days${riskAssessment.signals.dprDelayHours !== undefined ? ` (${riskAssessment.signals.dprDelayHours.toFixed(1)}h)` : ''}`
+                        }
+                      </p>
                     </div>
                     <div className="p-2 rounded bg-muted/50">
                       <p className="text-muted-foreground">Attendance Variance</p>

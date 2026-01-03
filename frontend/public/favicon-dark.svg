@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Background circle with darker orange for dark mode -->
+  <circle cx="50" cy="50" r="48" fill="#e55a2b" stroke="#ff6b35" stroke-width="2"/>
+  <!-- OS Text - White text for dark mode -->
+  <text x="50" y="72" font-family="Arial, sans-serif" font-size="52" font-weight="900" text-anchor="middle" fill="white" stroke="white" stroke-width="0.5">OS</text>
+</svg>
+

@@ -5,6 +5,12 @@ import { predictDelayRisk } from '../../utils/delayPredictor';
 import { MaterialRequest } from '../materials/material.model';
 import { getProjectLabourGap, getAllProjectsLabourGap } from '../../services/labourGap.service';
 import { getProjectApprovalDelays, getAllProjectsApprovalDelays } from '../../services/approvalDelay.service';
+export {
+  getDPRSummary,
+  getHealthExplanation,
+  getDelayRiskExplanation,
+  getMaterialAnomalyExplanation,
+} from './insights.controller.ai';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 

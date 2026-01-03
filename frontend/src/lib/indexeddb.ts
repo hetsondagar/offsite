@@ -37,6 +37,7 @@ interface OffSiteDB extends DBSchema {
     key: string;
     value: {
       id: string;
+      projectId: string;
       materialId: string;
       quantity: number;
       reason: string;

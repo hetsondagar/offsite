@@ -55,8 +55,12 @@ export const createProject = async (
 
     // Process engineer invitations
     if (data.engineerOffsiteIds && data.engineerOffsiteIds.length > 0) {
+      // Case-insensitive search for engineers using $or with regex
+      const engineerConditions = data.engineerOffsiteIds.map(id => ({
+        offsiteId: { $regex: new RegExp(`^${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+      }));
       const engineers = await User.find({ 
-        offsiteId: { $in: data.engineerOffsiteIds },
+        $or: engineerConditions,
         role: 'engineer'
       }).select('_id offsiteId name');
 
@@ -95,8 +99,12 @@ export const createProject = async (
 
     // Process manager invitations
     if (data.managerOffsiteIds && data.managerOffsiteIds.length > 0) {
+      // Case-insensitive search for managers using $or with regex
+      const managerConditions = data.managerOffsiteIds.map(id => ({
+        offsiteId: { $regex: new RegExp(`^${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+      }));
       const managers = await User.find({ 
-        offsiteId: { $in: data.managerOffsiteIds },
+        $or: managerConditions,
         role: 'manager'
       }).select('_id offsiteId name');
 
@@ -422,8 +430,12 @@ export const addProjectMembers = async (
 
     // Process engineer invitations
     if (data.engineerOffsiteIds && data.engineerOffsiteIds.length > 0) {
+      // Case-insensitive search for engineers using $or with regex
+      const engineerConditions = data.engineerOffsiteIds.map(id => ({
+        offsiteId: { $regex: new RegExp(`^${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+      }));
       const engineers = await User.find({ 
-        offsiteId: { $in: data.engineerOffsiteIds },
+        $or: engineerConditions,
         role: 'engineer'
       }).select('_id offsiteId name');
 
@@ -478,8 +490,12 @@ export const addProjectMembers = async (
 
     // Process manager invitations
     if (data.managerOffsiteIds && data.managerOffsiteIds.length > 0) {
+      // Case-insensitive search for managers using $or with regex
+      const managerConditions = data.managerOffsiteIds.map(id => ({
+        offsiteId: { $regex: new RegExp(`^${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+      }));
       const managers = await User.find({ 
-        offsiteId: { $in: data.managerOffsiteIds },
+        $or: managerConditions,
         role: 'manager'
       }).select('_id offsiteId name');
 

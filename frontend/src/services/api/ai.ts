@@ -2,6 +2,7 @@ import { apiGet } from '@/lib/api';
 
 export interface RiskSignals {
   dprDelayDays: number;
+  dprDelayHours: number;
   attendanceVariance: number;
   pendingApprovals: number;
   materialShortage: boolean;

@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { ThemeProvider } from "next-themes";
+import React, { useEffect, useState } from "react";
+import { ThemeProvider, useTheme } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -33,58 +33,68 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 function FaviconUpdater() {
+  const { theme, systemTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
-    // Function to update favicon based on browser's color scheme preference
-    const updateFavicon = () => {
-      const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      const faviconPath = isDarkMode ? '/logodark.png' : '/logo.png';
-      
-      // Update the main favicon (id="favicon")
-      const favicon = document.getElementById('favicon') as HTMLLinkElement;
-      if (favicon) {
-        favicon.href = faviconPath;
-      }
+    setMounted(true);
+  }, []);
 
-      // Update all other favicon links (excluding media query ones)
-      const faviconLinks = document.querySelectorAll('link[rel="icon"]:not([media])');
-      faviconLinks.forEach((link) => {
-        const linkElement = link as HTMLLinkElement;
-        linkElement.href = faviconPath;
-      });
+  useEffect(() => {
+    if (!mounted) return;
 
-      // Also update apple-touch-icon
-      const appleTouchIcon = document.getElementById('apple-touch-icon') as HTMLLinkElement;
-      if (appleTouchIcon) {
-        appleTouchIcon.href = faviconPath;
-      }
-    };
-
-    // Initial update
-    updateFavicon();
-
-    // Listen for changes in color scheme preference
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
-      updateFavicon();
-    };
-
-    // Modern browsers (addEventListener)
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener('change', handleChange);
-    } else {
-      // Fallback for older browsers (addListener)
-      mediaQuery.addListener(handleChange);
+    // Determine the actual theme being used
+    // If theme is 'system', use systemTheme; otherwise use theme directly
+    const actualTheme = theme === 'system' && systemTheme ? systemTheme : theme;
+    const isDarkMode = actualTheme === 'dark';
+    // Use SVG favicon for better visibility at small sizes
+    const faviconPath = isDarkMode ? '/favicon-dark.svg' : '/favicon.svg';
+    const logoPath = isDarkMode ? '/logodark.png' : '/logo.png';
+    
+    // Update the main favicon (id="favicon") - SVG for better scaling
+    // Force browser to reload by removing and re-adding the element
+    const favicon = document.getElementById('favicon') as HTMLLinkElement;
+    if (favicon) {
+      const newHref = `${faviconPath}?v=${isDarkMode ? 'dark' : 'light'}`;
+      // Remove old favicon
+      favicon.remove();
+      // Create new favicon element
+      const newFavicon = document.createElement('link');
+      newFavicon.id = 'favicon';
+      newFavicon.rel = 'icon';
+      newFavicon.type = 'image/svg+xml';
+      newFavicon.href = newHref;
+      document.head.appendChild(newFavicon);
     }
 
-    // Cleanup
-    return () => {
-      if (mediaQuery.removeEventListener) {
-        mediaQuery.removeEventListener('change', handleChange);
-      } else if (mediaQuery.removeListener) {
-        mediaQuery.removeListener(handleChange);
+    // Update SVG favicon links (excluding media query ones)
+    const svgFaviconLinks = document.querySelectorAll('link[rel="icon"][type="image/svg+xml"]:not([media])');
+    svgFaviconLinks.forEach((link) => {
+      const linkElement = link as HTMLLinkElement;
+      if (linkElement.id !== 'favicon') {
+        linkElement.href = `${faviconPath}?v=${isDarkMode ? 'dark' : 'light'}`;
       }
-    };
-  }, []);
+    });
+
+    // Update PNG favicon links for fallback
+    const pngFaviconLinks = document.querySelectorAll('link[rel="icon"][type="image/png"]:not([media])');
+    pngFaviconLinks.forEach((link) => {
+      const linkElement = link as HTMLLinkElement;
+      linkElement.href = `${logoPath}?v=${isDarkMode ? 'dark' : 'light'}`;
+    });
+
+    // Also update apple-touch-icon (use PNG for better quality)
+    const appleTouchIcon = document.getElementById('apple-touch-icon') as HTMLLinkElement;
+    if (appleTouchIcon) {
+      appleTouchIcon.href = `${logoPath}?v=${isDarkMode ? 'dark' : 'light'}`;
+    }
+
+    // Update shortcut icon fallback (use SVG)
+    const shortcutIcon = document.querySelector('link[rel="shortcut icon"]') as HTMLLinkElement;
+    if (shortcutIcon) {
+      shortcutIcon.href = `${faviconPath}?v=${isDarkMode ? 'dark' : 'light'}`;
+    }
+  }, [theme, systemTheme, mounted]);
 
   return null;
 }
@@ -96,12 +106,62 @@ function AppContent() {
     // Initialize auth from localStorage
     dispatch(initializeAuth());
     
+    // Function to check actual connectivity by pinging the API
+    const checkConnectivity = async () => {
+      try {
+        // Create an AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+        
+        // Try to fetch a lightweight endpoint (health check or user info)
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/auth/me`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+          },
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        
+        // If we get any response (even 401), we're online
+        dispatch(setOnlineStatus(true));
+      } catch (error: any) {
+        // If fetch fails or times out, check if it's just auth error
+        if (error.name === 'AbortError') {
+          // Timeout - assume offline
+          dispatch(setOnlineStatus(false));
+        } else {
+          // Other errors might still mean we're online (like 401)
+          // If we got a response (even error), we're online
+          // Only mark offline if it's a network error
+          if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError') || error.name === 'TypeError') {
+            dispatch(setOnlineStatus(false));
+          } else {
+            // Got a response, so we're online (even if it's an error response)
+            dispatch(setOnlineStatus(true));
+          }
+        }
+      }
+    };
+
     // Set initial online status
-    dispatch(setOnlineStatus(navigator.onLine));
+    const initialCheck = async () => {
+      if (navigator.onLine) {
+        // If navigator says online, verify with actual API call
+        await checkConnectivity();
+      } else {
+        // If navigator says offline, trust it
+        dispatch(setOnlineStatus(false));
+      }
+    };
+    
+    initialCheck();
 
     // Listen for online/offline events
-    const handleOnline = () => {
-      dispatch(setOnlineStatus(true));
+    const handleOnline = async () => {
+      // When browser says online, verify with API
+      await checkConnectivity();
     };
     const handleOffline = () => {
       dispatch(setOnlineStatus(false));
@@ -110,9 +170,17 @@ function AppContent() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // Periodically check connectivity (every 30 seconds)
+    const connectivityInterval = setInterval(() => {
+      if (navigator.onLine) {
+        checkConnectivity();
+      }
+    }, 30000);
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      clearInterval(connectivityInterval);
     };
   }, [dispatch]);
 

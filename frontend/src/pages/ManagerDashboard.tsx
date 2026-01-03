@@ -14,7 +14,9 @@ import {
   AlertTriangle, 
   TrendingUp,
   ChevronRight,
-  Building2
+  Building2,
+  FileText,
+  Image as ImageIcon
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -23,29 +25,44 @@ import { insightsApi } from "@/services/api/insights";
 import { materialsApi } from "@/services/api/materials";
 import { attendanceApi } from "@/services/api/attendance";
 import { notificationsApi } from "@/services/api/notifications";
+import { dprApi } from "@/services/api/dpr";
 import { Button } from "@/components/ui/button";
 import { Loader2, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationBell } from "@/components/common/NotificationBell";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
   const { hasPermission } = usePermissions();
   const { role } = useAppSelector((state) => state.auth);
   const [projectOverview, setProjectOverview] = useState<any[]>([]);
-  const [healthScore, setHealthScore] = useState(78);
+  const [healthScore, setHealthScore] = useState(0);
+  const [healthScores, setHealthScores] = useState<Array<{ projectId: string; projectName: string; healthScore: number }>>([]);
   const [kpis, setKpis] = useState({
     activeProjects: 0,
     attendance: 0,
+    attendanceTrend: 0, // Percentage change vs average
     pendingApprovals: 0,
     delayRisks: 0,
   });
   const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
+  const [aiInsight, setAiInsight] = useState<{ text: string; projectName: string; projectId: string } | null>(null);
+  const [recentDPRs, setRecentDPRs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedDPR, setSelectedDPR] = useState<any | null>(null);
+  const [isDPRModalOpen, setIsDPRModalOpen] = useState(false);
   const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   useEffect(() => {
     loadDashboardData();
+    
+    // Auto-refresh every 30 seconds to get latest data (including new DPRs)
+    const refreshInterval = setInterval(() => {
+      loadDashboardData();
+    }, 30000);
+    
+    return () => clearInterval(refreshInterval);
   }, []);
 
   const loadDashboardData = async () => {
@@ -60,31 +77,73 @@ export default function ManagerDashboard() {
 
       setProjectOverview(projectsData?.projects || []);
       setHealthScore(healthData?.overallHealthScore || 0);
+      setHealthScores(healthData?.projectHealthScores || []);
       
       // Calculate attendance percentage from real data
       let attendancePercentage = 0;
+      let attendanceTrend = 0; // Percentage change vs average
       try {
         const projects = projectsData?.projects || [];
         if (projects.length > 0) {
           // Get attendance for all projects
           const today = new Date();
           today.setHours(0, 0, 0, 0);
+          const sevenDaysAgo = new Date(today);
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
           
           const attendancePromises = projects.map(async (project: any) => {
             try {
               const attData = await attendanceApi.getByProject(project._id, 1, 100);
+              
+              // Today's attendance
               const todayAtt = attData?.attendance?.filter((att: any) => {
                 const attDate = new Date(att.timestamp);
-                return attDate >= today && att.type === 'checkin';
+                attDate.setHours(0, 0, 0, 0);
+                return attDate.getTime() === today.getTime() && att.type === 'checkin';
               }) || [];
-              return todayAtt.length;
+              const uniqueUsersToday = new Set(todayAtt.map((att: any) => {
+                const userId = typeof att.userId === 'object' ? att.userId._id : att.userId;
+                return userId.toString();
+              }));
+              
+              // Last 7 days attendance (excluding today) for average
+              const pastWeekAtt = attData?.attendance?.filter((att: any) => {
+                const attDate = new Date(att.timestamp);
+                attDate.setHours(0, 0, 0, 0);
+                return attDate >= sevenDaysAgo && attDate < today && att.type === 'checkin';
+              }) || [];
+              
+              // Group by day and count unique users per day
+              const dailyCounts: number[] = [];
+              const dayMap = new Map<string, Set<string>>();
+              pastWeekAtt.forEach((att: any) => {
+                const dateKey = att.timestamp.split('T')[0];
+                if (!dayMap.has(dateKey)) {
+                  dayMap.set(dateKey, new Set());
+                }
+                const userId = typeof att.userId === 'object' ? att.userId._id : att.userId;
+                dayMap.get(dateKey)!.add(userId.toString());
+              });
+              dayMap.forEach((users) => {
+                dailyCounts.push(users.size);
+              });
+              
+              const avgPastWeek = dailyCounts.length > 0 
+                ? dailyCounts.reduce((sum, count) => sum + count, 0) / dailyCounts.length 
+                : 0;
+              
+              return {
+                today: uniqueUsersToday.size,
+                avgPastWeek: avgPastWeek,
+              };
             } catch {
-              return 0;
+              return { today: 0, avgPastWeek: 0 };
             }
           });
           
-          const attendanceCounts = await Promise.all(attendancePromises);
-          const totalCheckedIn = attendanceCounts.reduce((sum, count) => sum + count, 0);
+          const attendanceData = await Promise.all(attendancePromises);
+          const totalCheckedInToday = attendanceData.reduce((sum, data) => sum + data.today, 0);
+          const totalAvgPastWeek = attendanceData.reduce((sum, data) => sum + data.avgPastWeek, 0);
           
           // Calculate actual team size from project members (engineers only)
           let totalEngineers = 0;
@@ -120,7 +179,16 @@ export default function ManagerDashboard() {
             }
           }
           
-          attendancePercentage = totalEngineers > 0 ? Math.round((totalCheckedIn / totalEngineers) * 100) : 0;
+          attendancePercentage = totalEngineers > 0 ? Math.round((totalCheckedInToday / totalEngineers) * 100) : 0;
+          
+          // Calculate trend vs average
+          if (totalAvgPastWeek > 0 && totalEngineers > 0) {
+            const avgPastWeekPercent = Math.round((totalAvgPastWeek / totalEngineers) * 100);
+            attendanceTrend = attendancePercentage - avgPastWeekPercent;
+          } else if (totalAvgPastWeek === 0 && attendancePercentage > 0) {
+            // If no past data but today has attendance, it's an improvement
+            attendanceTrend = attendancePercentage;
+          }
         }
       } catch (error) {
         console.error('Error calculating attendance:', error);
@@ -129,9 +197,98 @@ export default function ManagerDashboard() {
       setKpis({
         activeProjects: projectsData?.projects?.length || 0,
         attendance: attendancePercentage,
+        attendanceTrend: attendanceTrend,
         pendingApprovals: materialsData?.requests?.filter((r: any) => r.status === 'pending').length || 0,
         delayRisks: delayRisksData?.filter((r: any) => r.risk === 'High').length || 0,
       });
+
+      // Load recent DPRs from all projects (available to all project members)
+      try {
+        const allDPRs: any[] = [];
+        const projects = projectsData?.projects || [];
+        console.log('Loading DPRs for projects:', projects.length);
+        for (const project of projects.slice(0, 5)) { // Limit to first 5 projects to avoid too many calls
+          try {
+            const dprData = await dprApi.getByProject(project._id, 1, 5);
+            console.log(`DPRs for project ${project.name}:`, dprData?.dprs?.length || 0);
+            if (dprData?.dprs && dprData.dprs.length > 0) {
+              allDPRs.push(...dprData.dprs.map((dpr: any) => ({
+                ...dpr,
+                projectName: project.name,
+                projectId: project._id,
+              })));
+            }
+          } catch (error) {
+            console.error(`Error loading DPRs for project ${project._id}:`, error);
+          }
+        }
+        // Sort by creation date (newest first) and take top 10
+        allDPRs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        console.log('Total DPRs loaded:', allDPRs.length);
+        setRecentDPRs(allDPRs.slice(0, 10));
+      } catch (error) {
+        console.error('Error loading DPRs:', error);
+        setRecentDPRs([]); // Ensure it's set to empty array on error
+      }
+
+      // Load AI insight for highest risk project
+      try {
+        const highRiskProjects = delayRisksData?.filter((r: any) => r.risk === 'High' || r.risk === 'Medium') || [];
+        if (highRiskProjects.length > 0) {
+          // Get AI explanation for the highest risk project
+          const topRiskProject = highRiskProjects[0];
+          try {
+            const aiExplanation = await insightsApi.getDelayRiskExplanation(topRiskProject.projectId);
+            if (aiExplanation && aiExplanation.reasons && aiExplanation.reasons.length > 0) {
+              // Build insight text from AI explanation
+              const reasons = aiExplanation.reasons.slice(0, 2).join('. ') || '';
+              const actions = aiExplanation.actions?.[0] || 'Monitor project status';
+              setAiInsight({
+                text: `${reasons}. ${actions}`,
+                projectName: topRiskProject.projectName,
+                projectId: topRiskProject.projectId,
+              });
+            } else {
+              // Fallback to structured insight from delay risk data
+              if (topRiskProject.cause) {
+                setAiInsight({
+                  text: `${topRiskProject.cause}. Impact: ${topRiskProject.impact}`,
+                  projectName: topRiskProject.projectName,
+                  projectId: topRiskProject.projectId,
+                });
+              }
+            }
+          } catch (aiError) {
+            console.error('Error loading AI insight:', aiError);
+            // Fallback to structured insight from delay risk data
+            if (topRiskProject.cause) {
+              setAiInsight({
+                text: `${topRiskProject.cause}. Impact: ${topRiskProject.impact}`,
+                projectName: topRiskProject.projectName,
+                projectId: topRiskProject.projectId,
+              });
+            }
+          }
+        } else if (projectsData?.projects?.length > 0) {
+          // If no high risk projects, get health explanation for first project
+          try {
+            const firstProject = projectsData.projects[0];
+            const healthExplanation = await insightsApi.getHealthExplanation(firstProject._id);
+            if (healthExplanation && healthExplanation.focusArea) {
+              const interpretation = healthExplanation.interpretation || 'Good';
+              setAiInsight({
+                text: `Health status: ${interpretation}. Focus: ${healthExplanation.focusArea}`,
+                projectName: firstProject.name,
+                projectId: firstProject._id,
+              });
+            }
+          } catch (aiError) {
+            console.error('Error loading health insight:', aiError);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading AI insights:', error);
+      }
 
       // Load pending project invitations
       try {
@@ -256,8 +413,20 @@ export default function ManagerDashboard() {
                   Across all active projects
                 </p>
                 <div className="flex gap-2 mt-4">
-                  <StatusBadge status="success" label="4 On Track" />
-                  <StatusBadge status="warning" label="1 At Risk" />
+                  <StatusBadge 
+                    status="success" 
+                    label={`${healthScores.filter(p => p.healthScore >= 70).length} On Track`} 
+                  />
+                  <StatusBadge 
+                    status="warning" 
+                    label={`${healthScores.filter(p => p.healthScore < 70 && p.healthScore >= 50).length} At Risk`} 
+                  />
+                  {healthScores.filter(p => p.healthScore < 50).length > 0 && (
+                    <StatusBadge 
+                      status="error" 
+                      label={`${healthScores.filter(p => p.healthScore < 50).length} Critical`} 
+                    />
+                  )}
                 </div>
               </div>
               <HealthScoreRing score={healthScore} size="lg" />
@@ -281,8 +450,11 @@ export default function ManagerDashboard() {
             suffix="%"
             icon={Users}
             variant="success"
-            trend="up"
-            trendValue="+5% vs avg"
+            trend={kpis.attendanceTrend >= 0 ? "up" : kpis.attendanceTrend < 0 ? "down" : undefined}
+            trendValue={kpis.attendanceTrend !== 0 
+              ? `${kpis.attendanceTrend >= 0 ? '+' : ''}${Math.round(kpis.attendanceTrend)}% vs avg`
+              : "Same as avg"
+            }
             delay={200}
           />
           <KPICard
@@ -342,21 +514,91 @@ export default function ManagerDashboard() {
           </CardContent>
         </Card>
 
+        {/* Recent DPRs - Available to all project members - ALWAYS VISIBLE */}
+        <Card variant="gradient" className="opacity-0 animate-fade-up stagger-5">
+          <CardHeader className="flex-row items-center justify-between pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <FileText className="w-5 h-5 text-primary" />
+              Recent DPRs
+            </CardTitle>
+            <button 
+              onClick={() => navigate("/projects")}
+              className="text-sm text-primary flex items-center gap-1"
+            >
+              View All <ChevronRight className="w-4 h-4" />
+            </button>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : recentDPRs.length > 0 ? (
+              recentDPRs.map((dpr: any) => (
+                <div 
+                  key={dpr._id} 
+                  className="p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
+                  onClick={() => {
+                    setSelectedDPR(dpr);
+                    setIsDPRModalOpen(true);
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-foreground">
+                        {dpr.taskId?.title || 'Task'}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {dpr.projectName || 'Project'}
+                      </p>
+                      <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                        <span>By: {dpr.createdBy?.name || 'Unknown'}</span>
+                        <span>{new Date(dpr.createdAt).toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}</span>
+                      </div>
+                      {dpr.photos && dpr.photos.length > 0 && (
+                        <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+                          <ImageIcon className="w-3 h-3" />
+                          <span>{dpr.photos.length} photo(s)</span>
+                        </div>
+                      )}
+                      {dpr.aiSummary && (
+                        <div className="mt-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
+                          <p className="text-xs font-medium text-primary mb-1">AI Summary</p>
+                          <p className="text-xs text-foreground line-clamp-2">{dpr.aiSummary}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">No recent DPRs</p>
+            )}
+          </CardContent>
+        </Card>
+
         {/* AI Insights Preview */}
-        {hasPermission("canViewAIInsights") && (
+        {hasPermission("canViewAIInsights") && aiInsight && (
           <Card variant="gradient" className="opacity-0 animate-fade-up stagger-5 border-primary/20">
             <CardContent className="p-4">
               <div className="flex items-start gap-3">
                 <div className="p-2 rounded-xl bg-primary/10 shrink-0">
                   <TrendingUp className="w-5 h-5 text-primary" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <h3 className="font-display font-semibold text-sm text-foreground">
                     AI Insight
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Metro Mall Phase 2 may face a 3-day delay due to pending steel delivery. 
-                    Consider expediting the order.
+                    <span className="font-medium text-foreground">{aiInsight.projectName}:</span> {aiInsight.text}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1 italic">
+                    Generated from site data
                   </p>
                   <button 
                     onClick={() => navigate("/insights")}
@@ -369,6 +611,100 @@ export default function ManagerDashboard() {
             </CardContent>
           </Card>
         )}
+
+        {/* DPR Detail Modal */}
+        <Dialog open={isDPRModalOpen} onOpenChange={setIsDPRModalOpen}>
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>DPR Details</DialogTitle>
+            </DialogHeader>
+            {selectedDPR && (
+              <div className="space-y-4">
+                <div className="p-3 rounded-xl bg-muted/50">
+                  <span className="text-xs text-muted-foreground">Project</span>
+                  <p className="font-medium text-foreground">{selectedDPR.projectName || 'Unknown Project'}</p>
+                </div>
+                
+                <div className="p-3 rounded-xl bg-muted/50">
+                  <span className="text-xs text-muted-foreground">Task</span>
+                  <p className="font-medium text-foreground">{selectedDPR.taskId?.title || 'Unknown Task'}</p>
+                </div>
+
+                <div className="p-3 rounded-xl bg-muted/50">
+                  <span className="text-xs text-muted-foreground">Created By</span>
+                  <p className="font-medium text-foreground">{selectedDPR.createdBy?.name || 'Unknown'}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {new Date(selectedDPR.createdAt).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
+                </div>
+
+                {selectedDPR.notes && (
+                  <div className="p-3 rounded-xl bg-muted/50">
+                    <span className="text-xs text-muted-foreground">Notes</span>
+                    <p className="text-sm text-foreground mt-1">{selectedDPR.notes}</p>
+                  </div>
+                )}
+
+                {selectedDPR.photos && selectedDPR.photos.length > 0 && (
+                  <div className="p-3 rounded-xl bg-muted/50">
+                    <span className="text-xs text-muted-foreground mb-2 block">Photos ({selectedDPR.photos.length})</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedDPR.photos.map((photo: string, index: number) => (
+                        <img
+                          key={index}
+                          src={photo}
+                          alt={`DPR photo ${index + 1}`}
+                          className="w-full h-32 object-cover rounded-lg"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedDPR.aiSummary && (
+                  <div className="p-3 rounded-xl bg-primary/5 border border-primary/20">
+                    <span className="text-xs font-medium text-primary mb-1 block">AI Summary</span>
+                    <p className="text-sm text-foreground">{selectedDPR.aiSummary}</p>
+                  </div>
+                )}
+
+                {selectedDPR.workStoppage?.occurred && (
+                  <div className="p-3 rounded-xl bg-destructive/5 border border-destructive/20">
+                    <span className="text-xs font-medium text-destructive mb-2 block">Work Stoppage</span>
+                    <div className="space-y-1 text-sm">
+                      <p><span className="text-muted-foreground">Reason:</span> {selectedDPR.workStoppage.reason?.replace('_', ' ')}</p>
+                      <p><span className="text-muted-foreground">Duration:</span> {selectedDPR.workStoppage.durationHours} hours</p>
+                      {selectedDPR.workStoppage.remarks && (
+                        <p><span className="text-muted-foreground">Remarks:</span> {selectedDPR.workStoppage.remarks}</p>
+                      )}
+                      {selectedDPR.workStoppage.evidencePhotos && selectedDPR.workStoppage.evidencePhotos.length > 0 && (
+                        <div className="mt-2">
+                          <span className="text-xs text-muted-foreground">Evidence Photos:</span>
+                          <div className="grid grid-cols-2 gap-2 mt-1">
+                            {selectedDPR.workStoppage.evidencePhotos.map((photo: string, index: number) => (
+                              <img
+                                key={index}
+                                src={photo}
+                                alt={`Evidence ${index + 1}`}
+                                className="w-full h-24 object-cover rounded-lg"
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </MobileLayout>
   );

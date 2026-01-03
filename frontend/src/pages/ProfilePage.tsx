@@ -32,7 +32,10 @@ export default function ProfilePage() {
   const dispatch = useAppDispatch();
   const { role, name, email, phone, userId } = useAppSelector((state) => state.auth);
   const { isOnline } = useAppSelector((state) => state.offline);
-  const [autoSync, setAutoSync] = useState(true);
+  const [autoSync, setAutoSync] = useState(() => {
+    const saved = localStorage.getItem('autoSync');
+    return saved !== null ? saved === 'true' : true;
+  });
   const [userData, setUserData] = useState<User | null>(null);
   const [assignedProjects, setAssignedProjects] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,19 +44,48 @@ export default function ProfilePage() {
     loadUserData();
   }, []);
 
+  const handleAutoSyncToggle = () => {
+    const newValue = !autoSync;
+    setAutoSync(newValue);
+    localStorage.setItem('autoSync', String(newValue));
+  };
+
   const loadUserData = async () => {
     try {
       setIsLoading(true);
       const user = await usersApi.getMe();
       setUserData(user);
       
-      // Load assigned projects
-      if (user.assignedProjects && user.assignedProjects.length > 0) {
-        const projectPromises = user.assignedProjects.map((projectId: string) => 
-          projectsApi.getById(projectId).catch(() => null)
-        );
-        const projects = await Promise.all(projectPromises);
-        setAssignedProjects(projects.filter(p => p !== null));
+      // Load projects - for owners, load all projects; for others, load assigned projects
+      if (role === 'owner') {
+        // Owners see all projects
+        const data = await projectsApi.getAll(1, 100);
+        setAssignedProjects(data?.projects || []);
+      } else {
+        // Engineers and managers see only assigned projects
+        if (user.assignedProjects && user.assignedProjects.length > 0) {
+          // Extract project IDs (handle both populated objects and string IDs)
+          const projectIds = user.assignedProjects.map((project: any) => {
+            if (typeof project === 'string') {
+              return project;
+            }
+            // If it's a populated object, get the _id
+            if (project && typeof project === 'object') {
+              return project._id || project;
+            }
+            return null;
+          }).filter((id: any) => id !== null);
+
+          // Fetch full project details for each ID
+          if (projectIds.length > 0) {
+            const projectPromises = projectIds.map((projectId: string) => 
+              projectsApi.getById(projectId).catch(() => null)
+            );
+            const projects = await Promise.all(projectPromises);
+            // Extract project from response (getById returns { project, statistics })
+            setAssignedProjects(projects.filter(p => p !== null && p.project).map(p => p!.project));
+          }
+        }
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -90,7 +122,7 @@ export default function ProfilePage() {
     <MobileLayout role={role}>
       <div className="min-h-screen bg-background">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
+        <div className="sticky top-2 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
           <div className="flex items-center gap-0 relative">
             <div className="absolute left-0 mt-3">
               <Logo size="md" showText={false} />
@@ -150,14 +182,16 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Assigned Projects */}
+          {/* Projects */}
           <Card variant="gradient" className="animate-fade-up stagger-1">
             <CardContent className="p-4">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 rounded-xl bg-primary/10">
                   <Building2 className="w-5 h-5 text-primary" />
                 </div>
-                <h3 className="font-medium text-foreground">Assigned Projects</h3>
+                <h3 className="font-medium text-foreground">
+                  {role === 'owner' ? 'Current Projects' : 'Assigned Projects'}
+                </h3>
               </div>
               <div className="space-y-2">
                 {isLoading ? (
@@ -165,7 +199,9 @@ export default function ProfilePage() {
                     <Loader2 className="w-4 h-4 animate-spin text-primary" />
                   </div>
                 ) : assignedProjects.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">No assigned projects</p>
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    {role === 'owner' ? 'No projects' : 'No assigned projects'}
+                  </p>
                 ) : (
                   assignedProjects.map((project) => (
                     <div 
@@ -217,16 +253,19 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 <button
-                  onClick={() => setAutoSync(!autoSync)}
+                  type="button"
+                  onClick={handleAutoSyncToggle}
                   className={cn(
-                    "w-12 h-7 rounded-full transition-colors relative",
+                    "w-12 h-7 rounded-full transition-all duration-200 relative focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background",
                     autoSync ? "bg-primary" : "bg-muted"
                   )}
+                  aria-label={autoSync ? "Disable auto sync" : "Enable auto sync"}
+                  aria-pressed={autoSync}
                 >
                   <span 
                     className={cn(
-                      "absolute top-1 w-5 h-5 rounded-full bg-foreground transition-transform",
-                      autoSync ? "translate-x-6" : "translate-x-1"
+                      "absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out",
+                      autoSync ? "translate-x-5" : "translate-x-0"
                     )}
                   />
                 </button>

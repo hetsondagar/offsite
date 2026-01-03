@@ -50,6 +50,65 @@ export const createMaterialRequest = async (
     await materialRequest.populate('requestedBy', 'name phone');
     await materialRequest.populate('projectId', 'name');
 
+    // Send notification to project managers of this project
+    try {
+      const { Project } = await import('../projects/project.model');
+      const project = await Project.findById(data.projectId)
+        .populate({
+          path: 'members',
+          select: 'role offsiteId name _id',
+          model: 'User',
+        })
+        .select('members name');
+
+      if (project && project.members && project.members.length > 0) {
+        // Get all members as User objects
+        const allMembers = project.members as any[];
+        
+        // Extract member IDs
+        const memberIds = allMembers.map((member: any) => 
+          typeof member === 'object' ? member._id : member
+        );
+
+        // Query users to get their roles
+        const users = await User.find({ _id: { $in: memberIds } })
+          .select('_id role offsiteId name');
+
+        // Filter for managers only (not owners, only project managers)
+        const managers = users.filter(
+          (user: any) => user.role === 'manager'
+        );
+
+        // Send notification to each manager
+        for (const manager of managers) {
+          try {
+            await createNotification({
+              userId: manager._id.toString(),
+              offsiteId: manager.offsiteId,
+              type: 'material_request',
+              title: 'New Material Request',
+              message: `New material request for "${project.name}": ${data.materialName} (${data.quantity} ${data.unit})`,
+              data: {
+                projectId: data.projectId,
+                projectName: project.name,
+                materialRequestId: materialRequest._id.toString(),
+                materialName: data.materialName,
+                quantity: data.quantity,
+                unit: data.unit,
+              },
+            });
+          } catch (notifError: any) {
+            logger.warn(`Failed to send notification to manager ${manager._id}:`, notifError.message);
+          }
+        }
+
+        logger.info(`Sent material request notifications to ${managers.length} manager(s) for project ${data.projectId}`);
+      }
+    } catch (notifError: any) {
+      logger.warn('Failed to send material request notifications:', notifError.message);
+      // Don't fail the request if notification fails
+    }
+
     logger.info(`Material request created: ${materialRequest._id} by ${req.user.userId}`);
 
     const response: ApiResponse = {
@@ -187,8 +246,8 @@ export const approveRequest = async (
           message: `Your material request for ${request.materialName} (${request.quantity} ${request.unit}) has been approved.`,
           data: {
             materialRequestId: request._id.toString(),
-            projectId: request.projectId?._id?.toString(),
-            projectName: request.projectId?.name,
+            projectId: (request.projectId as any)?._id?.toString() || (request.projectId as any)?.toString(),
+            projectName: (request.projectId as any)?.name,
           },
         });
       }
@@ -259,8 +318,8 @@ export const rejectRequest = async (
           message: `Your material request for ${request.materialName} (${request.quantity} ${request.unit}) has been rejected.`,
           data: {
             materialRequestId: request._id.toString(),
-            projectId: request.projectId?._id?.toString(),
-            projectName: request.projectId?.name,
+            projectId: (request.projectId as any)?._id?.toString() || (request.projectId as any)?.toString(),
+            projectName: (request.projectId as any)?.name,
           },
         });
       }

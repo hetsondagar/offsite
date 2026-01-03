@@ -26,13 +26,17 @@ import { addPendingItem } from "@/store/slices/offlineSlice";
 import { usePermissions } from "@/hooks/usePermissions";
 import { materialsApi } from "@/services/api/materials";
 import { projectsApi } from "@/services/api/projects";
+import { usersApi } from "@/services/api/users";
 
 export default function MaterialsPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { hasPermission } = usePermissions();
   const userId = useAppSelector((state) => state.auth.userId);
+  const role = useAppSelector((state) => state.auth.role);
   const [selectedMaterial, setSelectedMaterial] = useState<string | null>(null);
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [quantity, setQuantity] = useState(0);
   const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,10 +74,41 @@ export default function MaterialsPage() {
           setMaterials([]);
         }
         
-        // Try to load projects
+        // Load projects based on user role
         try {
-          const projectsData = await projectsApi.getAll(1, 100);
-          setProjects(projectsData?.projects || []);
+          if (role === 'owner') {
+            // Owners see all projects
+            const projectsData = await projectsApi.getAll(1, 100);
+            setProjects(projectsData?.projects || []);
+          } else {
+            // Engineers and managers see only assigned projects
+            const user = await usersApi.getMe();
+            if (user.assignedProjects && user.assignedProjects.length > 0) {
+              // Extract project IDs (handle both populated objects and string IDs)
+              const projectIds = user.assignedProjects.map((project: any) => {
+                if (typeof project === 'string') {
+                  return project;
+                }
+                if (project && typeof project === 'object') {
+                  return project._id || project;
+                }
+                return null;
+              }).filter((id: any) => id !== null);
+
+              // Fetch full project details for each ID
+              if (projectIds.length > 0) {
+                const projectPromises = projectIds.map((projectId: string) => 
+                  projectsApi.getById(projectId).catch(() => null)
+                );
+                const projectsData = await Promise.all(projectPromises);
+                setProjects(projectsData.filter(p => p !== null && p.project).map(p => p!.project));
+              } else {
+                setProjects([]);
+              }
+            } else {
+              setProjects([]);
+            }
+          }
         } catch (projectError) {
           console.error('Error loading projects:', projectError);
           setProjects([]);
@@ -116,9 +151,9 @@ export default function MaterialsPage() {
   const handleSubmit = async () => {
     if (!selectedMaterial || !selectedMaterialData) return;
     
-    // If no projects loaded, show error
-    if (projects.length === 0) {
-      alert("Projects are still loading. Please wait a moment and try again.");
+    // Validate project selection
+    if (!selectedProject) {
+      alert("Please select a project for this material request.");
       return;
     }
     
@@ -127,7 +162,7 @@ export default function MaterialsPage() {
     try {
       // Try to submit to API first
       await materialsApi.createRequest({
-        projectId: projects[0]._id, // Use first project or let user select
+        projectId: selectedProject,
         materialId: selectedMaterial,
         materialName: selectedMaterialData.name,
         quantity: quantity,
@@ -161,18 +196,18 @@ export default function MaterialsPage() {
       setTimeout(() => {
         setShowSuccess(false);
         setSelectedMaterial(null);
+        setSelectedProject(null);
         setQuantity(0);
         setReason("");
       }, 2000);
     } catch (error) {
       // If API fails, save to IndexedDB for offline sync
       const matId = await saveMaterialRequest({
+        projectId: selectedProject!,
         materialId: selectedMaterial,
         quantity: quantity,
         reason: reason,
         timestamp: Date.now(),
-        requestedBy: userId || "unknown",
-        requestedAt: new Date().toISOString(),
       });
       
       // Add to Redux offline store
@@ -180,6 +215,7 @@ export default function MaterialsPage() {
         type: 'material',
         data: {
           id: matId,
+          projectId: selectedProject,
           materialId: selectedMaterial,
           quantity: quantity,
           reason: reason,
@@ -214,6 +250,7 @@ export default function MaterialsPage() {
       setTimeout(() => {
         setShowSuccess(false);
         setSelectedMaterial(null);
+        setSelectedProject(null);
         setQuantity(0);
         setReason("");
       }, 2000);
@@ -309,6 +346,56 @@ export default function MaterialsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Project Selection */}
+              <div className="space-y-2">
+                <label className="text-sm text-muted-foreground">Project *</label>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowProjectDropdown(!showProjectDropdown)}
+                    className="w-full p-4 rounded-xl bg-muted/50 border border-border/50 flex items-center justify-between text-left"
+                  >
+                    <span className={cn(
+                      "text-sm",
+                      selectedProject ? "text-foreground" : "text-muted-foreground"
+                    )}>
+                      {selectedProject 
+                        ? projects.find(p => p._id === selectedProject)?.name || "Select Project"
+                        : "Select Project"}
+                    </span>
+                    <ChevronDown className={cn(
+                      "w-5 h-5 text-muted-foreground transition-transform",
+                      showProjectDropdown && "rotate-180"
+                    )} />
+                  </button>
+                  
+                  {showProjectDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-40 animate-scale-in max-h-60 overflow-y-auto">
+                      {projects.length === 0 ? (
+                        <div className="p-4 text-sm text-muted-foreground text-center">
+                          No projects available
+                        </div>
+                      ) : (
+                        projects.map((project) => (
+                          <button
+                            key={project._id}
+                            className="w-full p-4 text-left text-sm hover:bg-muted/50 transition-colors border-b border-border/30 last:border-0"
+                            onClick={() => {
+                              setSelectedProject(project._id);
+                              setShowProjectDropdown(false);
+                            }}
+                          >
+                            <div>
+                              <p className="font-medium">{project.name}</p>
+                              <p className="text-xs text-muted-foreground">{project.location}</p>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Material Dropdown */}
               <div className="relative">
                 <button
@@ -415,7 +502,7 @@ export default function MaterialsPage() {
                 className="w-full"
                 size="lg"
                 onClick={handleSubmit}
-                disabled={!selectedMaterial || quantity === 0 || (isAnomaly && !reason) || isSubmitting}
+                disabled={!selectedMaterial || !selectedProject || quantity === 0 || (isAnomaly && !reason) || isSubmitting}
               >
                 {isSubmitting ? (
                   <Loader2 className="w-5 h-5 animate-spin" />

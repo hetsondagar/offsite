@@ -105,5 +105,30 @@ export const insightsApi = {
     const response = await apiGet<ProjectApprovalDelays | ProjectApprovalDelays[]>('/insights/approval-delays', params);
     return response.data;
   },
+
+  // AI-Powered Insights
+  getDPRSummary: async (projectId: string, dprId: string) => {
+    const response = await apiGet<any>('/insights/ai/dpr-summary', { projectId, dprId });
+    return response.data;
+  },
+
+  getHealthExplanation: async (projectId: string) => {
+    const response = await apiGet<any>('/insights/ai/health-explanation', { projectId });
+    return response.data;
+  },
+
+  getDelayRiskExplanation: async (projectId: string) => {
+    const response = await apiGet<any>('/insights/ai/delay-risk-explanation', { projectId });
+    return response.data;
+  },
+
+  getMaterialAnomalyExplanation: async (projectId: string, materialId: string, currentUsage: number) => {
+    const response = await apiGet<any>('/insights/ai/material-anomaly-explanation', { 
+      projectId, 
+      materialId, 
+      currentUsage: currentUsage.toString() 
+    });
+    return response.data;
+  },
 };
 

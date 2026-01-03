@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,9 +48,18 @@ export default function ProjectsPage() {
   const [selectedManagers, setSelectedManagers] = useState<Array<{ offsiteId: string; name: string }>>([]);
   const [searchResults, setSearchResults] = useState<Array<{ offsiteId: string; name: string; role: string }>>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [lastSearchQuery, setLastSearchQuery] = useState<string>('');
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadProjects();
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
   }, []);
 
   const loadProjects = async () => {
@@ -66,15 +75,25 @@ export default function ProjectsPage() {
     }
   };
 
-  const handleSearchUser = async (offsiteId: string, type: 'engineer' | 'manager') => {
-    if (!offsiteId || offsiteId.trim().length === 0) {
+  const handleSearchUser = async (offsiteId: string, type: 'engineer' | 'manager', showErrorToast: boolean = false) => {
+    const trimmedId = offsiteId.trim().toUpperCase();
+    
+    if (!trimmedId || trimmedId.length === 0) {
       setSearchResults([]);
+      setLastSearchQuery('');
+      return;
+    }
+
+    // Don't search if it's the same query
+    if (trimmedId === lastSearchQuery) {
       return;
     }
 
     setIsSearching(true);
+    setLastSearchQuery(trimmedId);
+    
     try {
-      const user = await usersApi.searchByOffsiteId(offsiteId.trim());
+      const user = await usersApi.searchByOffsiteId(trimmedId);
       
       // Check if user role matches the search type
       if ((type === 'engineer' && user.role !== 'engineer') || 
@@ -85,8 +104,8 @@ export default function ProjectsPage() {
       }
 
       // Check if already selected
-      const isEngineerSelected = selectedEngineers.some(e => e.offsiteId === user.offsiteId);
-      const isManagerSelected = selectedManagers.some(m => m.offsiteId === user.offsiteId);
+      const isEngineerSelected = selectedEngineers.some(e => e.offsiteId.toUpperCase() === user.offsiteId.toUpperCase());
+      const isManagerSelected = selectedManagers.some(m => m.offsiteId.toUpperCase() === user.offsiteId.toUpperCase());
       
       if (isEngineerSelected || isManagerSelected) {
         toast.error('This user is already added');
@@ -101,7 +120,10 @@ export default function ProjectsPage() {
       }]);
     } catch (error: any) {
       console.error('Error searching user:', error);
-      toast.error(error.message || 'User not found');
+      // Only show error toast if explicitly requested (button click or Enter key)
+      if (showErrorToast && trimmedId.length > 0) {
+        toast.error(error.message || 'User not found');
+      }
       setSearchResults([]);
     } finally {
       setIsSearching(false);
@@ -109,7 +131,8 @@ export default function ProjectsPage() {
   };
 
   const handleAddEngineer = (user: { offsiteId: string; name: string }) => {
-    if (!selectedEngineers.some(e => e.offsiteId === user.offsiteId)) {
+    // Case-insensitive check to prevent duplicates
+    if (!selectedEngineers.some(e => e.offsiteId.toUpperCase() === user.offsiteId.toUpperCase())) {
       setSelectedEngineers([...selectedEngineers, user]);
       setEngineerSearch("");
       setSearchResults([]);
@@ -117,7 +140,8 @@ export default function ProjectsPage() {
   };
 
   const handleAddManager = (user: { offsiteId: string; name: string }) => {
-    if (!selectedManagers.some(m => m.offsiteId === user.offsiteId)) {
+    // Case-insensitive check to prevent duplicates
+    if (!selectedManagers.some(m => m.offsiteId.toUpperCase() === user.offsiteId.toUpperCase())) {
       setSelectedManagers([...selectedManagers, user]);
       setManagerSearch("");
       setSearchResults([]);
@@ -176,7 +200,7 @@ export default function ProjectsPage() {
 
   return (
     <MobileLayout role={role || "manager"}>
-      <div className="min-h-screen bg-background">
+      <div className="bg-background">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
           <div className="flex items-center gap-0 relative">
@@ -193,7 +217,7 @@ export default function ProjectsPage() {
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-4 pb-6">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -299,11 +323,11 @@ export default function ProjectsPage() {
                 <Plus className="w-6 h-6" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] bg-card text-foreground">
-              <DialogHeader>
+            <DialogContent className="sm:max-w-[425px] bg-card text-foreground max-h-[90vh] flex flex-col overflow-hidden">
+              <DialogHeader className="flex-shrink-0">
                 <DialogTitle className="text-foreground">Create New Project</DialogTitle>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
+              <div className="grid gap-4 py-4 overflow-y-auto flex-1 min-h-0 pr-2 -mr-2">
                 <div className="space-y-2">
                   <Label htmlFor="name">Project Name *</Label>
                   <Input
@@ -359,16 +383,34 @@ export default function ProjectsPage() {
                         placeholder="Search by OffSite ID (e.g., OSSE0001)"
                         value={engineerSearch}
                         onChange={(e) => {
-                          setEngineerSearch(e.target.value);
-                          if (e.target.value.trim().length > 0) {
-                            handleSearchUser(e.target.value, 'engineer');
-                          } else {
-                            setSearchResults([]);
+                          const value = e.target.value;
+                          setEngineerSearch(value);
+                          
+                          // Clear previous timeout
+                          if (searchTimeoutRef.current) {
+                            clearTimeout(searchTimeoutRef.current);
                           }
+                          
+                          if (value.trim().length === 0) {
+                            setSearchResults([]);
+                            setLastSearchQuery('');
+                            return;
+                          }
+                          
+                          // Debounce search - only search after user stops typing for 500ms
+                          // Don't show error toast for debounced searches
+                          searchTimeoutRef.current = setTimeout(() => {
+                            handleSearchUser(value, 'engineer', false);
+                          }, 500);
                         }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && engineerSearch.trim().length > 0) {
-                            handleSearchUser(engineerSearch, 'engineer');
+                            // Clear timeout and search immediately on Enter
+                            if (searchTimeoutRef.current) {
+                              clearTimeout(searchTimeoutRef.current);
+                            }
+                            // Show error toast on explicit search (Enter key)
+                            handleSearchUser(engineerSearch, 'engineer', true);
                           }
                         }}
                         className="bg-background text-foreground pl-10"
@@ -377,7 +419,13 @@ export default function ProjectsPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => handleSearchUser(engineerSearch, 'engineer')}
+                      onClick={() => {
+                        if (searchTimeoutRef.current) {
+                          clearTimeout(searchTimeoutRef.current);
+                        }
+                        // Show error toast on explicit search (button click)
+                        handleSearchUser(engineerSearch, 'engineer', true);
+                      }}
                       disabled={!engineerSearch.trim() || isSearching}
                     >
                       {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
@@ -440,16 +488,34 @@ export default function ProjectsPage() {
                         placeholder="Search by OffSite ID (e.g., OSPM0001)"
                         value={managerSearch}
                         onChange={(e) => {
-                          setManagerSearch(e.target.value);
-                          if (e.target.value.trim().length > 0) {
-                            handleSearchUser(e.target.value, 'manager');
-                          } else {
-                            setSearchResults([]);
+                          const value = e.target.value;
+                          setManagerSearch(value);
+                          
+                          // Clear previous timeout
+                          if (searchTimeoutRef.current) {
+                            clearTimeout(searchTimeoutRef.current);
                           }
+                          
+                          if (value.trim().length === 0) {
+                            setSearchResults([]);
+                            setLastSearchQuery('');
+                            return;
+                          }
+                          
+                          // Debounce search - only search after user stops typing for 500ms
+                          // Don't show error toast for debounced searches
+                          searchTimeoutRef.current = setTimeout(() => {
+                            handleSearchUser(value, 'manager', false);
+                          }, 500);
                         }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && managerSearch.trim().length > 0) {
-                            handleSearchUser(managerSearch, 'manager');
+                            // Clear timeout and search immediately on Enter
+                            if (searchTimeoutRef.current) {
+                              clearTimeout(searchTimeoutRef.current);
+                            }
+                            // Show error toast on explicit search (Enter key)
+                            handleSearchUser(managerSearch, 'manager', true);
                           }
                         }}
                         className="bg-background text-foreground pl-10"
@@ -458,7 +524,13 @@ export default function ProjectsPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => handleSearchUser(managerSearch, 'manager')}
+                      onClick={() => {
+                        if (searchTimeoutRef.current) {
+                          clearTimeout(searchTimeoutRef.current);
+                        }
+                        // Show error toast on explicit search (button click)
+                        handleSearchUser(managerSearch, 'manager', true);
+                      }}
                       disabled={!managerSearch.trim() || isSearching}
                     >
                       {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
@@ -511,7 +583,7 @@ export default function ProjectsPage() {
                   )}
                 </div>
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-shrink-0 pt-2 border-t border-border/50">
                 <Button
                   variant="outline"
                   onClick={() => setIsCreateDialogOpen(false)}

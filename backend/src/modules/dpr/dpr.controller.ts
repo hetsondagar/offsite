@@ -11,9 +11,25 @@ import { AppError } from '../../middlewares/error.middleware';
 import { logger } from '../../utils/logger';
 
 const workStoppageSchema = z.object({
-  occurred: z.boolean(),
+  occurred: z.preprocess(
+    (val) => {
+      if (typeof val === 'string') {
+        return val === 'true' || val === '1';
+      }
+      return Boolean(val);
+    },
+    z.boolean()
+  ),
   reason: z.enum(['MATERIAL_DELAY', 'LABOUR_SHORTAGE', 'WEATHER', 'MACHINE_BREAKDOWN', 'APPROVAL_PENDING', 'SAFETY_ISSUE']).optional(),
-  durationHours: z.number().min(0).optional(),
+  durationHours: z.preprocess(
+    (val) => {
+      if (typeof val === 'string') {
+        return parseFloat(val);
+      }
+      return typeof val === 'number' ? val : undefined;
+    },
+    z.number().min(0).optional()
+  ),
   remarks: z.string().optional(),
   evidencePhotos: z.array(z.string()).optional(),
 }).refine((data) => {
@@ -31,7 +47,15 @@ const createDPRSchema = z.object({
   projectId: z.string(),
   taskId: z.string(),
   notes: z.string().optional(),
-  generateAISummary: z.boolean().optional().default(false),
+  generateAISummary: z.preprocess(
+    (val) => {
+      if (typeof val === 'string') {
+        return val === 'true' || val === '1';
+      }
+      return val === undefined ? false : Boolean(val);
+    },
+    z.boolean().optional().default(false)
+  ),
   workStoppage: workStoppageSchema.optional(),
 });
 
