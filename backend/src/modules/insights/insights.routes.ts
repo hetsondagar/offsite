@@ -3,6 +3,7 @@ import {
   getSiteHealth,
   getDelayRisks,
   getMaterialAnomalies,
+  getPendingMaterialRequests,
   getLabourGap,
   getApprovalDelays,
 } from './insights.controller';
@@ -34,6 +35,12 @@ router.get(
   authenticateUser,
   authorizePermission('canViewAIInsights'),
   getMaterialAnomalies
+);
+router.get(
+  '/pending-materials',
+  authenticateUser,
+  authorizePermission('canViewAIInsights'),
+  getPendingMaterialRequests
 );
 router.get(
   '/labour-gap',

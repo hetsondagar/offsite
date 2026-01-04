@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { Logo } from "@/components/common/Logo";
 import { materialsApi } from "@/services/api/materials";
@@ -46,6 +49,9 @@ export default function ApprovalsPage() {
   const [approvals, setApprovals] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
 
   // Load pending approvals
   useEffect(() => {
@@ -165,11 +171,24 @@ export default function ApprovalsPage() {
     }
   };
 
-  const handleReject = async (id: string) => {
+  const handleRejectClick = (id: string) => {
     if (!hasPermission("canApproveMaterialRequests")) return;
+    setRejectingId(id);
+    setRejectionReason("");
+    setRejectDialogOpen(true);
+  };
+
+  const handleReject = async () => {
+    if (!rejectingId || !rejectionReason.trim()) {
+      alert('Please provide a rejection reason');
+      return;
+    }
     
     try {
-      await materialsApi.reject(id);
+      await materialsApi.reject(rejectingId, rejectionReason.trim());
+      setRejectDialogOpen(false);
+      setRejectingId(null);
+      setRejectionReason("");
       // Reload approvals
       const data = await materialsApi.getPending(1, 100);
       const requests = data?.requests || [];
@@ -190,8 +209,9 @@ export default function ApprovalsPage() {
           status: r.status,
         }));
       setApprovals(pending);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error rejecting request:', error);
+      alert(error?.message || 'Failed to reject request');
     }
   };
 
@@ -321,7 +341,7 @@ export default function ApprovalsPage() {
                         variant="outline"
                         size="sm"
                         className="flex-1 border-destructive/50 text-destructive hover:bg-destructive/10"
-                        onClick={() => handleReject(approval.id)}
+                        onClick={() => handleRejectClick(approval.id)}
                       >
                         <X className="w-4 h-4 mr-1" />
                         Reject
@@ -384,6 +404,54 @@ export default function ApprovalsPage() {
           </div>
         </div>
       </div>
+
+      {/* Rejection Reason Dialog */}
+      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject Material Request</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for rejecting this material request. If the reason is "material shortage", this will be reflected in insights and analysis.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-foreground mb-2 block">
+                Rejection Reason *
+              </label>
+              <Textarea
+                placeholder="e.g., Material shortage, Budget constraints, Not needed at this time..."
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                rows={4}
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Tip: If the reason is "material shortage", it will be tracked in insights and risk analysis.
+              </p>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setRejectDialogOpen(false);
+                  setRejectionReason("");
+                  setRejectingId(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleReject}
+                disabled={!rejectionReason.trim()}
+                variant="destructive"
+              >
+                Reject Request
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </MobileLayout>
   );
 }

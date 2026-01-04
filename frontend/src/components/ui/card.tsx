@@ -10,7 +10,7 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(({ className, variant =
   <div
     ref={ref}
     className={cn(
-      "rounded-2xl border border-border/50 bg-card text-card-foreground shadow-lg transition-all duration-300",
+      "rounded-2xl border border-border/50 bg-card text-card-foreground shadow-lg transition-all duration-300 overflow-visible",
       variant === "gradient" && "card-gradient border-border/30",
       variant === "glow" && "border-primary/30 shadow-glow-sm hover:shadow-glow-md",
       className

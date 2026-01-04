@@ -57,6 +57,7 @@ export default function DPRPage() {
   const [isLoadingOldDPRs, setIsLoadingOldDPRs] = useState(false);
   const [showOldDPRs, setShowOldDPRs] = useState(false);
   const [submittedDPRId, setSubmittedDPRId] = useState<string | null>(null);
+  const [submittedDPR, setSubmittedDPR] = useState<any>(null);
   const [dprAISummary, setDprAISummary] = useState<string>("");
   
   // Work stoppage state
@@ -171,6 +172,20 @@ export default function DPRPage() {
     input.click();
   };
 
+  const loadOldDPRs = async (projectId: string) => {
+    try {
+      setIsLoadingOldDPRs(true);
+      const data = await dprApi.getByProject(projectId, 1, 20);
+      setOldDPRs(data?.dprs || []);
+      setShowOldDPRs(true);
+    } catch (error) {
+      console.error('Error loading old DPRs:', error);
+      setOldDPRs([]);
+    } finally {
+      setIsLoadingOldDPRs(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!selectedProject || !selectedTask) return;
     
@@ -203,9 +218,10 @@ export default function DPRPage() {
         workStoppage: workStoppage as any,
       }, photos.length > 0 ? photos : undefined, workStoppageEvidencePhotos.length > 0 ? workStoppageEvidencePhotos : undefined);
 
-      // Store the created DPR ID
+      // Store the created DPR
       if (response?._id) {
         setSubmittedDPRId(response._id);
+        setSubmittedDPR(response); // Store the full DPR object
         // Load AI summary if available
         if (response.aiSummary) {
           setDprAISummary(response.aiSummary);
@@ -388,58 +404,131 @@ export default function DPRPage() {
                   {isOnline ? "Your report has been saved successfully" : "Your report has been saved offline"}
                 </p>
                 
-                {/* AI Summary */}
-                {dprAISummary && (
-                  <Card className="mt-4 max-w-md mx-auto">
+                {/* Show Created DPR Details */}
+                {submittedDPR && (
+                  <Card className="mt-4 max-w-md mx-auto border-primary/30">
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-sm">
-                        <Sparkles className="w-4 h-4 text-primary" />
-                        AI Summary
-                      </CardTitle>
+                      <CardTitle className="text-base">Your DPR</CardTitle>
+                      <p className="text-xs text-muted-foreground">
+                        Created: {new Date(submittedDPR.createdAt).toLocaleString('en-US', { 
+                          weekday: 'short', 
+                          month: 'short', 
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
                     </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-foreground">{dprAISummary}</p>
+                    <CardContent className="space-y-3">
+                      {/* Project and Task */}
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">Project</p>
+                        <p className="text-sm font-medium text-foreground">
+                          {typeof submittedDPR.projectId === 'object' ? submittedDPR.projectId?.name : 'Project'}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">Task</p>
+                        <p className="text-sm font-medium text-foreground">
+                          {typeof submittedDPR.taskId === 'object' ? submittedDPR.taskId?.title : 'Task'}
+                        </p>
+                      </div>
+                      
+                      {/* Notes */}
+                      {submittedDPR.notes && (
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Notes</p>
+                          <p className="text-sm text-foreground">{submittedDPR.notes}</p>
+                        </div>
+                      )}
+                      
+                      {/* Photos */}
+                      {submittedDPR.photos && submittedDPR.photos.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs text-muted-foreground">Photos ({submittedDPR.photos.length})</p>
+                          <div className="grid grid-cols-3 gap-2">
+                            {submittedDPR.photos.slice(0, 6).map((photo: string, idx: number) => (
+                              <div key={idx} className="aspect-square rounded-lg overflow-hidden border border-border">
+                                <img 
+                                  src={photo} 
+                                  alt={`DPR photo ${idx + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Work Stoppage */}
+                      {submittedDPR.workStoppage?.occurred && (
+                        <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 space-y-2">
+                          <p className="text-xs font-medium text-warning">Work Stoppage Reported</p>
+                          <div className="space-y-1 text-xs">
+                            <p><span className="text-muted-foreground">Reason:</span> {submittedDPR.workStoppage.reason?.replace('_', ' ').toLowerCase()}</p>
+                            <p><span className="text-muted-foreground">Duration:</span> {submittedDPR.workStoppage.durationHours} hours</p>
+                            {submittedDPR.workStoppage.remarks && (
+                              <p><span className="text-muted-foreground">Remarks:</span> {submittedDPR.workStoppage.remarks}</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* AI Summary */}
+                      {dprAISummary && (
+                        <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Sparkles className="w-4 h-4 text-primary" />
+                            <p className="text-xs font-medium text-primary">AI Summary</p>
+                          </div>
+                          <p className="text-sm text-foreground">{dprAISummary}</p>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 )}
 
-                {/* View Old DPRs Button */}
-                {showOldDPRs && oldDPRs.length > 0 && (
-                  <div className="mt-4 space-y-2">
+                {/* Action Buttons */}
+                <div className="mt-4 space-y-2 max-w-md mx-auto">
+                  {oldDPRs.length > 0 && (
                     <Button 
                       onClick={() => {
                         setShowSuccess(false);
                         setShowOldDPRs(true);
                       }}
                       variant="outline"
+                      className="w-full"
                     >
-                      View Old DPRs ({oldDPRs.length})
+                      View All DPRs ({oldDPRs.length + 1})
                     </Button>
-                    <Button 
-                      onClick={() => {
-                        setShowSuccess(false);
-                        // Reset form
-                        setStep(1);
-                        setSelectedProject(null);
-                        setSelectedTask(null);
-                        setPhotos([]);
-                        setPhotoPreviews([]);
-                        setNotes("");
-                        setAiSummary("");
-                        setDprAISummary("");
-                        setWorkStoppageOccurred(false);
-                        setWorkStoppageReason("");
-                        setWorkStoppageDuration(0);
-                        setWorkStoppageRemarks("");
-                        setWorkStoppageEvidencePhotos([]);
-                        setWorkStoppageEvidencePreviews([]);
-                        setSubmittedDPRId(null);
-                      }}
-                    >
-                      Create New DPR
-                    </Button>
-                  </div>
-                )}
+                  )}
+                  <Button 
+                    onClick={() => {
+                      setShowSuccess(false);
+                      // Reset form
+                      setStep(1);
+                      setSelectedProject(null);
+                      setSelectedTask(null);
+                      setPhotos([]);
+                      setPhotoPreviews([]);
+                      setNotes("");
+                      setAiSummary("");
+                      setDprAISummary("");
+                      setWorkStoppageOccurred(false);
+                      setWorkStoppageReason("");
+                      setWorkStoppageDuration(0);
+                      setWorkStoppageRemarks("");
+                      setWorkStoppageEvidencePhotos([]);
+                      setWorkStoppageEvidencePreviews([]);
+                      setSubmittedDPRId(null);
+                      setSubmittedDPR(null);
+                    }}
+                    className="w-full"
+                  >
+                    Create New DPR
+                  </Button>
+                </div>
               </motion.div>
             </motion.div>
           )}
@@ -461,8 +550,68 @@ export default function DPRPage() {
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
-            ) : oldDPRs.length > 0 ? (
+            ) : oldDPRs.length > 0 || submittedDPR ? (
               <div className="space-y-3">
+                {/* Show newly created DPR first if available */}
+                {submittedDPR && (
+                  <Card className="border-primary/50 bg-primary/5">
+                    <CardContent className="pt-6">
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-medium">{typeof submittedDPR.taskId === 'object' ? submittedDPR.taskId?.title : 'Task'}</p>
+                              <StatusBadge status="success" label="Just Created" />
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {new Date(submittedDPR.createdAt).toLocaleDateString('en-US', { 
+                                weekday: 'short', 
+                                month: 'short', 
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
+                          {submittedDPR.aiSummary && (
+                            <StatusBadge status="success" label="AI Summary" />
+                          )}
+                        </div>
+                        {submittedDPR.notes && (
+                          <p className="text-sm text-foreground">{submittedDPR.notes}</p>
+                        )}
+                        {submittedDPR.photos && submittedDPR.photos.length > 0 && (
+                          <div className="grid grid-cols-3 gap-2">
+                            {submittedDPR.photos.slice(0, 6).map((photo: string, idx: number) => (
+                              <div key={idx} className="aspect-square rounded-lg overflow-hidden border border-border">
+                                <img 
+                                  src={photo} 
+                                  alt={`DPR photo ${idx + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {submittedDPR.workStoppage?.occurred && (
+                          <div className="p-2 rounded-lg bg-warning/10 border border-warning/30">
+                            <p className="text-xs font-medium text-warning">Work Stoppage: {submittedDPR.workStoppage.reason?.replace('_', ' ').toLowerCase()} ({submittedDPR.workStoppage.durationHours}h)</p>
+                          </div>
+                        )}
+                        {dprAISummary && (
+                          <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Sparkles className="w-4 h-4 text-primary" />
+                              <p className="text-xs font-medium text-primary">AI Summary</p>
+                            </div>
+                            <p className="text-sm text-foreground">{dprAISummary}</p>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
                 {oldDPRs.map((dpr: any) => (
                   <Card key={dpr._id}>
                     <CardContent className="pt-6">

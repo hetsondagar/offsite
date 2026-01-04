@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { riskAssessmentService } from '../../services/riskAssessment.service';
 import { anomalyInsightsService } from '../../services/anomalyInsights.service';
+import { huggingFaceService } from '../../services/ai/huggingface.service';
 import { Project } from '../projects/project.model';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
@@ -99,6 +100,51 @@ export const getAnomalies = async (
       data: {
         anomalies,
         total: anomalies.length,
+      },
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Check AI Service Health
+ * GET /api/ai/health
+ */
+export const getAIHealth = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const isAvailable = huggingFaceService.isAvailable();
+    
+    let testResult = null;
+    if (isAvailable) {
+      try {
+        // Test with a simple prompt
+        const testResponse = await huggingFaceService.generateText('Say "OK" if you can read this.', 10);
+        testResult = {
+          success: !!testResponse,
+          response: testResponse ? 'AI service is working' : 'AI service returned no response',
+        };
+      } catch (error: any) {
+        testResult = {
+          success: false,
+          error: error.message || 'AI service test failed',
+        };
+      }
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'AI service health check',
+      data: {
+        available: isAvailable,
+        test: testResult,
+        timestamp: new Date().toISOString(),
       },
     };
 

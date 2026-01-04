@@ -56,8 +56,8 @@ export const materialsApi = {
     return response.data;
   },
 
-  reject: async (id: string) => {
-    const response = await apiPost<MaterialRequest>(`/materials/${id}/reject`, {});
+  reject: async (id: string, rejectionReason: string) => {
+    const response = await apiPost<MaterialRequest>(`/materials/${id}/reject`, { rejectionReason });
     return response.data;
   },
 };

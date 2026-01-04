@@ -12,6 +12,14 @@ export interface ProjectContext {
   stage: string;
   timelineStatus: string;
   budgetRemaining: number;
+  taskStatus: {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    delayed: number; // Tasks pending for more than 3 hours
+    approachingDelay: number; // Tasks pending for 2-3 hours
+    total: number;
+  };
 }
 
 export interface AIAnalysis {
@@ -51,12 +59,18 @@ export interface AnomalyInsights {
 export const aiApi = {
   getSiteRisk: async (siteId: string): Promise<SiteRiskAssessment> => {
     const response = await apiGet<SiteRiskAssessment>(`/ai/site-risk/${siteId}`);
-    return response.data!;
+    if (!response.data) {
+      throw new Error('No risk assessment data received from server');
+    }
+    return response.data;
   },
 
   getAnomalies: async (siteId: string): Promise<AnomalyInsights> => {
     const response = await apiGet<AnomalyInsights>(`/ai/anomalies/${siteId}`);
-    return response.data!;
+    if (!response.data) {
+      throw new Error('No anomaly data received from server');
+    }
+    return response.data;
   },
 };
 

@@ -1,5 +1,5 @@
 import { Attendance } from '../modules/attendance/attendance.model';
-import { MaterialRequest } from '../modules/materials/material.model';
+import { MaterialRequest, IMaterialRequest } from '../modules/materials/material.model';
 import { DPR } from '../modules/dpr/dpr.model';
 import { Project } from '../modules/projects/project.model';
 import { huggingFaceService } from './ai/huggingface.service';
@@ -151,7 +151,7 @@ export class AnomalyInsightsService {
     }
 
     // Group by material ID
-    const materialMap = new Map<string, MaterialRequest[]>();
+    const materialMap = new Map<string, IMaterialRequest[]>();
     materialRequests.forEach(req => {
       const key = req.materialId;
       if (!materialMap.has(key)) {
@@ -216,12 +216,59 @@ export class AnomalyInsightsService {
   /**
    * Get AI explanation for anomaly using Hugging Face
    */
-  async getAIExplanation(anomaly: Omit<Anomaly, 'explanation' | 'businessImpact' | 'recommendedAction'>): Promise<{
+  async getAIExplanation(anomaly: Omit<Anomaly, 'explanation' | 'businessImpact' | 'recommendedAction'>, projectId?: string): Promise<{
     explanation: string;
     businessImpact: string;
     recommendedAction: string;
   }> {
+    // Get recent DPRs with work stoppage info if projectId is provided
+    let workStoppageContext = '';
+    if (projectId) {
+      try {
+        const { DPR } = await import('../modules/dpr/dpr.model');
+        const now = new Date();
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const recentDPRs = await DPR.find({
+          projectId,
+          createdAt: { $gte: sevenDaysAgo },
+          'workStoppage.occurred': true,
+        })
+          .populate('taskId', 'title')
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .select('workStoppage createdAt taskId');
+
+        if (recentDPRs.length > 0) {
+          workStoppageContext = `\n\nRECENT WORK STOPPAGES FROM DPRs (Last 7 days):
+${recentDPRs.map((dpr, idx) => {
+            const taskTitle = (dpr.taskId && typeof dpr.taskId === 'object' && 'title' in dpr.taskId) 
+              ? (dpr.taskId as any).title 
+              : 'Task';
+            return `
+DPR ${idx + 1} (${new Date(dpr.createdAt).toLocaleDateString()}):
+- Task: ${taskTitle}
+- Work Stoppage Reason: ${dpr.workStoppage?.reason?.replace('_', ' ').toLowerCase() || 'Not specified'}
+- Duration: ${dpr.workStoppage?.durationHours || 0} hours
+- Remarks: ${dpr.workStoppage?.remarks || 'None'}
+`;
+          }).join('\n')}
+
+IMPORTANT: These work stoppages are REAL issues reported by engineers. Use this context to explain anomalies and their impact.`;
+        }
+      } catch (error) {
+        logger.warn('Error fetching work stoppage context:', error);
+      }
+    }
+
     const prompt = `You are a construction site anomaly analysis AI. Analyze detected anomalies and explain their business impact.
+
+CRITICAL WRITING RULES:
+- Use simple, clear words. Avoid long or complex words.
+- Be concise - each section should be 1-2 short sentences maximum.
+- Write in plain English that anyone can understand.
+- Be specific and actionable - tell exactly what to do.
+- Do NOT use technical jargon or overly formal language.
+- Keep Business Impact and Recommended Action under 150 words each.
 
 IMPORTANT RULES:
 - Do NOT detect anomalies (they are already detected)
@@ -239,11 +286,24 @@ Anomaly Details:
 - Confidence: ${anomaly.confidence}
 
 Provide a clear analysis with:
-1. Explanation: What this anomaly pattern indicates
-2. Business Impact: How this affects the project (cost, timeline, quality)
-3. Recommended Action: Specific action to take
+1. Explanation: What this anomaly pattern indicates (1-2 short sentences, simple words)
+2. Business Impact: How this affects the project - be specific about cost, timeline, or quality (1-2 short sentences, simple words)
+3. Recommended Action: What to do next - be specific and actionable (1-2 short sentences, simple words)
 
-Format your response clearly with labeled sections.`;
+Format your response as:
+EXPLANATION: [simple explanation in plain English]
+BUSINESS IMPACT: [clear impact statement in simple words]
+RECOMMENDED ACTION: [specific action to take in simple words]
+
+Example of good writing:
+- BAD: "The anomaly indicates a significant deviation from expected operational parameters"
+- GOOD: "This shows something unusual is happening with attendance"
+
+- BAD: "This may potentially impact the project's temporal trajectory and resource allocation mechanisms"
+- GOOD: "This could delay the project and waste money"
+
+- BAD: "It is recommended that stakeholders undertake a comprehensive review of the data source"
+- GOOD: "Check with the site engineer to verify the attendance data"${workStoppageContext}`;
 
     try {
       const aiResponse = await huggingFaceService.generateText(prompt, 400);
@@ -252,45 +312,82 @@ Format your response clearly with labeled sections.`;
         throw new Error('AI service unavailable');
       }
 
-      // Parse the response
+      // Parse the response - look for labeled sections
       let explanation = '';
       let businessImpact = '';
       let recommendedAction = '';
 
-      const lines = aiResponse.split('\n').filter(l => l.trim());
-      
-      lines.forEach((line, index) => {
-        const lowerLine = line.toLowerCase();
-        if (lowerLine.includes('explanation') || lowerLine.includes('indicates')) {
-          explanation = line.replace(/^.*explanation[:\-]?\s*/i, '').trim() || lines[index + 1]?.trim() || '';
+      // Try to find labeled sections first
+      const explanationMatch = aiResponse.match(/EXPLANATION:\s*(.+?)(?=BUSINESS IMPACT:|$)/is);
+      const businessImpactMatch = aiResponse.match(/BUSINESS IMPACT:\s*(.+?)(?=RECOMMENDED ACTION:|$)/is);
+      const recommendedActionMatch = aiResponse.match(/RECOMMENDED ACTION:\s*(.+?)$/is);
+
+      if (explanationMatch) {
+        explanation = explanationMatch[1].trim();
+      }
+      if (businessImpactMatch) {
+        businessImpact = businessImpactMatch[1].trim();
+      }
+      if (recommendedActionMatch) {
+        recommendedAction = recommendedActionMatch[1].trim();
+      }
+
+      // Fallback to line-by-line parsing if labeled sections not found
+      if (!explanation || !businessImpact || !recommendedAction) {
+        const lines = aiResponse.split('\n').filter(l => l.trim());
+        
+        lines.forEach((line, index) => {
+          const lowerLine = line.toLowerCase();
+          if ((lowerLine.includes('explanation') || lowerLine.includes('indicates')) && !explanation) {
+            explanation = line.replace(/^.*explanation[:\-]?\s*/i, '').trim() || lines[index + 1]?.trim() || '';
+          }
+          if ((lowerLine.includes('business impact') || lowerLine.includes('affects')) && !businessImpact) {
+            businessImpact = line.replace(/^.*business impact[:\-]?\s*/i, '').trim() || lines[index + 1]?.trim() || '';
+          }
+          if ((lowerLine.includes('recommended action') || lowerLine.includes('action')) && !recommendedAction) {
+            recommendedAction = line.replace(/^.*recommended action[:\-]?\s*/i, '').trim() || lines[index + 1]?.trim() || '';
+          }
+        });
+      }
+
+      // Clean up and ensure concise text (max 200 chars per field)
+      const truncateText = (text: string, maxLength: number = 200) => {
+        if (!text || text.length <= maxLength) return text || '';
+        // Try to cut at sentence boundary
+        const truncated = text.substring(0, maxLength);
+        const lastPeriod = truncated.lastIndexOf('.');
+        const lastExclamation = truncated.lastIndexOf('!');
+        const lastQuestion = truncated.lastIndexOf('?');
+        const lastBreak = Math.max(lastPeriod, lastExclamation, lastQuestion);
+        if (lastBreak > maxLength * 0.7) {
+          return truncated.substring(0, lastBreak + 1);
         }
-        if (lowerLine.includes('business impact') || lowerLine.includes('affects')) {
-          businessImpact = line.replace(/^.*business impact[:\-]?\s*/i, '').trim() || lines[index + 1]?.trim() || '';
-        }
-        if (lowerLine.includes('recommended action') || lowerLine.includes('action')) {
-          recommendedAction = line.replace(/^.*recommended action[:\-]?\s*/i, '').trim() || lines[index + 1]?.trim() || '';
-        }
-      });
+        return truncated + '...';
+      };
+
+      explanation = truncateText(explanation);
+      businessImpact = truncateText(businessImpact);
+      recommendedAction = truncateText(recommendedAction);
 
       // If parsing failed, use the full response as explanation
       if (!explanation && !businessImpact && !recommendedAction) {
-        explanation = aiResponse.substring(0, 200);
-        businessImpact = 'May impact project timeline and resource allocation';
-        recommendedAction = 'Review data source and verify process compliance';
+        explanation = truncateText(aiResponse.substring(0, 200));
+        businessImpact = 'Could delay the project or increase costs';
+        recommendedAction = 'Check with site engineer to verify the data';
       }
 
       return {
         explanation: explanation || `Detected ${anomaly.anomalyType} pattern: ${anomaly.patternDetected}`,
-        businessImpact: businessImpact || 'May impact project timeline and resource allocation',
-        recommendedAction: recommendedAction || 'Review data source and verify process compliance',
+        businessImpact: businessImpact || 'Could delay the project or increase costs',
+        recommendedAction: recommendedAction || 'Check with site engineer to verify the data',
       };
     } catch (error: any) {
       logger.error('Error getting AI explanation:', error);
       // Fallback
       return {
         explanation: `Detected ${anomaly.anomalyType} pattern: ${anomaly.patternDetected}`,
-        businessImpact: 'May impact project timeline and resource allocation',
-        recommendedAction: 'Review data source and verify process compliance',
+        businessImpact: 'Could delay the project or increase costs',
+        recommendedAction: 'Check with site engineer to verify the data',
       };
     }
   }
@@ -310,7 +407,7 @@ Format your response clearly with labeled sections.`;
     // Get AI explanations for each
     const anomaliesWithAI = await Promise.all(
       allAnomalies.map(async (anomaly) => {
-        const aiExplanation = await this.getAIExplanation(anomaly);
+        const aiExplanation = await this.getAIExplanation(anomaly, projectId);
         return {
           ...anomaly,
           ...aiExplanation,

@@ -121,6 +121,64 @@ export const getMaterialAnomalies = async (
   }
 };
 
+export const getPendingMaterialRequests = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    // Build query based on user role
+    const query: any = { status: 'pending' };
+    
+    if (req.user.role === 'engineer') {
+      // Engineers can only see their own requests
+      query.requestedBy = req.user.userId;
+    } else if (req.user.role === 'manager') {
+      // Managers can see requests from projects they are members of
+      const userProjects = await Project.find({
+        members: req.user.userId,
+        status: 'active',
+      }).select('_id');
+      const projectIds = userProjects.map((p) => p._id);
+      query.projectId = { $in: projectIds };
+    }
+    // Owners can see all requests (no filter)
+
+    const { calculateApprovalDelay } = await import('../../services/approvalDelay.service');
+    
+    const requests = await MaterialRequest.find(query)
+      .populate('projectId', 'name location')
+      .populate('requestedBy', 'name phone offsiteId')
+      .sort({ createdAt: -1 })
+      .limit(50) // Limit to most recent 50
+      .select('-__v');
+
+    // Add delay information to each request
+    const requestsWithDelay = requests.map((request: any) => {
+      const requestObj = request.toObject();
+      const delay = calculateApprovalDelay(request);
+      requestObj.delayHours = delay.delayHours;
+      requestObj.delayDays = delay.delayDays;
+      requestObj.delaySeverity = delay.severity;
+      return requestObj;
+    });
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Pending material requests retrieved successfully',
+      data: requestsWithDelay,
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * Get labour gap for a project or all projects
  * Calculates planned vs actual labour from DB

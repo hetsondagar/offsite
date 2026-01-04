@@ -14,6 +14,7 @@ export interface IMaterialRequest extends Document {
   anomalyReason?: string;
   approvedBy?: mongoose.Types.ObjectId;
   rejectedBy?: mongoose.Types.ObjectId;
+  rejectionReason?: string;
   approvedAt?: Date;
   rejectedAt?: Date;
   createdAt: Date;
@@ -76,6 +77,10 @@ const materialRequestSchema = new Schema<IMaterialRequest>(
     rejectedBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',
+    },
+    rejectionReason: {
+      type: String,
+      trim: true,
     },
     approvedAt: {
       type: Date,

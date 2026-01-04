@@ -1,5 +1,6 @@
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
+import { huggingFaceService } from './ai/huggingface.service';
 
 export interface LLMResponse {
   content: string;
@@ -16,8 +17,9 @@ export interface LLMConfig {
 }
 
 /**
- * LLM Service - Supports OpenAI, Azure OpenAI, and Gemini
+ * LLM Service - Supports OpenAI, Azure OpenAI, Gemini, and HuggingFace
  * Handles chat completions for reasoning and explanations
+ * Falls back to HuggingFace if other providers fail or are not configured
  */
 class LLMService {
   private provider: 'openai' | 'gemini' | 'azure';
@@ -28,6 +30,7 @@ class LLMService {
 
   /**
    * Generate chat completion using configured LLM provider
+   * Falls back to HuggingFace if primary provider fails
    */
   async chatCompletion(
     messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
@@ -42,13 +45,69 @@ class LLMService {
         case 'gemini':
           return await this.geminiChatCompletion(messages, config);
         default:
-          throw new Error(`Unsupported LLM provider: ${this.provider}`);
+          // Fallback to HuggingFace for unsupported providers
+          return await this.huggingFaceChatCompletion(messages, config);
       }
     } catch (error: any) {
-      logger.error('LLM service error:', error);
-      // Fallback to mock response for demo
-      return this.getMockResponse(messages);
+      logger.error('LLM service error, falling back to HuggingFace:', error);
+      // Fallback to HuggingFace
+      try {
+        return await this.huggingFaceChatCompletion(messages, config);
+      } catch (hfError: any) {
+        logger.error('HuggingFace fallback also failed:', hfError);
+        // Last resort: return structured fallback (not mock data)
+        return this.getStructuredFallback(messages);
+      }
     }
+  }
+
+  /**
+   * HuggingFace Chat Completion (fallback and primary for HuggingFace provider)
+   */
+  private async huggingFaceChatCompletion(
+    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+    config: LLMConfig
+  ): Promise<LLMResponse> {
+    if (!huggingFaceService.isAvailable()) {
+      throw new Error('HuggingFace API key not configured');
+    }
+
+    // Convert messages to a single prompt
+    const systemMessage = messages.find(m => m.role === 'system');
+    const userMessages = messages.filter(m => m.role === 'user');
+    const assistantMessages = messages.filter(m => m.role === 'assistant');
+
+    let prompt = '';
+    if (systemMessage) {
+      prompt += `System: ${systemMessage.content}\n\n`;
+    }
+
+    // Build conversation context
+    for (let i = 0; i < Math.max(userMessages.length, assistantMessages.length); i++) {
+      if (userMessages[i]) {
+        prompt += `User: ${userMessages[i].content}\n`;
+      }
+      if (assistantMessages[i]) {
+        prompt += `Assistant: ${assistantMessages[i].content}\n`;
+      }
+    }
+
+    // Add the last user message if it exists
+    const lastUserMessage = userMessages[userMessages.length - 1];
+    if (lastUserMessage && !prompt.includes(lastUserMessage.content)) {
+      prompt += `User: ${lastUserMessage.content}\n\nAssistant:`;
+    }
+
+    const maxTokens = config.maxTokens || 1000;
+    const response = await huggingFaceService.generateText(prompt, maxTokens);
+
+    if (!response) {
+      throw new Error('HuggingFace API returned no response');
+    }
+
+    return {
+      content: response,
+    };
   }
 
   /**
@@ -59,8 +118,8 @@ class LLMService {
     config: LLMConfig
   ): Promise<LLMResponse> {
     if (!env.OPENAI_API_KEY) {
-      logger.warn('OpenAI API key not configured, using mock response');
-      return this.getMockResponse(messages);
+      logger.warn('OpenAI API key not configured, falling back to HuggingFace');
+      return await this.huggingFaceChatCompletion(messages, config);
     }
 
     const model = config.model || 'gpt-4o-mini';
@@ -101,8 +160,8 @@ class LLMService {
     config: LLMConfig
   ): Promise<LLMResponse> {
     if (!env.AZURE_OPENAI_ENDPOINT || !env.AZURE_OPENAI_API_KEY) {
-      logger.warn('Azure OpenAI not configured, using mock response');
-      return this.getMockResponse(messages);
+      logger.warn('Azure OpenAI not configured, falling back to HuggingFace');
+      return await this.huggingFaceChatCompletion(messages, config);
     }
 
     const model = config.model || 'gpt-4o-mini';
@@ -144,8 +203,8 @@ class LLMService {
     config: LLMConfig
   ): Promise<LLMResponse> {
     if (!env.GEMINI_API_KEY) {
-      logger.warn('Gemini API key not configured, using mock response');
-      return this.getMockResponse(messages);
+      logger.warn('Gemini API key not configured, falling back to HuggingFace');
+      return await this.huggingFaceChatCompletion(messages, config);
     }
 
     const model = config.model || 'gemini-pro';
@@ -194,48 +253,23 @@ class LLMService {
   }
 
   /**
-   * Mock response for demo/fallback
+   * Structured fallback response when all AI services fail
+   * This is NOT mock data - it's a last resort fallback that indicates service unavailability
    */
-  private getMockResponse(
+  private getStructuredFallback(
     messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
   ): LLMResponse {
     const lastMessage = messages[messages.length - 1]?.content || '';
     
-    // Simple mock based on context
-    if (lastMessage.includes('risk') || lastMessage.includes('Risk')) {
-      return {
-        content: JSON.stringify({
-          riskLevel: 'MEDIUM',
-          summary: 'Project shows moderate risk indicators. DPR submission delays and attendance variance require attention.',
-          topReasons: [
-            'DPR submission delays detected',
-            'Attendance variance above threshold',
-            'Pending material approvals'
-          ],
-          recommendations: [
-            'Implement daily DPR reminders',
-            'Review attendance patterns with team leads',
-            'Streamline material approval workflow'
-          ],
-          confidence: 0.75
-        }),
-      };
-    }
-
-    if (lastMessage.includes('anomaly') || lastMessage.includes('Anomaly')) {
-      return {
-        content: JSON.stringify({
-          severity: 'MEDIUM',
-          confidence: 0.8,
-          explanation: 'Detected pattern indicates potential data quality issue or workflow deviation.',
-          businessImpact: 'May lead to inaccurate reporting and delayed decision-making.',
-          recommendedAction: 'Verify data source and review process compliance.'
-        }),
-      };
-    }
-
+    // Return a structured response indicating AI service is unavailable
+    // This allows the system to continue functioning but indicates the limitation
     return {
-      content: JSON.stringify({ message: 'Analysis complete', confidence: 0.7 }),
+      content: JSON.stringify({
+        error: 'AI service temporarily unavailable',
+        message: 'All AI services are currently unavailable. Please try again later or contact support.',
+        fallback: true,
+        timestamp: new Date().toISOString()
+      }),
     };
   }
 }

@@ -32,6 +32,7 @@ export default function InsightsPage() {
   const [siteHealth, setSiteHealth] = useState<any>(null);
   const [delayRisks, setDelayRisks] = useState<any[]>([]);
   const [materialAnomalies, setMaterialAnomalies] = useState<any[]>([]);
+  const [pendingMaterials, setPendingMaterials] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -47,16 +48,18 @@ export default function InsightsPage() {
     const loadInsights = async () => {
       try {
         setIsLoading(true);
-        const [healthData, risksData, anomaliesData, projectsData] = await Promise.all([
+        const [healthData, risksData, anomaliesData, pendingMaterialsData, projectsData] = await Promise.all([
           insightsApi.getSiteHealth(),
           insightsApi.getDelayRisks(),
           insightsApi.getMaterialAnomalies(),
+          insightsApi.getPendingMaterialRequests(),
           projectsApi.getAll(1, 100),
         ]);
         
         setSiteHealth(healthData);
         setDelayRisks(risksData || []);
         setMaterialAnomalies(anomaliesData || []);
+        setPendingMaterials(pendingMaterialsData || []);
         setProjects(projectsData?.projects || []);
       } catch (error) {
         console.error('Error loading insights:', error);
@@ -188,9 +191,14 @@ export default function InsightsPage() {
                     </div>
                   </div>
 
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Impact: {risk.impact}</span>
-                      <span className="text-muted-foreground">Cause: {risk.cause}</span>
+                    <div className="flex flex-col gap-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Impact:</span>
+                        <span className="text-foreground font-medium">{risk.impact}</span>
+                      </div>
+                      <div className="text-muted-foreground line-clamp-2">
+                        {risk.cause}
+                      </div>
                     </div>
                   </div>
                 ))
@@ -198,25 +206,104 @@ export default function InsightsPage() {
             </CardContent>
           </Card>
 
+              {/* Pending Material Requests */}
+              {pendingMaterials.length > 0 && (
+                <Card variant="gradient" className="animate-fade-up stagger-2">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Package className="w-4 h-4 text-primary" />
+                  Pending Material Requests ({pendingMaterials.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {pendingMaterials.map((request: any, index: number) => {
+                  const projectName = typeof request.projectId === 'object' ? request.projectId?.name : 'Unknown Project';
+                  const requesterName = typeof request.requestedBy === 'object' ? request.requestedBy?.name : 'Unknown';
+                  const isAnomaly = request.anomalyDetected;
+                  const delaySeverity = request.delaySeverity || 'normal';
+                  
+                  return (
+                    <div 
+                      key={request._id || index} 
+                      className={`p-3 rounded-xl border ${
+                        isAnomaly 
+                          ? 'bg-warning/10 border-warning/30' 
+                          : delaySeverity === 'critical'
+                          ? 'bg-destructive/10 border-destructive/30'
+                          : delaySeverity === 'warning'
+                          ? 'bg-warning/10 border-warning/20'
+                          : 'bg-muted/50 border-border'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex-1 flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm text-foreground">{request.materialName}</span>
+                          {isAnomaly && (
+                            <StatusBadge status="warning" label="Anomaly" />
+                          )}
+                          {delaySeverity === 'critical' && (
+                            <StatusBadge status="error" label="Critical Delay" />
+                          )}
+                          {delaySeverity === 'warning' && !isAnomaly && (
+                            <StatusBadge status="warning" label="Delayed" />
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <div className="flex items-center justify-between">
+                          <span>Project: {projectName}</span>
+                          <span className="font-medium text-foreground">{request.quantity} {request.unit}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Requested by: {requesterName}</span>
+                          {request.delayDays > 0 && (
+                            <span className={delaySeverity === 'critical' ? 'text-destructive font-medium' : delaySeverity === 'warning' ? 'text-warning font-medium' : ''}>
+                              {request.delayDays} day(s) pending
+                            </span>
+                          )}
+                          {request.delayHours >= 24 && request.delayDays === 0 && (
+                            <span className={delaySeverity === 'critical' ? 'text-destructive font-medium' : delaySeverity === 'warning' ? 'text-warning font-medium' : ''}>
+                              {Math.floor(request.delayHours)}h pending
+                            </span>
+                          )}
+                        </div>
+                        {request.reason && (
+                          <p className="text-xs text-muted-foreground mt-1">{request.reason}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+                </Card>
+              )}
+
               {/* Material Anomalies */}
               {materialAnomalies.length > 0 && (
                 <Card variant="gradient" className="animate-fade-up stagger-2">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <Package className="w-4 h-4 text-primary" />
-                  Material Anomalies
+                  <AlertTriangle className="w-4 h-4 text-warning" />
+                  Material Anomalies ({materialAnomalies.length})
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {materialAnomalies.map((anomaly: any, index: number) => (
-                  <div key={anomaly._id || index} className="p-3 rounded-xl bg-warning/10 border border-warning/30">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-sm text-foreground">{anomaly.materialName}</span>
-                      <StatusBadge status="warning" label="Anomaly" />
+                {materialAnomalies.map((anomaly: any, index: number) => {
+                  const projectName = typeof anomaly.projectId === 'object' ? anomaly.projectId?.name : 'Unknown Project';
+                  return (
+                    <div key={anomaly._id || index} className="p-3 rounded-xl bg-warning/10 border border-warning/30">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-sm text-foreground">{anomaly.materialName}</span>
+                        <StatusBadge status="warning" label="Anomaly" />
+                      </div>
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <div>Project: {projectName}</div>
+                        <div>Quantity: {anomaly.quantity} {anomaly.unit}</div>
+                        <p>{anomaly.reason || 'Unusual quantity detected'}</p>
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">{anomaly.reason || 'Unusual quantity detected'}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </CardContent>
                 </Card>
               )}
@@ -232,13 +319,60 @@ export default function InsightsPage() {
               </CardHeader>
               <CardContent>
                 <ChartContainer config={{}}>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={projects.map(p => ({ name: p.name, progress: p.progress }))}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="progress" fill="var(--primary)" />
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart 
+                      data={projects.map(p => ({ 
+                        name: p.name.length > 15 ? p.name.substring(0, 15) + '...' : p.name, 
+                        fullName: p.name,
+                        progress: p.progress || 0 
+                      }))}
+                      margin={{ top: 5, right: 10, left: 0, bottom: 60 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground))" opacity={0.2} />
+                      <XAxis 
+                        dataKey="name" 
+                        angle={-45}
+                        textAnchor="end"
+                        height={80}
+                        tick={{ fontSize: 11 }}
+                        interval={0}
+                      />
+                      <YAxis 
+                        domain={[0, 100]}
+                        tick={{ fontSize: 11 }}
+                        label={{ value: 'Progress %', angle: -90, position: 'insideLeft', style: { fontSize: 11 } }}
+                      />
+                      <ChartTooltip 
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="rounded-lg border bg-background p-2 shadow-sm">
+                                <div className="grid gap-2">
+                                  <div className="flex flex-col">
+                                    <span className="text-[0.70rem] uppercase text-muted-foreground">
+                                      Project
+                                    </span>
+                                    <span className="font-bold text-sm">{data.fullName}</span>
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-[0.70rem] uppercase text-muted-foreground">
+                                      Progress
+                                    </span>
+                                    <span className="font-bold text-sm">{data.progress}%</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Bar 
+                        dataKey="progress" 
+                        fill="hsl(var(--primary))"
+                        radius={[4, 4, 0, 0]}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </ChartContainer>

@@ -7,6 +7,7 @@ import { Task } from '../../modules/tasks/task.model';
 import { MaterialRequest } from '../../modules/materials/material.model';
 import { Attendance } from '../../modules/attendance/attendance.model';
 import { Project } from '../../modules/projects/project.model';
+import { DPR } from '../../modules/dpr/dpr.model';
 import { huggingFaceService } from './huggingface.service';
 import { logger } from '../../utils/logger';
 
@@ -15,6 +16,12 @@ interface DelayRiskData {
   attendanceTrend: string;
   pendingMaterials: number;
   avgCompletionTime: number;
+  taskStatus: {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    total: number;
+  };
 }
 
 interface DelayRiskExplanationResponse {
@@ -34,12 +41,26 @@ export async function aggregateDelayRiskData(projectId: string): Promise<DelayRi
     const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
     const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-    // Count delayed tasks (> 2 days overdue)
+    // Get all tasks with status breakdown
     const tasks = await Task.find({ projectId });
+    
+    // Count delayed tasks (> 2 days overdue) - only count pending or in-progress tasks
     const delayedTasks = tasks.filter(t => {
       if (!t.dueDate || t.status === 'completed') return false;
-      return new Date(t.dueDate) < twoDaysAgo;
+      // Only count as delayed if task is pending or in-progress and overdue
+      if (t.status === 'pending' || t.status === 'in-progress') {
+        return new Date(t.dueDate) < twoDaysAgo;
+      }
+      return false;
     }).length;
+    
+    // Task status breakdown
+    const taskStatus = {
+      pending: tasks.filter(t => t.status === 'pending').length,
+      inProgress: tasks.filter(t => t.status === 'in-progress').length,
+      completed: tasks.filter(t => t.status === 'completed').length,
+      total: tasks.length,
+    };
 
     // Calculate attendance trend (last 14 days)
     const attendanceRecords = await Attendance.find({
@@ -111,6 +132,7 @@ export async function aggregateDelayRiskData(projectId: string): Promise<DelayRi
       attendanceTrend,
       pendingMaterials,
       avgCompletionTime: avgCompletionTime || 0,
+      taskStatus,
     };
   } catch (error) {
     logger.error('Error aggregating delay risk data:', error);
@@ -149,6 +171,17 @@ export async function generateDelayRiskExplanation(
         reasons.push(`${data.delayedTasks} tasks are overdue by more than 2 days`);
         actions.push('Review and prioritize overdue tasks');
       }
+      if (data.taskStatus.pending > data.taskStatus.total * 0.5) {
+        reasons.push(`${data.taskStatus.pending} tasks not started (${Math.round((data.taskStatus.pending / data.taskStatus.total) * 100)}% of total)`);
+        actions.push('Start pending tasks to maintain project momentum');
+      }
+      if (data.taskStatus.inProgress > 0) {
+        // This is good - tasks are being worked on
+        if (data.taskStatus.inProgress < data.taskStatus.pending) {
+          reasons.push(`More tasks pending (${data.taskStatus.pending}) than in progress (${data.taskStatus.inProgress})`);
+          actions.push('Encourage engineers to start more pending tasks');
+        }
+      }
       if (data.pendingMaterials > 0) {
         reasons.push(`${data.pendingMaterials} material requests pending approval`);
         actions.push('Expedite material approval process');
@@ -170,6 +203,42 @@ export async function generateDelayRiskExplanation(
       };
     }
 
+    // Get recent DPRs with work stoppage info
+    let workStoppageContext = '';
+    try {
+      const now = new Date();
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const recentDPRs = await DPR.find({
+        projectId,
+        createdAt: { $gte: sevenDaysAgo },
+        'workStoppage.occurred': true,
+      })
+        .populate('taskId', 'title')
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select('workStoppage createdAt taskId');
+
+      if (recentDPRs.length > 0) {
+        workStoppageContext = `\n\nRECENT WORK STOPPAGES FROM DPRs (Last 7 days - REAL issues reported by engineers):
+${recentDPRs.map((dpr, idx) => {
+          const taskTitle = (dpr.taskId && typeof dpr.taskId === 'object' && 'title' in dpr.taskId) 
+            ? (dpr.taskId as any).title 
+            : 'Task';
+          return `
+DPR ${idx + 1} (${new Date(dpr.createdAt).toLocaleDateString()}):
+- Task: ${taskTitle}
+- Work Stoppage Reason: ${dpr.workStoppage?.reason?.replace('_', ' ').toLowerCase() || 'Not specified'}
+- Duration: ${dpr.workStoppage?.durationHours || 0} hours
+- Remarks: ${dpr.workStoppage?.remarks || 'None'}
+`;
+        }).join('\n')}
+
+IMPORTANT: These work stoppages are REAL issues that have already caused delays. Use this context to explain delay risks.`;
+      }
+    } catch (error) {
+      logger.warn('Error fetching work stoppage context for delay risk:', error);
+    }
+
     // Build prompt with real data
     const prompt = `You are analyzing construction project delay risks.
 
@@ -178,10 +247,16 @@ Do not predict dates.
 Do not assume causes not shown in data.
 
 Data:
-- Delayed tasks count: ${data.delayedTasks}
+- Delayed tasks count: ${data.delayedTasks} (tasks overdue by 2+ days that are pending or in-progress)
+- Task Status Breakdown:
+  * Total Tasks: ${data.taskStatus.total}
+  * Not Started (Pending): ${data.taskStatus.pending}
+  * In Progress: ${data.taskStatus.inProgress}
+  * Completed: ${data.taskStatus.completed}
+  * Completion Rate: ${data.taskStatus.total > 0 ? Math.round((data.taskStatus.completed / data.taskStatus.total) * 100) : 0}%
 - Attendance trend: ${data.attendanceTrend}
 - Pending material approvals: ${data.pendingMaterials}
-- Avg task completion speed (days): ${data.avgCompletionTime}
+- Avg task completion speed (days): ${data.avgCompletionTime}${workStoppageContext}
 
 Output:
 - Risk level: Low / Medium / High

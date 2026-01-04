@@ -64,19 +64,26 @@ export async function getDB(): Promise<IDBPDatabase<OffSiteDB>> {
     return dbInstance;
   }
 
-  dbInstance = await openDB<OffSiteDB>('offsite-db', 1, {
-    upgrade(db) {
-      // Create object stores
-      if (!db.objectStoreNames.contains('dprs')) {
-        db.createObjectStore('dprs', { keyPath: 'id' });
+  // Use version 2 to match existing database version
+  // If database already exists with version 2, this will open it without upgrade
+  // If it doesn't exist or is version 1, upgrade will run
+  dbInstance = await openDB<OffSiteDB>('offsite-db', 2, {
+    upgrade(db, oldVersion, newVersion, transaction) {
+      // Only create stores if they don't exist (for new databases or upgrades)
+      if (oldVersion < 1) {
+        if (!db.objectStoreNames.contains('dprs')) {
+          db.createObjectStore('dprs', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('attendance')) {
+          db.createObjectStore('attendance', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('materials')) {
+          db.createObjectStore('materials', { keyPath: 'id' });
+        }
       }
-      if (!db.objectStoreNames.contains('attendance')) {
-        db.createObjectStore('attendance', { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains('materials')) {
-        db.createObjectStore('materials', { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains('aiCache')) {
+      
+      // Ensure aiCache store exists (added in version 2)
+      if (oldVersion < 2 && !db.objectStoreNames.contains('aiCache')) {
         const aiStore = db.createObjectStore('aiCache', { keyPath: 'id' });
         aiStore.createIndex('siteId', 'siteId');
         aiStore.createIndex('type', 'type');

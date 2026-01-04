@@ -10,6 +10,10 @@ import { logger } from '../../utils/logger';
 import { createNotification } from '../notifications/notification.service';
 import { User } from '../users/user.model';
 
+const rejectMaterialRequestSchema = z.object({
+  rejectionReason: z.string().min(1, 'Rejection reason is required'),
+});
+
 const createMaterialRequestSchema = z.object({
   projectId: z.string(),
   materialId: z.string(),
@@ -279,6 +283,7 @@ export const rejectRequest = async (
     }
 
     const { id } = req.params;
+    const data = rejectMaterialRequestSchema.parse(req.body);
 
     const request = await MaterialRequest.findById(id);
 
@@ -297,6 +302,7 @@ export const rejectRequest = async (
 
     request.status = 'rejected';
     request.rejectedBy = req.user.userId as any;
+    request.rejectionReason = data.rejectionReason;
     request.rejectedAt = new Date();
     await request.save();
 
@@ -315,7 +321,7 @@ export const rejectRequest = async (
           offsiteId: requester.offsiteId,
           type: 'material_rejected',
           title: 'Material Request Rejected',
-          message: `Your material request for ${request.materialName} (${request.quantity} ${request.unit}) has been rejected.`,
+          message: `Your material request for ${request.materialName} (${request.quantity} ${request.unit}) has been rejected. Reason: ${request.rejectionReason || 'Not specified'}`,
           data: {
             materialRequestId: request._id.toString(),
             projectId: (request.projectId as any)?._id?.toString() || (request.projectId as any)?.toString(),

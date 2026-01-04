@@ -90,6 +90,11 @@ export const insightsApi = {
     return response.data;
   },
 
+  getPendingMaterialRequests: async () => {
+    const response = await apiGet<any[]>('/insights/pending-materials');
+    return response.data;
+  },
+
   getLabourGap: async (projectId?: string, days?: number, threshold?: number) => {
     const params: any = {};
     if (projectId) params.projectId = projectId;
