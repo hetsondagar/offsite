@@ -11,13 +11,13 @@ export function HealthScoreRing({ score, size = "md", showLabel = true }: Health
   const [animatedScore, setAnimatedScore] = useState(0);
   
   const sizes = {
-    sm: { width: 80, stroke: 6, fontSize: "text-lg" },
-    md: { width: 120, stroke: 8, fontSize: "text-2xl" },
-    lg: { width: 160, stroke: 10, fontSize: "text-4xl" },
+    sm: { width: 90, stroke: 6, fontSize: "text-lg" },
+    md: { width: 110, stroke: 6, fontSize: "text-2xl" },
+    lg: { width: 120, stroke: 6, fontSize: "text-3xl" },
   };
   
   const { width, stroke, fontSize } = sizes[size];
-  const radius = (width - stroke) / 2;
+  const radius = (width - stroke * 2) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (animatedScore / 100) * circumference;
   
@@ -52,7 +52,7 @@ export function HealthScoreRing({ score, size = "md", showLabel = true }: Health
   }, [score]);
 
   return (
-    <div className="relative inline-flex flex-col items-center">
+    <div className="relative inline-flex flex-shrink-0 flex-col items-center justify-center" style={{ width, height: width }}>
       <svg width={width} height={width} className={cn("transform -rotate-90", getGlowColor(animatedScore))}>
         {/* Background circle */}
         <circle
@@ -78,11 +78,11 @@ export function HealthScoreRing({ score, size = "md", showLabel = true }: Health
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className={cn("font-display font-bold text-foreground", fontSize)}>
+        <span className={cn("font-display font-bold text-foreground leading-none", fontSize)}>
           {animatedScore}
         </span>
         {showLabel && (
-          <span className="text-xs text-muted-foreground font-medium">Site Health</span>
+          <span className="text-xs text-muted-foreground font-medium mt-0.5">Site Health</span>
         )}
       </div>
     </div>
