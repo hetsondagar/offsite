@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPatch } from '@/lib/api';
+import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from '@/lib/api';
 
 export interface BillingPeriod {
   from: string;
@@ -83,6 +83,19 @@ export const invoicesApi = {
     return response.data;
   },
 
+  update: async (id: string, data: {
+    projectId: string;
+    billingPeriod: BillingPeriod;
+    gstRate?: number;
+    supplier: Supplier;
+    client: Client;
+    notes?: string;
+    taxableAmount?: number;
+  }) => {
+    const response = await apiPut<Invoice>(`/invoices/${id}`, data);
+    return response.data;
+  },
+
   finalize: async (id: string) => {
     const response = await apiPost<Invoice>(`/invoices/${id}/finalize`, {});
     return response.data;
@@ -106,5 +119,9 @@ export const invoicesApi = {
   updatePaymentStatus: async (id: string, paymentStatus: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID') => {
     const response = await apiPatch<Invoice>(`/invoices/${id}/payment-status`, { paymentStatus });
     return response.data;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await apiDelete(`/invoices/${id}`);
   },
 };

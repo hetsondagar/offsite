@@ -256,7 +256,6 @@ invoiceSchema.pre('save', function (next) {
 });
 
 invoiceSchema.index({ projectId: 1, createdAt: -1 });
-invoiceSchema.index({ invoiceNumber: 1 });
 invoiceSchema.index({ status: 1 });
 invoiceSchema.index({ ownerId: 1 });
 invoiceSchema.index({ 'billingPeriod.from': 1, 'billingPeriod.to': 1 });

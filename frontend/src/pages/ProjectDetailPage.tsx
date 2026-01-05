@@ -51,6 +51,8 @@ export default function ProjectDetailPage() {
   const [searchResults, setSearchResults] = useState<Array<{ offsiteId: string; name: string; role: string }>>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [lastSearchQuery, setLastSearchQuery] = useState<string>('');
+  const [isDPRModalOpen, setIsDPRModalOpen] = useState(false);
+  const [selectedDPR, setSelectedDPR] = useState<any>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -199,7 +201,7 @@ export default function ProjectDetailPage() {
 
   if (isLoading) {
     return (
-      <MobileLayout>
+      <MobileLayout role={role}>
         <div className="flex items-center justify-center min-h-[60vh]">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
@@ -209,7 +211,7 @@ export default function ProjectDetailPage() {
 
   if (!projectData) {
     return (
-      <MobileLayout>
+      <MobileLayout role={role}>
         <div className="text-center py-12">
           <p className="text-muted-foreground">Project not found</p>
           <Button onClick={() => navigate('/projects')} className="mt-4">
@@ -220,7 +222,29 @@ export default function ProjectDetailPage() {
     );
   }
 
-  const { project, statistics } = projectData;
+  // Safely destructure project data
+  const project = projectData?.project || projectData;
+  const statistics = projectData?.statistics || {
+    tasks: { total: 0, byStatus: { pending: 0, 'in-progress': 0, completed: 0 }, recent: [] },
+    dprs: { total: 0, recent: [] },
+    materials: { total: 0, byStatus: { pending: 0, approved: 0, rejected: 0 }, recent: [] },
+    attendance: { total: 0, todayCheckIns: 0, recent: [] },
+    events: { total: 0 },
+  };
+
+  // Additional check to ensure project has required fields
+  if (!project || !project.name) {
+    return (
+      <MobileLayout role={role}>
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">Invalid project data</p>
+          <Button onClick={() => navigate('/projects')} className="mt-4">
+            Back to Projects
+          </Button>
+        </div>
+      </MobileLayout>
+    );
+  }
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -228,6 +252,29 @@ export default function ProjectDetailPage() {
       day: 'numeric',
       year: 'numeric',
     });
+  };
+
+  const getStatusLabel = (status: string | undefined): string => {
+    const statusMap: Record<string, string> = {
+      'active': 'Active',
+      'planning': 'Planning',
+      'on-hold': 'On Hold',
+      'completed': 'Completed',
+      'pending': 'Pending',
+      'in-progress': 'In Progress',
+      'approved': 'Approved',
+      'rejected': 'Rejected',
+    };
+    return statusMap[status || 'planning'] || (status || 'Planning');
+  };
+
+  const getRoleLabel = (role: string | undefined): string => {
+    const roleMap: Record<string, string> = {
+      'engineer': 'Site Engineer',
+      'manager': 'Project Manager',
+      'owner': 'Project Owner',
+    };
+    return roleMap[role || 'engineer'] || (role || 'Engineer');
   };
 
   const getStatusColor = (status: string) => {
@@ -245,7 +292,7 @@ export default function ProjectDetailPage() {
   };
 
   return (
-    <MobileLayout>
+    <MobileLayout role={role}>
       <div className="space-y-6 pb-6">
         {/* Header */}
         <div className="flex items-center gap-4">
@@ -270,7 +317,7 @@ export default function ProjectDetailPage() {
               {/* Status and Health Score */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <StatusBadge status={project.status} />
+                  <StatusBadge status={(project.status as any) || 'planning'} label={getStatusLabel(project.status)} />
                 </div>
                 <div className="flex items-center gap-2">
                   <HealthScoreRing score={typeof project.healthScore === 'number' ? project.healthScore : 0} size="md" />
@@ -281,12 +328,12 @@ export default function ProjectDetailPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Progress</span>
-                  <span className="font-medium">{project.progress}%</span>
+                  <span className="font-medium">{project.progress || 0}%</span>
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div
                     className="h-full bg-primary transition-all"
-                    style={{ width: `${project.progress}%` }}
+                    style={{ width: `${project.progress || 0}%` }}
                   />
                 </div>
               </div>
@@ -298,7 +345,7 @@ export default function ProjectDetailPage() {
                     <Calendar className="w-4 h-4" />
                     <span>Start Date</span>
                   </div>
-                  <p className="font-medium">{formatDate(project.startDate)}</p>
+                  <p className="font-medium">{project.startDate ? formatDate(project.startDate) : 'N/A'}</p>
                 </div>
                 {project.endDate && (
                   <div className="space-y-1">
@@ -314,7 +361,7 @@ export default function ProjectDetailPage() {
               {/* Location */}
               <div className="flex items-start gap-2 pt-2 border-t">
                 <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                <p className="text-sm text-muted-foreground">{project.location}</p>
+                <p className="text-sm text-muted-foreground">{project.location || 'No location specified'}</p>
               </div>
             </div>
           </CardContent>
@@ -658,7 +705,7 @@ export default function ProjectDetailPage() {
                       <p className="font-medium truncate">{member.name}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs text-muted-foreground">{member.offsiteId}</span>
-                        <StatusBadge status={member.role} size="sm" />
+                        <StatusBadge status={(member.role as any)} label={getRoleLabel(member.role)} />
                       </div>
                     </div>
                   </div>

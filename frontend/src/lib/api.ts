@@ -182,6 +182,19 @@ export const apiPatch = async <T = any>(
 };
 
 /**
+ * Make an authenticated PUT request
+ */
+export const apiPut = async <T = any>(
+  endpoint: string,
+  body: any
+): Promise<ApiResponse<T>> => {
+  return apiRequest<T>(endpoint, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+};
+
+/**
  * Make an authenticated DELETE request
  */
 export const apiDelete = async <T = any>(

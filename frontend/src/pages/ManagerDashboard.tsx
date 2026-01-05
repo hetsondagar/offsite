@@ -26,6 +26,7 @@ import { materialsApi } from "@/services/api/materials";
 import { attendanceApi } from "@/services/api/attendance";
 import { notificationsApi } from "@/services/api/notifications";
 import { dprApi } from "@/services/api/dpr";
+import { invoicesApi, type Invoice } from "@/services/api/invoices";
 import { Button } from "@/components/ui/button";
 import { Loader2, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
@@ -49,6 +50,7 @@ export default function ManagerDashboard() {
   const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
   const [aiInsight, setAiInsight] = useState<{ text: string; projectName: string; projectId: string } | null>(null);
   const [recentDPRs, setRecentDPRs] = useState<any[]>([]);
+  const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDPR, setSelectedDPR] = useState<any | null>(null);
   const [isDPRModalOpen, setIsDPRModalOpen] = useState(false);
@@ -288,6 +290,25 @@ export default function ManagerDashboard() {
         }
       } catch (error) {
         console.error('Error loading AI insights:', error);
+      }
+
+      // Load recent invoices
+      try {
+        const invoicesData = await invoicesApi.getAll(1, 50);
+        const allInvoices = invoicesData?.invoices || [];
+        // Filter invoices created by owner
+        const ownerInvoices = allInvoices.filter((inv: Invoice) => {
+          const ownerData = typeof inv.ownerId === 'object' ? inv.ownerId : null;
+          return ownerData !== null; // Owner-created invoices have ownerId populated
+        });
+        // Sort by createdAt descending and take first 5
+        ownerInvoices.sort((a: Invoice, b: Invoice) => 
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        setRecentInvoices(ownerInvoices.slice(0, 5));
+      } catch (error) {
+        console.error('Error loading invoices:', error);
+        setRecentInvoices([]);
       }
 
       // Load pending project invitations
@@ -607,6 +628,58 @@ export default function ManagerDashboard() {
                     View All Insights <ChevronRight className="w-3 h-3" />
                   </button>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Recent Invoices */}
+        {recentInvoices.length > 0 && (
+          <Card className="opacity-0 animate-fade-up stagger-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Recent Invoices
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {recentInvoices.map((invoice: Invoice) => {
+                  const projectName = typeof invoice.projectId === 'object' 
+                    ? invoice.projectId.name 
+                    : 'Unknown Project';
+                  return (
+                    <div key={invoice._id} className="p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm text-foreground truncate">
+                            {invoice.invoiceNumber || `Invoice ${invoice._id.slice(-8)}`}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1 truncate">
+                            {projectName}
+                          </p>
+                          <div className="flex items-center gap-2 mt-2 text-xs">
+                            <span className="text-muted-foreground">
+                              {new Date(invoice.createdAt).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric'
+                              })}
+                            </span>
+                            <StatusBadge 
+                              status={invoice.status === 'FINALIZED' ? 'success' : 'pending'} 
+                              label={invoice.status} 
+                            />
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-medium text-sm text-foreground">
+                            ₹{(invoice.totalAmount || 0).toLocaleString('en-IN')}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>

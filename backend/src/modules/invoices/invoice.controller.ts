@@ -6,6 +6,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
+import mongoose from 'mongoose';
 import { z } from 'zod';
 import { Invoice } from './invoice.model';
 import { Project } from '../projects/project.model';
@@ -45,10 +46,6 @@ const createInvoiceSchema = z.object({
   notes: z.string().optional(),
   // Optional: Allow manual taxable amount override (for offline drafts)
   taxableAmount: z.number().min(0).optional(),
-});
-
-const finalizeInvoiceSchema = z.object({
-  // No body required - server calculates everything
 });
 
 // 1. Create Invoice (Offline Draft Allowed)
@@ -250,7 +247,7 @@ export const finalizeInvoice = async (
   }
 };
 
-// 3. Get All Invoices
+// 3. Get All Invoices (Role-based filtering)
 export const getInvoices = async (
   req: Request,
   res: Response,
@@ -261,18 +258,48 @@ export const getInvoices = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    if (req.user.role !== 'owner') {
-      throw new AppError('Only owners can view invoices', 403, 'FORBIDDEN');
-    }
-
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    // Build query filters
-    const query: any = { ownerId: req.user.userId };
+    // Build query filters based on role
+    const query: any = {};
+
+    if (req.user.role === 'owner') {
+      // Owners see only their invoices
+      query.ownerId = req.user.userId;
+    } else if (req.user.role === 'manager' || req.user.role === 'engineer') {
+      // PMs and Engineers see invoices for projects they're assigned to
+      const assignedProjects = await Project.find({
+        members: new mongoose.Types.ObjectId(req.user.userId),
+      }).select('_id');
+
+      if (assignedProjects.length === 0) {
+        // User has no assigned projects
+        const response: ApiResponse = {
+          success: true,
+          message: 'No invoices available',
+          data: {
+            invoices: [],
+            pagination: {
+              page,
+              limit,
+              total: 0,
+              pages: 0,
+            },
+          },
+        };
+        res.status(200).json(response);
+        return;
+      }
+
+      query.projectId = {
+        $in: assignedProjects.map((p) => p._id),
+      };
+    }
 
     if (req.query.projectId) {
+      // Additional project filter
       query.projectId = req.query.projectId;
     }
 
@@ -315,7 +342,7 @@ export const getInvoices = async (
   }
 };
 
-// 4. Get Invoice by ID
+// 4. Get Invoice by ID (Role-based access)
 export const getInvoiceById = async (
   req: Request,
   res: Response,
@@ -326,14 +353,10 @@ export const getInvoiceById = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    if (req.user.role !== 'owner') {
-      throw new AppError('Only owners can view invoices', 403, 'FORBIDDEN');
-    }
-
     const { id } = req.params;
 
     const invoice = await Invoice.findById(id)
-      .populate('projectId', 'name location')
+      .populate('projectId', 'name location members')
       .populate('ownerId', 'name email')
       .populate('finalizedBy', 'name email')
       .select('-__v');
@@ -342,9 +365,22 @@ export const getInvoiceById = async (
       throw new AppError('Invoice not found', 404, 'INVOICE_NOT_FOUND');
     }
 
-    // Verify ownership
-    if (invoice.ownerId.toString() !== req.user.userId) {
-      throw new AppError('Access denied', 403, 'FORBIDDEN');
+    // Authorization logic based on role
+    if (req.user.role === 'owner') {
+      // Owners can only see their own invoices
+      if (invoice.ownerId.toString() !== req.user.userId) {
+        throw new AppError('Access denied', 403, 'FORBIDDEN');
+      }
+    } else if (req.user.role === 'manager' || req.user.role === 'engineer') {
+      // PMs and Engineers can only see invoices for projects they're assigned to
+      const projectMembers = (invoice.projectId as any).members || [];
+      const isProjectMember = projectMembers.some(
+        (memberId: any) => memberId.toString() === req.user!.userId
+      );
+
+      if (!isProjectMember) {
+        throw new AppError('Access denied', 403, 'FORBIDDEN');
+      }
     }
 
     const response: ApiResponse = {
@@ -408,6 +444,131 @@ export const downloadInvoicePDF = async (
   }
 };
 
+// Update invoice (draft only)
+export const updateInvoice = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    if (req.user.role !== 'owner') {
+      throw new AppError('Only owners can update invoices', 403, 'FORBIDDEN');
+    }
+
+    const { id } = req.params;
+    const data = createInvoiceSchema.parse(req.body);
+
+    const invoice = await Invoice.findById(id);
+
+    if (!invoice) {
+      throw new AppError('Invoice not found', 404, 'INVOICE_NOT_FOUND');
+    }
+
+    // Verify ownership
+    if (invoice.ownerId.toString() !== req.user.userId) {
+      throw new AppError('Access denied', 403, 'FORBIDDEN');
+    }
+
+    // Only draft invoices can be edited
+    if (invoice.status !== 'DRAFT') {
+      throw new AppError(
+        'Only draft invoices can be edited. Finalized invoices are immutable.',
+        400,
+        'INVOICE_FINALIZED'
+      );
+    }
+
+    // Verify project exists
+    const project = await Project.findById(data.projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    // Validate billing period
+    if (data.billingPeriod.from >= data.billingPeriod.to) {
+      throw new AppError('Invalid billing period', 400, 'INVALID_BILLING_PERIOD');
+    }
+
+    // Check for overlapping finalized invoices (exclude current invoice)
+    const overlappingInvoice = await Invoice.findOne({
+      _id: { $ne: id },
+      projectId: data.projectId,
+      status: 'FINALIZED',
+      $or: [
+        {
+          'billingPeriod.from': { $lte: data.billingPeriod.to },
+          'billingPeriod.to': { $gte: data.billingPeriod.from },
+        },
+      ],
+    });
+
+    if (overlappingInvoice) {
+      throw new AppError(
+        'Billing period overlaps with a finalized invoice',
+        400,
+        'OVERLAPPING_INVOICE'
+      );
+    }
+
+    // Recalculate taxable amount
+    let taxableAmount: number;
+    if (data.taxableAmount !== undefined) {
+      taxableAmount = data.taxableAmount;
+    } else {
+      const billableResult = await calculateBillableAmount(
+        data.projectId,
+        data.billingPeriod.from,
+        data.billingPeriod.to
+      );
+      taxableAmount = billableResult.taxableAmount;
+    }
+
+    // Recalculate GST
+    const gstResult = calculateGST(
+      taxableAmount,
+      data.gstRate,
+      data.supplier.state,
+      data.client.state
+    );
+
+    const totalAmount = taxableAmount + gstResult.totalGst;
+
+    // Update invoice
+    invoice.projectId = data.projectId as any;
+    invoice.billingPeriod = data.billingPeriod;
+    invoice.taxableAmount = taxableAmount;
+    invoice.gstRate = data.gstRate;
+    invoice.gstType = gstResult.gstType;
+    invoice.cgstAmount = gstResult.cgstAmount;
+    invoice.sgstAmount = gstResult.sgstAmount;
+    invoice.igstAmount = gstResult.igstAmount;
+    invoice.totalAmount = totalAmount;
+    invoice.supplier = data.supplier;
+    invoice.client = data.client;
+    invoice.notes = data.notes;
+
+    await invoice.save();
+    await invoice.populate('projectId', 'name location');
+    await invoice.populate('ownerId', 'name email');
+
+    logger.info(`Invoice updated: ${invoice._id} by owner ${req.user.userId}`);
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Invoice updated successfully',
+      data: invoice,
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Update payment status
 export const updatePaymentStatus = async (
   req: Request,
@@ -453,6 +614,54 @@ export const updatePaymentStatus = async (
       success: true,
       message: 'Payment status updated successfully',
       data: invoice,
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 7. Delete Invoice (Owner only, Draft only)
+export const deleteInvoice = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    if (req.user.role !== 'owner') {
+      throw new AppError('Only owners can delete invoices', 403, 'FORBIDDEN');
+    }
+
+    const { id } = req.params;
+
+    const invoice = await Invoice.findById(id);
+
+    if (!invoice) {
+      throw new AppError('Invoice not found', 404, 'INVOICE_NOT_FOUND');
+    }
+
+    // Verify ownership
+    if (invoice.ownerId.toString() !== req.user.userId) {
+      throw new AppError('Access denied', 403, 'FORBIDDEN');
+    }
+
+    // Only allow deletion of draft invoices
+    if (invoice.status === 'FINALIZED') {
+      throw new AppError('Cannot delete finalized invoices', 400, 'INVOICE_FINALIZED');
+    }
+
+    await Invoice.findByIdAndDelete(id);
+
+    logger.info(`Invoice deleted: ${id} by user ${req.user.userId}`);
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Invoice deleted successfully',
     };
 
     res.status(200).json(response);
