@@ -103,18 +103,19 @@ export default function InsightsPage() {
             <div className="absolute left-0 mt-3">
               <Logo size="md" showText={false} />
             </div>
-            <div className="flex-1 flex flex-col items-center justify-center">
+            <div className="flex-1 flex flex-col items-center justify-center px-16 sm:px-0">
               <h1 className="font-display font-semibold text-lg">AI Insights</h1>
-              <p className="text-xs text-muted-foreground">Smart analysis & predictions</p>
+              <p className="text-xs text-muted-foreground hidden sm:block">Smart analysis & predictions</p>
             </div>
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate("/ai-command")}
-              className="absolute right-0"
+              className="absolute right-0 text-xs sm:text-sm px-2 sm:px-4"
             >
-              <Sparkles className="w-4 h-4 mr-1" />
-              AI Command
+              <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+              <span className="hidden sm:inline">AI Command</span>
+              <span className="sm:hidden">AI Command</span>
             </Button>
           </div>
         </div>
