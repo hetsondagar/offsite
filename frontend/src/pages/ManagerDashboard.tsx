@@ -543,7 +543,7 @@ export default function ManagerDashboard() {
               Recent DPRs
             </CardTitle>
             <button 
-              onClick={() => navigate("/projects")}
+              onClick={() => navigate("/all-dprs")}
               className="text-sm text-primary flex items-center gap-1"
             >
               View All <ChevronRight className="w-4 h-4" />

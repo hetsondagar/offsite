@@ -28,6 +28,7 @@ import InvoicingPage from "./pages/InvoicingPage";
 import EventsPage from "./pages/EventsPage";
 import AICommandCenter from "./pages/AICommandCenter";
 import TasksPage from "./pages/TasksPage";
+import AllDPRsPage from "./pages/AllDPRsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -210,6 +211,7 @@ function AppContent() {
             <Route path="/events" element={<EventsPage />} />
             <Route path="/ai-command" element={<AICommandCenter />} />
             <Route path="/tasks" element={<TasksPage />} />
+            <Route path="/all-dprs" element={<AllDPRsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
