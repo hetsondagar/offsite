@@ -67,26 +67,26 @@ export async function generateInvoicePDF(invoice: IInvoice): Promise<Buffer> {
       const tableTop = doc.y;
       doc.fontSize(10).font('Helvetica-Bold');
       doc.text('Description', 50, tableTop);
-      doc.text('Amount (₹)', 450, tableTop, { align: 'right' });
+      doc.text('Amount (Rs.)', 450, tableTop, { align: 'right' });
       doc.moveTo(50, tableTop + 15).lineTo(550, tableTop + 15).stroke();
 
       // Taxable Amount
       doc.moveDown(0.5);
       doc.font('Helvetica');
       doc.text('Taxable Amount (as per approved DPRs, tasks, and materials)', 50);
-      doc.text(invoice.taxableAmount.toFixed(2), 450, doc.y - 12, { align: 'right' });
+      doc.text(`Rs.${Number(invoice.taxableAmount || 0).toFixed(2)}`, 450, doc.y - 12, { align: 'right' });
 
       // GST Breakdown
       doc.moveDown(0.5);
       if (invoice.gstType === 'CGST_SGST') {
-        doc.text(`CGST (${(invoice.gstRate / 2).toFixed(2)}%)`, 50);
-        doc.text(invoice.cgstAmount.toFixed(2), 450, doc.y - 12, { align: 'right' });
+        doc.text(`CGST (${Number(invoice.gstRate || 18) / 2}%)`, 50);
+        doc.text(`Rs.${Number(invoice.cgstAmount || 0).toFixed(2)}`, 450, doc.y - 12, { align: 'right' });
         doc.moveDown(0.3);
-        doc.text(`SGST (${(invoice.gstRate / 2).toFixed(2)}%)`, 50);
-        doc.text(invoice.sgstAmount.toFixed(2), 450, doc.y - 12, { align: 'right' });
+        doc.text(`SGST (${Number(invoice.gstRate || 18) / 2}%)`, 50);
+        doc.text(`Rs.${Number(invoice.sgstAmount || 0).toFixed(2)}`, 450, doc.y - 12, { align: 'right' });
       } else {
-        doc.text(`IGST (${invoice.gstRate.toFixed(2)}%)`, 50);
-        doc.text(invoice.igstAmount.toFixed(2), 450, doc.y - 12, { align: 'right' });
+        doc.text(`IGST (${Number(invoice.gstRate || 18).toFixed(2)}%)`, 50);
+        doc.text(`Rs.${Number(invoice.igstAmount || 0).toFixed(2)}`, 450, doc.y - 12, { align: 'right' });
       }
 
       // Total
@@ -94,8 +94,8 @@ export async function generateInvoicePDF(invoice: IInvoice): Promise<Buffer> {
       doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
       doc.moveDown(0.3);
       doc.fontSize(12).font('Helvetica-Bold');
-      doc.text('Total Amount (₹)', 50);
-      doc.text(invoice.totalAmount.toFixed(2), 450, doc.y - 14, { align: 'right' });
+      doc.text('Total Amount (Rs.)', 50);
+      doc.text(`Rs.${Number(invoice.totalAmount || 0).toFixed(2)}`, 450, doc.y - 14, { align: 'right' });
       doc.moveDown(0.5);
       doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
 

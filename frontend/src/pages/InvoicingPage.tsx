@@ -217,6 +217,7 @@ export default function InvoicingPage() {
                           )
                         }
                         isOwner={true}
+                        canDownloadPdf
                         onFinalize={handleFinalize}
                         onEdit={handleEdit}
                         onDelete={handleDelete}
@@ -314,6 +315,7 @@ export default function InvoicingPage() {
                         selectedInvoice === invoice._id ? null : invoice._id
                       )
                     }
+                    canDownloadPdf
                   />
                 </motion.div>
               ))}

@@ -3,12 +3,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { motion } from 'framer-motion';
-import { Receipt, MapPin, Calendar, DollarSign, CheckCircle2, Loader2, Edit2, Trash2 } from 'lucide-react';
+import { Receipt, MapPin, Calendar, DollarSign, CheckCircle2, Loader2, Edit2, Trash2, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { invoicesApi } from '@/services/api/invoices';
 import { useNavigate } from 'react-router-dom';
+import jsPDF from 'jspdf';
 
 interface InvoiceCardProps {
   invoice: Invoice;
@@ -18,12 +19,14 @@ interface InvoiceCardProps {
   onEdit?: (invoice: Invoice) => void;
   onDelete?: (invoiceId: string) => Promise<void>;
   isOwner?: boolean;
+  canDownloadPdf?: boolean;
 }
 
-export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit, onDelete, isOwner = false }: InvoiceCardProps) {
+export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit, onDelete, isOwner = false, canDownloadPdf = false }: InvoiceCardProps) {
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const navigate = useNavigate();
 
   const formatCurrency = (amount: number) => {
@@ -94,6 +97,46 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
     }
   };
 
+  const handleDownloadPdf = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isDownloadingPdf) return;
+    try {
+      setIsDownloadingPdf(true);
+      const doc = new jsPDF();
+      const title = `Invoice ${invoice.invoiceNumber || invoice._id}`;
+      doc.setFontSize(14);
+      doc.text(title, 14, 16);
+
+      doc.setFontSize(10);
+      doc.text(`Project: ${projectName}`, 14, 26);
+      if (projectLocation) {
+        doc.text(`Location: ${projectLocation}`, 14, 32);
+      }
+      doc.text(`Billing: ${formatDate(invoice.billingPeriod.from)} - ${formatDate(invoice.billingPeriod.to)}`, 14, 38);
+      doc.text(`GST Type: ${invoice.gstType}`, 14, 44);
+
+      const startY = 54;
+      doc.text('Amounts (INR)', 14, startY);
+      const amounts = [
+        [`Taxable`, formatCurrency(invoice.taxableAmount)],
+        [invoice.gstType === 'CGST_SGST' ? 'CGST+SGST' : 'IGST', formatCurrency(invoice.gstType === 'CGST_SGST' ? invoice.cgstAmount + invoice.sgstAmount : invoice.igstAmount)],
+        [`Total`, formatCurrency(invoice.totalAmount)],
+      ];
+      amounts.forEach((row, idx) => {
+        const y = startY + 8 + idx * 6;
+        doc.text(row[0], 14, y);
+        doc.text(row[1], 120, y, { align: 'right' });
+      });
+
+      doc.save(`${invoice.invoiceNumber || invoice._id}.pdf`);
+      toast.success('GST Invoice PDF downloaded');
+    } catch (error) {
+      toast.error('Failed to generate PDF');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -129,28 +172,28 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
               )}
             </div>
             <div className="flex flex-col gap-1 items-end">
-              <span
-                className={cn(
-                  'px-2 py-1 rounded-md text-xs font-medium',
-                  invoice.status === 'FINALIZED'
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                )}
-              >
-                {invoice.status}
-              </span>
-              <span
-                className={cn(
-                  'px-2 py-1 rounded-md text-xs font-medium',
-                  invoice.paymentStatus === 'PAID'
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                    : invoice.paymentStatus === 'PARTIALLY_PAID'
-                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                    : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                )}
-              >
-                {invoice.paymentStatus.replace('_', ' ')}
-              </span>
+              {invoice.status !== 'DRAFT' && (
+                <span
+                  className={cn(
+                    'px-2 py-1 rounded-md text-xs font-medium',
+                    'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                  )}
+                >
+                  {invoice.status}
+                </span>
+              )}
+              {invoice.paymentStatus !== 'UNPAID' && (
+                <span
+                  className={cn(
+                    'px-2 py-1 rounded-md text-xs font-medium',
+                    invoice.paymentStatus === 'PAID'
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                      : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                  )}
+                >
+                  {invoice.paymentStatus.replace('_', ' ')}
+                </span>
+              )}
             </div>
           </div>
 
@@ -328,6 +371,29 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
                       )}
                     </Button>
                   )}
+                </div>
+              )}
+
+              {canDownloadPdf && (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={handleDownloadPdf}
+                    disabled={isDownloadingPdf}
+                    variant="outline"
+                    className="flex-1 min-w-[160px]"
+                  >
+                    {isDownloadingPdf ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Preparing PDF...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4 mr-2" />
+                        Download GST Invoice (PDF)
+                      </>
+                    )}
+                  </Button>
                 </div>
               )}
             </motion.div>

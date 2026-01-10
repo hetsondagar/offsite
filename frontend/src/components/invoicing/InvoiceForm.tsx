@@ -299,7 +299,9 @@ export function InvoiceForm({ onInvoiceCreated, onCancel, editInvoice }: Invoice
             onClick={() => {
               if (step === 'select-project' && !formData.projectId) {
                 toast.error('Please select a project');
+                return;
               }
+              setStep(steps[currentStepIndex + 1]);
             }}
             disabled={isSubmitting}
             className="flex-1"

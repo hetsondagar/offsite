@@ -1,3 +1,4 @@
+import { InvoiceCard } from "@/components/invoicing/InvoiceCard";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KPICard } from "@/components/common/KPICard";
@@ -51,6 +52,7 @@ export default function ManagerDashboard() {
   const [aiInsight, setAiInsight] = useState<{ text: string; projectName: string; projectId: string } | null>(null);
   const [recentDPRs, setRecentDPRs] = useState<any[]>([]);
   const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
+    const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDPR, setSelectedDPR] = useState<any | null>(null);
   const [isDPRModalOpen, setIsDPRModalOpen] = useState(false);
@@ -634,7 +636,8 @@ export default function ManagerDashboard() {
         )}
 
         {/* Recent Invoices */}
-        {recentInvoices.length > 0 && (
+        {/* Recent Invoices - only show for non-owner users (managers) */}
+        {role !== 'owner' && recentInvoices.length > 0 && (
           <Card className="opacity-0 animate-fade-up stagger-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -644,42 +647,16 @@ export default function ManagerDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {recentInvoices.map((invoice: Invoice) => {
-                  const projectName = typeof invoice.projectId === 'object' 
-                    ? invoice.projectId.name 
-                    : 'Unknown Project';
-                  return (
-                    <div key={invoice._id} className="p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm text-foreground truncate">
-                            {invoice.invoiceNumber || `Invoice ${invoice._id.slice(-8)}`}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1 truncate">
-                            {projectName}
-                          </p>
-                          <div className="flex items-center gap-2 mt-2 text-xs">
-                            <span className="text-muted-foreground">
-                              {new Date(invoice.createdAt).toLocaleDateString('en-US', { 
-                                month: 'short', 
-                                day: 'numeric'
-                              })}
-                            </span>
-                            <StatusBadge 
-                              status={invoice.status === 'FINALIZED' ? 'success' : 'pending'} 
-                              label={invoice.status} 
-                            />
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className="font-medium text-sm text-foreground">
-                            ₹{(invoice.totalAmount || 0).toLocaleString('en-IN')}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {recentInvoices.map((invoice: Invoice) => (
+                  <InvoiceCard
+                    key={invoice._id}
+                    invoice={invoice}
+                    isSelected={selectedInvoiceId === invoice._id}
+                    onSelect={() => setSelectedInvoiceId(selectedInvoiceId === invoice._id ? null : invoice._id)}
+                    isOwner={false}
+                    canDownloadPdf={true}
+                  />
+                ))}
               </div>
             </CardContent>
           </Card>
