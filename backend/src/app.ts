@@ -1,4 +1,6 @@
 import express, { Application } from 'express';
+import fs from 'fs';
+import path from 'path';
 import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
@@ -6,8 +8,8 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { env } from './config/env';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
-import { logger } from './utils/logger';
 import { requestLogger } from './middlewares/requestLogger';
+import { requireDbConnection } from './middlewares/db.middleware';
 
 // Import routes
 import authRoutes from './modules/auth/auth.routes';
@@ -56,7 +58,7 @@ if (env.NODE_ENV === 'development') {
 }
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({
     success: true,
     message: 'OffSite API is running',
@@ -65,7 +67,7 @@ app.get('/health', (req, res) => {
 });
 
 // Root
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.json({
     success: true,
     message: 'OffSite API - Root',
@@ -76,6 +78,8 @@ app.get('/', (req, res) => {
 app.use(requestLogger);
 
 // API Routes
+// Fail fast when DB is unreachable (e.g., offline + Atlas)
+app.use('/api', requireDbConnection);
 app.use('/api/auth', authRoutes);
 // Also mount at /auth to support direct postman tests to /auth/forgot-password
 app.use('/auth', authRoutes);
@@ -91,6 +95,20 @@ app.use('/api/sync', syncRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai', aiRoutes);
+
+// Serve frontend build (single-origin local/prod setup)
+// Build the frontend first: ../frontend/dist
+const frontendDistPath = path.resolve(process.cwd(), '../frontend/dist');
+if (fs.existsSync(frontendDistPath)) {
+  app.use(express.static(frontendDistPath));
+
+  // SPA fallback (must be after API routes)
+  app.get('*', (req, res, next) => {
+    // Don’t interfere with API routes
+    if (req.path.startsWith('/api') || req.path.startsWith('/auth')) return next();
+    return res.sendFile(path.join(frontendDistPath, 'index.html'));
+  });
+}
 
 // 404 handler
 app.use(notFoundHandler);

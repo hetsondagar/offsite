@@ -79,7 +79,7 @@ export const signupController = async (
 };
 
 export const logoutController = async (
-  req: Request,
+  _req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {

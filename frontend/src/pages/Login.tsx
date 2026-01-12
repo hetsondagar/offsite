@@ -27,6 +27,11 @@ export default function Login() {
       return;
     }
 
+    if (!navigator.onLine) {
+      setError("You are offline. Connect to the internet (or start the local backend) to login.");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -62,7 +67,12 @@ export default function Login() {
         throw new Error(data.message || 'Login failed');
       }
     } catch (err: any) {
-      setError(err.message || 'An error occurred during login');
+      const msg = String(err?.message || '');
+      if (msg.includes('Failed to fetch') || msg.includes('ERR_CONNECTION_REFUSED')) {
+        setError('Cannot reach backend API. Start the backend on http://localhost:3000 (and MongoDB), then try again.');
+      } else {
+        setError(err.message || 'An error occurred during login');
+      }
     } finally {
       setIsLoading(false);
     }

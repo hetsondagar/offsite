@@ -265,6 +265,7 @@ export default function AttendancePage() {
     } catch (error: any) {
       // If API fails, save to IndexedDB for offline sync
       const attId = await saveAttendance({
+        projectId: selectedProject,
         type: 'checkin',
         location: location.address,
         latitude: location.latitude,
@@ -272,7 +273,6 @@ export default function AttendancePage() {
         timestamp: Date.now(),
         userId: userId || "unknown",
         markedAt: new Date().toISOString(),
-        projectId: selectedProject,
       });
       
       // Add to Redux offline store
@@ -366,6 +366,7 @@ export default function AttendancePage() {
     } catch (error: any) {
       // If API fails, save to IndexedDB for offline sync
       const attId = await saveAttendance({
+        projectId: selectedProject,
         type: 'checkout',
         location: checkoutLocation?.address || location?.address || 'Unknown',
         latitude: checkoutLocation?.latitude || location?.latitude,
@@ -373,7 +374,6 @@ export default function AttendancePage() {
         timestamp: Date.now(),
         userId: userId || "unknown",
         markedAt: new Date().toISOString(),
-        projectId: selectedProject,
       });
       
       // Add to Redux offline store

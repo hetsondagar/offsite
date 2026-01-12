@@ -18,7 +18,9 @@ export const login = async (
     id: string;
     name: string;
     email: string;
+    phone?: string;
     role: UserRole;
+    offsiteId?: string;
   };
 }> => {
   // Find user by email and include password field
@@ -287,6 +289,7 @@ export const signup = async (
  * and attempts to send a reset email with the RAW token (not stored).
  * Always resolves successfully (to avoid revealing whether email exists).
  */
+
 export const forgotPassword = async (email: string): Promise<void> => {
   const user = await User.findOne({ email });
 

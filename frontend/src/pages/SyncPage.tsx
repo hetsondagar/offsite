@@ -21,7 +21,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { getUnsyncedDPRs, getUnsyncedAttendance, getUnsyncedMaterials } from "@/lib/indexeddb";
-import { syncApi } from "@/services/api/sync";
+import { syncOfflineStores } from "@/lib/offlineSync";
 
 export default function SyncPage() {
   const navigate = useNavigate();
@@ -55,41 +55,7 @@ export default function SyncPage() {
     setSyncStatus('syncing');
 
     try {
-      // Prepare sync batch
-      const dprs = await getUnsyncedDPRs();
-      const attendance = await getUnsyncedAttendance();
-      const materials = await getUnsyncedMaterials();
-
-      const batchData = {
-        dprs: dprs.map(dpr => ({
-          projectId: dpr.projectId,
-          taskId: dpr.taskId,
-          notes: dpr.notes,
-          aiSummary: dpr.aiSummary,
-          photos: dpr.photos,
-          createdBy: dpr.createdBy,
-          createdAt: dpr.createdAt,
-        })),
-        attendance: attendance.map(att => ({
-          projectId: att.projectId,
-          type: att.type,
-          location: att.location,
-          timestamp: att.timestamp,
-          userId: att.userId,
-        })),
-        materials: materials.map(mat => ({
-          projectId: mat.projectId,
-          materialId: mat.materialId,
-          materialName: mat.materialName,
-          quantity: mat.quantity,
-          unit: mat.unit,
-          reason: mat.reason,
-          requestedBy: mat.requestedBy,
-        })),
-      };
-
-      // Call sync API
-      const result = await syncApi.batchSync(batchData);
+      await syncOfflineStores();
       
       // Mark all items as synced
       dispatch(setLastSyncTime(Date.now()));

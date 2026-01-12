@@ -10,6 +10,7 @@ import { store } from "./store/store";
 import { useAppDispatch } from "./store/hooks";
 import { initializeAuth } from "./store/slices/authSlice";
 import { setOnlineStatus } from "./store/slices/offlineSlice";
+import { syncOfflineStores } from "@/lib/offlineSync";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -127,16 +128,19 @@ function AppContent() {
         
         // If we get any response (even 401), we're online
         dispatch(setOnlineStatus(true));
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as { name?: string; message?: string };
+
         // If fetch fails or times out, check if it's just auth error
-        if (error.name === 'AbortError') {
+        if (err?.name === 'AbortError') {
           // Timeout - assume offline
           dispatch(setOnlineStatus(false));
         } else {
           // Other errors might still mean we're online (like 401)
           // If we got a response (even error), we're online
           // Only mark offline if it's a network error
-          if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError') || error.name === 'TypeError') {
+          const message = err?.message || '';
+          if (message.includes('Failed to fetch') || message.includes('NetworkError') || err?.name === 'TypeError') {
             dispatch(setOnlineStatus(false));
           } else {
             // Got a response, so we're online (even if it's an error response)
@@ -160,9 +164,14 @@ function AppContent() {
     initialCheck();
 
     // Listen for online/offline events
-    const handleOnline = async () => {
-      // When browser says online, verify with API
-      await checkConnectivity();
+    const handleOnline = () => {
+      dispatch(setOnlineStatus(true));
+
+      // Fire-and-forget: if user is authenticated, sync offline data.
+      // This keeps all pages consistent without requiring manual Sync button.
+      syncOfflineStores().catch((error) => {
+        console.error('Auto-sync failed:', error);
+      });
     };
     const handleOffline = () => {
       dispatch(setOnlineStatus(false));

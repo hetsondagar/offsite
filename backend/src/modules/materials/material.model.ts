@@ -3,6 +3,7 @@ import { MaterialRequestStatus } from '../../types';
 
 export interface IMaterialRequest extends Document {
   projectId: mongoose.Types.ObjectId;
+  clientId?: string;
   materialId: string;
   materialName: string;
   quantity: number;
@@ -27,6 +28,11 @@ const materialRequestSchema = new Schema<IMaterialRequest>(
       type: Schema.Types.ObjectId,
       ref: 'Project',
       required: true,
+    },
+    clientId: {
+      type: String,
+      trim: true,
+      index: true,
     },
     materialId: {
       type: String,
@@ -97,6 +103,7 @@ const materialRequestSchema = new Schema<IMaterialRequest>(
 materialRequestSchema.index({ projectId: 1, status: 1 });
 materialRequestSchema.index({ requestedBy: 1 });
 materialRequestSchema.index({ status: 1, createdAt: -1 });
+materialRequestSchema.index({ requestedBy: 1, clientId: 1 }, { unique: true, sparse: true });
 
 export const MaterialRequest = mongoose.model<IMaterialRequest>('MaterialRequest', materialRequestSchema);
 

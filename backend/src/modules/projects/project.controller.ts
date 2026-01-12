@@ -8,7 +8,7 @@ import { DPR } from '../dpr/dpr.model';
 import { MaterialRequest } from '../materials/material.model';
 import { Attendance } from '../attendance/attendance.model';
 import { Event } from '../events/event.model';
-import { ApiResponse, PaginationParams } from '../../types';
+import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 import { calculateProjectHealthScore } from '../../utils/siteHealth';
 import { createNotification } from '../notifications/notification.service';
@@ -51,7 +51,6 @@ export const createProject = async (
 
     // Find users by OffSite IDs and create invitations
     const invitations: any[] = [];
-    const foundUserIds: string[] = [];
 
     // Process engineer invitations
     if (data.engineerOffsiteIds && data.engineerOffsiteIds.length > 0) {
@@ -269,24 +268,18 @@ export const getProjectById = async (
 
     // Fetch all related data in parallel
     const [
-      tasks,
       tasksCount,
       recentTasks,
-      dprs,
       dprsCount,
       recentDPRs,
       materials,
       materialsCount,
       recentMaterials,
-      attendanceRecords,
       attendanceCount,
       recentAttendance,
-      events,
       eventsCount,
       taskStats,
     ] = await Promise.all([
-      // All tasks
-      Task.find(taskQuery).select('_id status'),
       Task.countDocuments(taskQuery),
       // Recent tasks (last 5)
       Task.find(taskQuery)
@@ -294,8 +287,6 @@ export const getProjectById = async (
         .sort({ createdAt: -1 })
         .limit(5)
         .select('-__v'),
-      // All DPRs
-      DPR.find(dprQuery).select('_id'),
       DPR.countDocuments(dprQuery),
       // Recent DPRs (last 5)
       DPR.find(dprQuery)
@@ -313,8 +304,6 @@ export const getProjectById = async (
         .sort({ createdAt: -1 })
         .limit(5)
         .select('-__v'),
-      // All attendance records
-      Attendance.find(attendanceQuery).select('_id type'),
       Attendance.countDocuments(attendanceQuery),
       // Recent attendance (last 10)
       Attendance.find(attendanceQuery)
@@ -322,8 +311,6 @@ export const getProjectById = async (
         .sort({ timestamp: -1 })
         .limit(10)
         .select('-__v'),
-      // All events
-      Event.find(eventQuery).select('_id'),
       Event.countDocuments(eventQuery),
       // Task statistics
       Task.aggregate([

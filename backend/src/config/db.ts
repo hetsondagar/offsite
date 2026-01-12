@@ -4,7 +4,13 @@ import { logger } from '../utils/logger';
 
 export const connectDB = async (): Promise<void> => {
   try {
-    const conn = await mongoose.connect(env.MONGODB_URI);
+    // Fail fast when offline / DNS unreachable (e.g., Atlas host ENOTFOUND)
+    mongoose.set('bufferCommands', false);
+    const conn = await mongoose.connect(env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 2000,
+      connectTimeoutMS: 2000,
+      socketTimeoutMS: 10000,
+    });
     logger.info(`MongoDB Connected: ${conn.connection.host}`);
     
     // Drop the old unique index on phone field if it exists (phone is now optional)
