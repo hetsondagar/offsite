@@ -101,5 +101,7 @@ dprSchema.index({ createdBy: 1 });
 dprSchema.index({ synced: 1 });
 dprSchema.index({ createdBy: 1, clientId: 1 }, { unique: true, sparse: true });
 
-export const DPR = mongoose.model<IDPR>('DPR', dprSchema);
+export const DPR =
+  (mongoose.models.DPR as mongoose.Model<IDPR>) ||
+  mongoose.model<IDPR>('DPR', dprSchema);
 

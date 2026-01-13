@@ -65,5 +65,7 @@ const projectSchema = new Schema<IProject>(
 projectSchema.index({ status: 1 });
 projectSchema.index({ members: 1 });
 
-export const Project = mongoose.model<IProject>('Project', projectSchema);
+export const Project =
+  (mongoose.models.Project as mongoose.Model<IProject>) ||
+  mongoose.model<IProject>('Project', projectSchema);
 

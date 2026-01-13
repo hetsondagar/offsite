@@ -105,5 +105,7 @@ materialRequestSchema.index({ requestedBy: 1 });
 materialRequestSchema.index({ status: 1, createdAt: -1 });
 materialRequestSchema.index({ requestedBy: 1, clientId: 1 }, { unique: true, sparse: true });
 
-export const MaterialRequest = mongoose.model<IMaterialRequest>('MaterialRequest', materialRequestSchema);
+export const MaterialRequest =
+  (mongoose.models.MaterialRequest as mongoose.Model<IMaterialRequest>) ||
+  mongoose.model<IMaterialRequest>('MaterialRequest', materialRequestSchema);
 
