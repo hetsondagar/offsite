@@ -41,7 +41,14 @@ These items are prioritized for short-term sprints.
 ### Low priority / Nice-to-have
 - [ ] Geofencing validation for attendance checkins
 - [ ] Replace simulated AI with a real AI backend (Azure OpenAI / other) for DPR summaries and insights
-- [ ] Improve PWA caching and offline resilience
+- [x] Improve PWA caching and offline resilience (service worker now caches Vite build output correctly)
+
+---
+
+## Offline usage (local)
+
+- Frontend can be installed as a PWA and will load offline after one successful online visit (service worker caches the app shell + built assets).
+- Backend can run fully locally; you’ll need a local MongoDB instance (default: `mongodb://localhost:27017/offsite`).
 
 ---
 

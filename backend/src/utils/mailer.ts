@@ -34,6 +34,10 @@ transporter.verify().then(() => {
   logger.warn('   2. Gmail App Password is used (not regular password)');
   logger.warn('   3. "Less secure app access" is enabled (if not using App Password)');
   logger.warn('   4. Network/firewall allows connections to smtp.gmail.com:587');
+  logger.info('Nodemailer transporter verified');
+}).catch((err: unknown) => {
+  const message = err instanceof Error ? err.message : String(err);
+  logger.warn('Failed to verify nodemailer transporter', message);
 });
 
 export async function sendResetEmail(to: string, token: string): Promise<void> {

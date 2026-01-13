@@ -15,6 +15,19 @@ const syncBatchSchema = z.object({
   invoices: z.array(z.any()).optional().default([]),
 });
 
+const toMillis = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  if (value instanceof Date) {
+    const time = value.getTime();
+    if (Number.isFinite(time)) return time;
+  }
+  return Date.now();
+};
+
 export const syncBatch = async (
   req: Request,
   res: Response,
@@ -42,9 +55,15 @@ export const syncBatch = async (
     // Sync DPRs
     for (const dprData of dprs) {
       try {
+        const clientId = dprData.clientId || dprData.id;
+        if (!clientId) continue;
+
         // Conflict resolution: latest timestamp wins
-        const existing = await DPR.findById(dprData.id);
-        const incomingTimestamp = dprData.timestamp || dprData.createdAt;
+        const existing = await DPR.findOne({
+          clientId,
+          createdBy: req.user.userId,
+        });
+        const incomingTimestamp = toMillis(dprData.timestamp ?? dprData.createdAt);
 
         if (existing) {
           const existingTimestamp = existing.createdAt.getTime();
@@ -52,36 +71,44 @@ export const syncBatch = async (
             // Update with newer data
             Object.assign(existing, {
               ...dprData,
+              clientId,
               synced: true,
             });
             await existing.save();
-            syncedIds.dprs.push(dprData.id);
+            syncedIds.dprs.push(clientId);
           } else {
             // Keep existing, just mark as synced
             existing.synced = true;
             await existing.save();
-            syncedIds.dprs.push(dprData.id);
+            syncedIds.dprs.push(clientId);
           }
         } else {
           // Create new
           const dpr = new DPR({
             ...dprData,
+            clientId,
             createdBy: req.user.userId,
             synced: true,
           });
           await dpr.save();
-          syncedIds.dprs.push(dprData.id);
+          syncedIds.dprs.push(clientId);
         }
       } catch (error) {
-        logger.error(`Error syncing DPR ${dprData.id}:`, error);
+        logger.error(`Error syncing DPR ${dprData?.id || dprData?.clientId}:`, error);
       }
     }
 
     // Sync Attendance
     for (const attData of attendance) {
       try {
-        const existing = await Attendance.findById(attData.id);
-        const incomingTimestamp = attData.timestamp || attData.createdAt;
+        const clientId = attData.clientId || attData.id;
+        if (!clientId) continue;
+
+        const existing = await Attendance.findOne({
+          clientId,
+          userId: req.user.userId,
+        });
+        const incomingTimestamp = toMillis(attData.timestamp ?? attData.createdAt);
 
         if (existing) {
           const existingTimestamp = existing.timestamp.getTime();
@@ -89,34 +116,46 @@ export const syncBatch = async (
             Object.assign(existing, {
               ...attData,
               userId: req.user.userId,
+              clientId,
               synced: true,
             });
+            if (attData.timestamp) {
+              existing.timestamp = new Date(incomingTimestamp);
+            }
             await existing.save();
-            syncedIds.attendance.push(attData.id);
+            syncedIds.attendance.push(clientId);
           } else {
             existing.synced = true;
             await existing.save();
-            syncedIds.attendance.push(attData.id);
+            syncedIds.attendance.push(clientId);
           }
         } else {
           const att = new Attendance({
             ...attData,
             userId: req.user.userId,
+            clientId,
+            timestamp: new Date(incomingTimestamp),
             synced: true,
           });
           await att.save();
-          syncedIds.attendance.push(attData.id);
+          syncedIds.attendance.push(clientId);
         }
       } catch (error) {
-        logger.error(`Error syncing attendance ${attData.id}:`, error);
+        logger.error(`Error syncing attendance ${attData?.id || attData?.clientId}:`, error);
       }
     }
 
     // Sync Materials
     for (const matData of materials) {
       try {
-        const existing = await MaterialRequest.findById(matData.id);
-        const incomingTimestamp = matData.timestamp || matData.createdAt;
+        const clientId = matData.clientId || matData.id;
+        if (!clientId) continue;
+
+        const existing = await MaterialRequest.findOne({
+          clientId,
+          requestedBy: req.user.userId,
+        });
+        const incomingTimestamp = toMillis(matData.timestamp ?? matData.requestedAt ?? matData.createdAt);
 
         if (existing) {
           const existingTimestamp = existing.createdAt.getTime();
@@ -124,22 +163,24 @@ export const syncBatch = async (
             Object.assign(existing, {
               ...matData,
               requestedBy: req.user.userId,
+              clientId,
             });
             await existing.save();
-            syncedIds.materials.push(matData.id);
+            syncedIds.materials.push(clientId);
           } else {
-            syncedIds.materials.push(matData.id);
+            syncedIds.materials.push(clientId);
           }
         } else {
           const mat = new MaterialRequest({
             ...matData,
             requestedBy: req.user.userId,
+            clientId,
           });
           await mat.save();
-          syncedIds.materials.push(matData.id);
+          syncedIds.materials.push(clientId);
         }
       } catch (error) {
-        logger.error(`Error syncing material ${matData.id}:`, error);
+        logger.error(`Error syncing material ${matData?.id || matData?.clientId}:`, error);
       }
     }
 

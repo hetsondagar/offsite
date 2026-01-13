@@ -203,11 +203,15 @@ export default function MaterialsPage() {
     } catch (error) {
       // If API fails, save to IndexedDB for offline sync
       const matId = await saveMaterialRequest({
-        projectId: selectedProject!,
+      projectId: selectedProject,
         materialId: selectedMaterial,
+        materialName: selectedMaterialData.name,
         quantity: quantity,
+        unit: selectedMaterialData.unit,
         reason: reason,
         timestamp: Date.now(),
+      requestedBy: userId || "unknown",
+      requestedAt: new Date().toISOString(),
       });
       
       // Add to Redux offline store

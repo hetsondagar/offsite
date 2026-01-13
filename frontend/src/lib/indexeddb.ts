@@ -18,6 +18,8 @@ interface OffSiteDB extends DBSchema {
         evidencePhotos?: string[];
       };
       timestamp: number;
+      createdBy?: string;
+      createdAt?: string;
       synced: boolean;
     };
   };
@@ -25,11 +27,14 @@ interface OffSiteDB extends DBSchema {
     key: string;
     value: {
       id: string;
+      projectId: string;
+      userId?: string;
       type: 'checkin' | 'checkout';
       location: string;
       latitude?: number;
       longitude?: number;
       timestamp: number;
+      markedAt?: string;
       synced: boolean;
     };
   };
@@ -39,9 +44,13 @@ interface OffSiteDB extends DBSchema {
       id: string;
       projectId: string;
       materialId: string;
+      materialName?: string;
       quantity: number;
+      unit?: string;
       reason: string;
       timestamp: number;
+      requestedBy?: string;
+      requestedAt?: string;
       synced: boolean;
     };
   };
@@ -52,6 +61,16 @@ interface OffSiteDB extends DBSchema {
       type: 'risk' | 'anomalies';
       siteId: string;
       data: any;
+      timestamp: number;
+    };
+    indexes: { siteId: string; type: string };
+  };
+
+  apiCache: {
+    key: string;
+    value: {
+      key: string;
+      response: any;
       timestamp: number;
     };
   };
@@ -87,6 +106,10 @@ export async function getDB(): Promise<IDBPDatabase<OffSiteDB>> {
         const aiStore = db.createObjectStore('aiCache', { keyPath: 'id' });
         aiStore.createIndex('siteId', 'siteId');
         aiStore.createIndex('type', 'type');
+      }
+
+      if (!db.objectStoreNames.contains('apiCache')) {
+        db.createObjectStore('apiCache', { keyPath: 'key' });
       }
     },
   });
@@ -211,5 +234,24 @@ export async function getAICache(
   }
   
   return null;
+}
+
+// Generic API cache operations
+export async function setApiCache(key: string, response: any) {
+  const db = await getDB();
+  await db.put('apiCache', {
+    key,
+    response,
+    timestamp: Date.now(),
+  });
+}
+
+export async function getApiCache<T = any>(
+  key: string
+): Promise<{ response: T; timestamp: number } | null> {
+  const db = await getDB();
+  const entry = await db.get('apiCache', key);
+  if (!entry) return null;
+  return { response: entry.response as T, timestamp: entry.timestamp };
 }
 

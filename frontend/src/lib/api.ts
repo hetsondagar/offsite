@@ -2,9 +2,11 @@
  * API utility functions for making authenticated requests
  */
 
+import { getApiCache, setApiCache } from "@/lib/indexeddb";
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   message: string;
   data?: T;
@@ -18,14 +20,23 @@ const getAccessToken = (): string | null => {
   return localStorage.getItem('accessToken');
 };
 
+const getCacheKey = (endpoint: string): string => {
+  const token = getAccessToken();
+  const tokenSuffix = token ? token.slice(-12) : 'anon';
+  return `${tokenSuffix}:${API_BASE_URL}${endpoint}`;
+};
+
 /**
  * Make an authenticated API request
  */
-export const apiRequest = async <T = any>(
+export const apiRequest = async <T = unknown>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> => {
   const token = getAccessToken();
+  const method = (options.method || 'GET').toUpperCase();
+  const isGet = method === 'GET';
+  const cacheKey = isGet ? getCacheKey(endpoint) : null;
   
   // Build headers object
   const headers: Record<string, string> = {
@@ -66,80 +77,47 @@ export const apiRequest = async <T = any>(
     console.warn('API request made without authentication token:', endpoint);
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
-
-  // Read response body once (can only be read once)
-  const responseText = await response.text();
-  
-  // Try to parse as JSON - be lenient with content-type checking
-  let data: any;
-  const contentType = response.headers.get('content-type') || '';
-  
-  // For successful responses (200-299), always try to parse as JSON
-  // For error responses, also try JSON first, then fall back to text
-  if (responseText) {
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      // If it's a successful response but not JSON, that's unexpected
-      if (response.ok) {
-        console.error('Expected JSON but got non-JSON response:', responseText.substring(0, 200));
-        throw new Error('Server returned invalid JSON response');
-      }
-      // For error responses, use the text as error message
-      throw new Error(
-        response.status === 404
-          ? 'Resource not found'
-          : response.status === 401
-          ? 'Unauthorized. Please login again.'
-          : response.status === 403
-          ? 'Access denied'
-          : responseText || `Server error: ${response.status} ${response.statusText}`
-      );
-    }
-  } else {
-    // Empty response
-    if (response.ok) {
-      return { success: true, message: 'Success', data: null };
-    }
-    throw new Error(
-      response.status === 404
-        ? 'Resource not found'
-        : response.status === 401
-        ? 'Unauthorized. Please login again.'
-        : response.status === 403
-        ? 'Access denied'
-        : `Server error: ${response.status} ${response.statusText}`
-    );
+  // Offline-first: for GETs, return cached response when offline
+  if (isGet && cacheKey && !navigator.onLine) {
+    const cached = await getApiCache<ApiResponse<T>>(cacheKey);
+    if (cached) return cached.response;
+    throw new Error('Offline and no cached data available');
   }
 
-  // Handle error responses
-  if (!response.ok) {
-    // Handle 401 Unauthorized - token might be missing or expired
-    if (response.status === 401) {
-      // Clear potentially invalid token
-      const currentToken = getAccessToken();
-      if (!currentToken || currentToken.trim() === '') {
-        // Token is missing - this shouldn't happen if user is logged in
-        console.error('API request failed: No token available in localStorage');
-      }
-      // Let the error propagate so the caller can handle it (e.g., redirect to login)
-    }
-    throw new Error(data?.message || data?.error || `Request failed: ${response.status} ${response.statusText}`);
-  }
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
 
-  return data;
+    const data = (await response.json()) as ApiResponse<T>;
+
+    if (!response.ok) {
+      throw new Error(data?.message || 'Request failed');
+    }
+
+    if (isGet && cacheKey) {
+      // Best-effort cache update
+      await setApiCache(cacheKey, data);
+    }
+
+    return data;
+  } catch (error) {
+    // If request fails, fall back to cached GET response (if present)
+    if (isGet && cacheKey) {
+      const cached = await getApiCache<ApiResponse<T>>(cacheKey);
+      if (cached) return cached.response;
+    }
+    throw error;
+  }
 };
 
 /**
  * Make an authenticated POST request
  */
-export const apiPost = async <T = any>(
+export const apiPost = async <T = unknown>(
   endpoint: string,
-  body: any
+  body: unknown
 ): Promise<ApiResponse<T>> => {
   return apiRequest<T>(endpoint, {
     method: 'POST',
@@ -150,7 +128,7 @@ export const apiPost = async <T = any>(
 /**
  * Make an authenticated GET request
  */
-export const apiGet = async <T = any>(
+export const apiGet = async <T = unknown>(
   endpoint: string,
   params?: Record<string, string | number>
 ): Promise<ApiResponse<T>> => {
@@ -171,9 +149,9 @@ export const apiGet = async <T = any>(
 /**
  * Make an authenticated PATCH request
  */
-export const apiPatch = async <T = any>(
+export const apiPatch = async <T = unknown>(
   endpoint: string,
-  body: any
+  body: unknown
 ): Promise<ApiResponse<T>> => {
   return apiRequest<T>(endpoint, {
     method: 'PATCH',
@@ -184,9 +162,9 @@ export const apiPatch = async <T = any>(
 /**
  * Make an authenticated PUT request
  */
-export const apiPut = async <T = any>(
+export const apiPut = async <T = unknown>(
   endpoint: string,
-  body: any
+  body: unknown
 ): Promise<ApiResponse<T>> => {
   return apiRequest<T>(endpoint, {
     method: 'PUT',
@@ -197,7 +175,7 @@ export const apiPut = async <T = any>(
 /**
  * Make an authenticated DELETE request
  */
-export const apiDelete = async <T = any>(
+export const apiDelete = async <T = unknown>(
   endpoint: string
 ): Promise<ApiResponse<T>> => {
   return apiRequest<T>(endpoint, {

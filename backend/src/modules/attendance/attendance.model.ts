@@ -4,6 +4,7 @@ import { AttendanceType } from '../../types';
 export interface IAttendance extends Document {
   userId: mongoose.Types.ObjectId;
   projectId: mongoose.Types.ObjectId;
+  clientId?: string;
   type: AttendanceType;
   location: string; // Formatted address
   latitude?: number; // GPS latitude
@@ -25,6 +26,11 @@ const attendanceSchema = new Schema<IAttendance>(
       type: Schema.Types.ObjectId,
       ref: 'Project',
       required: true,
+    },
+    clientId: {
+      type: String,
+      trim: true,
+      index: true,
     },
     type: {
       type: String,
@@ -64,6 +70,7 @@ const attendanceSchema = new Schema<IAttendance>(
 attendanceSchema.index({ userId: 1, timestamp: -1 });
 attendanceSchema.index({ projectId: 1, timestamp: -1 });
 attendanceSchema.index({ synced: 1 });
+attendanceSchema.index({ userId: 1, clientId: 1 }, { unique: true, sparse: true });
 
 export const Attendance = mongoose.model<IAttendance>('Attendance', attendanceSchema);
 

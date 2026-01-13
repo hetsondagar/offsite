@@ -9,6 +9,7 @@ import { AppError } from '../../middlewares/error.middleware';
 import { logger } from '../../utils/logger';
 import { createNotification } from '../notifications/notification.service';
 import { User } from '../users/user.model';
+// Pricing lookup is applied later during invoice calculation
 
 const rejectMaterialRequestSchema = z.object({
   rejectionReason: z.string().min(1, 'Rejection reason is required'),
@@ -230,6 +231,7 @@ export const approveRequest = async (
     request.status = 'approved';
     request.approvedBy = req.user.userId as any;
     request.approvedAt = new Date();
+
     await request.save();
 
     await request.populate('requestedBy', 'name phone offsiteId');

@@ -20,6 +20,7 @@ export interface IDPR extends Document {
   projectId: mongoose.Types.ObjectId;
   taskId: mongoose.Types.ObjectId;
   createdBy: mongoose.Types.ObjectId;
+  clientId?: string;
   photos: string[]; // Cloudinary URLs
   notes?: string;
   aiSummary?: string;
@@ -45,6 +46,11 @@ const dprSchema = new Schema<IDPR>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+    },
+    clientId: {
+      type: String,
+      trim: true,
+      index: true,
     },
     photos: [
       {
@@ -93,6 +99,7 @@ const dprSchema = new Schema<IDPR>(
 dprSchema.index({ projectId: 1, createdAt: -1 });
 dprSchema.index({ createdBy: 1 });
 dprSchema.index({ synced: 1 });
+dprSchema.index({ createdBy: 1, clientId: 1 }, { unique: true, sparse: true });
 
 export const DPR = mongoose.model<IDPR>('DPR', dprSchema);
 

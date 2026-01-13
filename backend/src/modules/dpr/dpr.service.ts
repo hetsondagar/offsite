@@ -1,4 +1,3 @@
-import { DPR } from './dpr.model';
 import { cloudinary } from '../../config/cloudinary';
 
 /**

@@ -106,6 +106,37 @@ npm run build
 npm start
 ```
 
+---
+
+## Local single-server mode (recommended)
+
+If you are seeing `net::ERR_CONNECTION_REFUSED` from the frontend, it usually means the backend is not running, or the frontend is pointing to a different origin.
+
+This repo supports a simple local setup where **the backend serves the built frontend**, so the UI and API share the same origin:
+
+1. Build the frontend
+
+```bash
+cd ../frontend
+npm install
+npm run build
+```
+
+2. Start backend (serves UI + API on `http://localhost:3000`)
+
+```bash
+cd ../backend
+npm install
+npm run dev
+```
+
+3. Open
+
+- `http://localhost:3000` (UI)
+- `http://localhost:3000/api` (API)
+
+With this setup, offline/PWA caching is also simpler because `/api/*` is same-origin.
+
 ## API Endpoints
 
 ### Authentication

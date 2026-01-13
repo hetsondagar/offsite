@@ -52,6 +52,12 @@ export default function Signup() {
     setIsLoading(true);
     setError(null);
 
+    if (!navigator.onLine) {
+      setError("You are offline. Connect to the internet (or start the local backend) to sign up.");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       // Build request body - only include phone if it's provided and not empty
       const requestBody: any = {
@@ -106,6 +112,10 @@ export default function Signup() {
         errorMessage = err.response.data.message;
       } else if (typeof err === 'string') {
         errorMessage = err;
+      }
+
+      if (String(errorMessage).includes('Failed to fetch') || String(errorMessage).includes('ERR_CONNECTION_REFUSED')) {
+        errorMessage = 'Cannot reach backend API. Start the backend on http://localhost:3000 (and MongoDB), then try again.';
       }
       
       // Handle specific error codes

@@ -7,7 +7,7 @@ export const env = {
   PORT: parseInt(process.env.PORT || '3000', 10),
   
   // MongoDB
-  MONGODB_URI: process.env.MONGODB_URI || 'mongodb://localhost:27017/offsite',
+  MONGODB_URI: process.env.MONGODB_URI || '',
   
   // JWT
   JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET || 'change-me-in-production',

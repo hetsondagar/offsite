@@ -4,7 +4,7 @@ import { AppError } from './error.middleware';
 import { hasPermission } from '../utils/permissions';
 
 export const authorizeRoles = (...roles: UserRole[]) => {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     try {
       if (!req.user) {
         throw new AppError('Authentication required', 401, 'UNAUTHORIZED');
@@ -26,7 +26,7 @@ export const authorizeRoles = (...roles: UserRole[]) => {
 };
 
 export const authorizePermission = (permission: string) => {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     try {
       if (!req.user) {
         throw new AppError('Authentication required', 401, 'UNAUTHORIZED');
