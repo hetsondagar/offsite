@@ -96,9 +96,9 @@ export default function InsightsPage() {
 
   return (
     <MobileLayout role={role || "manager"}>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top w-full">
           <div className="flex items-center gap-0 relative">
             <div className="absolute left-0 mt-3">
               <Logo size="md" showText={false} />
@@ -121,7 +121,7 @@ export default function InsightsPage() {
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-6">
+        <div className="p-3 sm:p-4 space-y-4 sm:space-y-6 w-full overflow-x-hidden max-w-full">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -318,15 +318,16 @@ export default function InsightsPage() {
                   Project Progress
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="w-full overflow-x-auto">
                 <ChartContainer config={{}}>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart 
-                      data={projects.map(p => ({ 
-                        name: p.name.length > 15 ? p.name.substring(0, 15) + '...' : p.name, 
-                        fullName: p.name,
-                        progress: p.progress || 0 
-                      }))}
+                  <div className="w-full min-w-[300px]">
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart 
+                        data={projects.map(p => ({ 
+                          name: p.name.length > 15 ? p.name.substring(0, 15) + '...' : p.name, 
+                          fullName: p.name,
+                          progress: p.progress || 0 
+                        }))}
                       margin={{ top: 5, right: 10, left: 0, bottom: 60 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground))" opacity={0.2} />
@@ -375,9 +376,10 @@ export default function InsightsPage() {
                         radius={[4, 4, 0, 0]}
                       />
                     </BarChart>
-                  </ResponsiveContainer>
-                </ChartContainer>
-                </CardContent>
+                      </ResponsiveContainer>
+                    </div>
+                  </ChartContainer>
+              </CardContent>
               </Card>
               )}
             </>

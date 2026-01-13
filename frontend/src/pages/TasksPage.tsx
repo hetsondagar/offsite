@@ -252,9 +252,9 @@ export default function TasksPage() {
 
   return (
     <MobileLayout role={role || "engineer"}>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top w-full">
           <div className="flex items-center gap-0 relative">
             <div className="absolute left-0 mt-3">
               <Logo size="md" showText={false} />
@@ -267,7 +267,7 @@ export default function TasksPage() {
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-4">
+        <div className="p-3 sm:p-4 space-y-4 w-full overflow-x-hidden max-w-full">
           {/* Filters and Create Button */}
           <div className="flex flex-col gap-3">
             {canCreateTasks && (

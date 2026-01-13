@@ -321,12 +321,12 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
 
               {/* Owner Actions */}
               {isOwner && invoice.status === 'DRAFT' && (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 w-full">
                   {onEdit && (
                     <Button
                       onClick={handleEdit}
                       variant="outline"
-                      className="flex-1 min-w-[120px]"
+                      className="flex-1 min-w-0 sm:min-w-[120px]"
                     >
                       <Edit2 className="w-4 h-4 mr-2" />
                       Edit
@@ -336,7 +336,7 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
                     <Button
                       onClick={handleFinalize}
                       disabled={isFinalizing}
-                      className="flex-1 min-w-[120px]"
+                      className="flex-1 min-w-0 sm:min-w-[120px]"
                     >
                       {isFinalizing ? (
                         <>
@@ -356,7 +356,7 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
                       onClick={handleDeleteClick}
                       variant="destructive"
                       disabled={isDeleting}
-                      className="flex-1 min-w-[120px]"
+                      className="flex-1 min-w-0 sm:min-w-[120px]"
                     >
                       {isDeleting ? (
                         <>
@@ -375,12 +375,12 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
               )}
 
               {canDownloadPdf && (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 w-full">
                   <Button
                     onClick={handleDownloadPdf}
                     disabled={isDownloadingPdf}
                     variant="outline"
-                    className="flex-1 min-w-[160px]"
+                    className="flex-1 min-w-0 sm:min-w-[160px]"
                   >
                     {isDownloadingPdf ? (
                       <>

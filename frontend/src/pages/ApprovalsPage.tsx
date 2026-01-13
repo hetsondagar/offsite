@@ -241,7 +241,7 @@ export default function ApprovalsPage() {
 
   return (
     <MobileLayout role="manager">
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
           <div className="flex items-center gap-0 relative">
@@ -256,7 +256,7 @@ export default function ApprovalsPage() {
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-6">
+        <div className="p-3 sm:p-4 space-y-4 sm:space-y-6 w-full overflow-x-hidden max-w-full">
           {/* Pending Approvals */}
           <div className="space-y-3">
             <h2 className="font-display font-semibold text-base text-foreground">Pending</h2>

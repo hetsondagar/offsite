@@ -13,7 +13,7 @@ const NotFound = () => {
   }, [location.pathname]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-6">
+    <div className="flex min-h-screen items-center justify-center bg-background p-6 w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
       <div className="text-center space-y-6 max-w-md">
         <div className="flex justify-center">
           <Logo size="lg" showText={true} />

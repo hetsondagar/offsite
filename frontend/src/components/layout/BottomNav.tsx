@@ -63,8 +63,8 @@ export function BottomNav({ role }: BottomNavProps) {
   }
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-t border-border/50 safe-area-bottom w-full overflow-x-hidden">
-      <div className="flex items-center justify-around px-1 sm:px-2 py-1.5 sm:py-2 max-w-2xl mx-auto w-full">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-t border-border/50 safe-area-bottom w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw', overflowX: 'hidden' }}>
+      <div className="flex items-center justify-around px-1 sm:px-2 py-1.5 sm:py-2 max-w-2xl mx-auto w-full overflow-x-hidden">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
           const Icon = item.icon;

@@ -58,7 +58,7 @@ export default function AllDPRsPage() {
 
   return (
     <MobileLayout role={role || "manager"}>
-      <div className="p-4 space-y-6 safe-area-top">
+      <div className="p-3 sm:p-4 space-y-4 sm:space-y-6 safe-area-top w-full overflow-x-hidden max-w-full">
         {/* Header */}
         <div className="flex flex-col items-center gap-4 opacity-0 animate-fade-up">
           <div className="flex justify-center w-full">

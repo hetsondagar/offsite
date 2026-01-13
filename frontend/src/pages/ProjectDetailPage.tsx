@@ -293,20 +293,20 @@ export default function ProjectDetailPage() {
 
   return (
     <MobileLayout role={role}>
-      <div className="space-y-6 pb-6">
+      <div className="space-y-4 sm:space-y-6 pb-6 w-full overflow-x-hidden max-w-full px-3 sm:px-4">
         {/* Header */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 w-full overflow-x-hidden pt-3 sm:pt-4">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => navigate('/projects')}
             className="shrink-0"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold truncate">{project.name}</h1>
-            <p className="text-sm text-muted-foreground truncate">{project.location}</p>
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <h1 className="text-lg sm:text-xl md:text-2xl font-bold truncate">{project.name}</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">{project.location}</p>
           </div>
         </div>
 
@@ -339,7 +339,7 @@ export default function ProjectDetailPage() {
               </div>
 
               {/* Dates */}
-              <div className="grid grid-cols-2 gap-4 pt-2">
+              <div className="grid grid-cols-2 gap-2 sm:gap-4 pt-2 w-full max-w-full">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Calendar className="w-4 h-4" />
@@ -368,7 +368,7 @@ export default function ProjectDetailPage() {
         </Card>
 
         {/* Statistics Grid */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-4 w-full max-w-full">
           <Card>
             <CardContent className="pt-6">
               <div className="space-y-2">

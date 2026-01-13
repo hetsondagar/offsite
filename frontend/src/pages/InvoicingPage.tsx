@@ -132,7 +132,7 @@ export default function InvoicingPage() {
   if (role === "owner") {
     return (
       <MobileLayout role={role}>
-        <div className="min-h-screen bg-background w-full overflow-x-hidden">
+        <div className="min-h-screen bg-background w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
           {/* Header */}
           <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top">
             <div className="flex items-center gap-0 relative">
@@ -147,7 +147,7 @@ export default function InvoicingPage() {
           </div>
 
           {/* Content */}
-          <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 max-w-6xl mx-auto w-full">
+          <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
             {/* Create Button */}
             {!showCreateForm && !editingInvoice && (
               <Button
@@ -267,7 +267,7 @@ export default function InvoicingPage() {
   // Project Manager & Site Engineer view - read-only
   return (
     <MobileLayout role={role}>
-      <div className="min-h-screen bg-background w-full overflow-x-hidden">
+      <div className="min-h-screen bg-background w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top">
           <div className="flex items-center gap-0 relative">
@@ -282,7 +282,7 @@ export default function InvoicingPage() {
         </div>
 
         {/* Content */}
-        <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 max-w-6xl mx-auto w-full">
+        <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />

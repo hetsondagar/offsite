@@ -82,7 +82,7 @@ export default function ResetPassword() {
 
   if (isValidToken === false && !success) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
         <div className="relative bg-gradient-to-b from-background via-background to-background/95 pt-12 pb-8 px-6">
           <div className="absolute top-4 right-4 z-20">
             <ThemeToggle variant="icon" />
@@ -120,7 +120,7 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
       {/* Header Section */}
       <div className="relative bg-gradient-to-b from-background via-background to-background/95 pt-12 pb-8 px-6">
         {/* Background decoration */}

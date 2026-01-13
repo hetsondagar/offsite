@@ -195,7 +195,7 @@ function AppContent() {
   }, [dispatch]);
 
   return (
-    <div className="w-full min-h-screen overflow-x-hidden">
+    <div className="w-full min-h-screen overflow-x-hidden max-w-full" style={{ maxWidth: '100vw', overflowX: 'hidden' }}>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <FaviconUpdater />

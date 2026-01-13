@@ -171,7 +171,7 @@ export default function EngineerDashboard() {
 
   return (
     <MobileLayout role="engineer">
-      <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 safe-area-top max-w-7xl mx-auto w-full overflow-x-hidden">
+      <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 safe-area-top w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
         {/* Header */}
         <div className="flex flex-col items-center gap-3 sm:gap-4 opacity-0 animate-fade-up">
           {/* Centered Large Logo */}

@@ -139,7 +139,7 @@ export default function EventsPage() {
 
   return (
     <MobileLayout role="manager">
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
           <div className="flex items-center gap-0 relative">
