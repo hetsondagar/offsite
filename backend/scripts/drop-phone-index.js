@@ -84,3 +84,6 @@ async function dropPhoneIndex() {
 // Run the script
 dropPhoneIndex();
 
+
+
+
