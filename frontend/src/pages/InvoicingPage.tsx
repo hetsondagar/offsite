@@ -132,22 +132,22 @@ export default function InvoicingPage() {
   if (role === "owner") {
     return (
       <MobileLayout role={role}>
-        <div className="min-h-screen bg-background">
+        <div className="min-h-screen bg-background w-full overflow-x-hidden">
           {/* Header */}
-          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top">
             <div className="flex items-center gap-0 relative">
-              <div className="absolute left-0 mt-3">
+              <div className="absolute left-0 mt-2 sm:mt-3">
                 <Logo size="md" showText={false} />
               </div>
               <div className="flex-1 flex flex-col items-center justify-center">
-                <h1 className="font-display font-semibold text-lg">GST Invoices</h1>
+                <h1 className="font-display font-semibold text-base sm:text-lg">GST Invoices</h1>
                 <p className="text-xs text-muted-foreground">Owner-only invoicing</p>
               </div>
             </div>
           </div>
 
           {/* Content */}
-          <div className="p-4 space-y-4">
+          <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 max-w-6xl mx-auto w-full">
             {/* Create Button */}
             {!showCreateForm && !editingInvoice && (
               <Button
@@ -267,22 +267,22 @@ export default function InvoicingPage() {
   // Project Manager & Site Engineer view - read-only
   return (
     <MobileLayout role={role}>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background w-full overflow-x-hidden">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top">
           <div className="flex items-center gap-0 relative">
-            <div className="absolute left-0 mt-3">
+            <div className="absolute left-0 mt-2 sm:mt-3">
               <Logo size="md" showText={false} />
             </div>
             <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="font-display font-semibold text-lg">Invoices</h1>
+              <h1 className="font-display font-semibold text-base sm:text-lg">Invoices</h1>
               <p className="text-xs text-muted-foreground">View-only access</p>
             </div>
           </div>
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-4">
+        <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 max-w-6xl mx-auto w-full">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />

@@ -79,82 +79,82 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden">
       {/* Header Section - Dark Background */}
-      <div className="relative bg-gradient-to-b from-background via-background to-background/95 pt-12 pb-8 px-6">
+      <div className="relative bg-gradient-to-b from-background via-background to-background/95 pt-8 sm:pt-12 pb-6 sm:pb-8 px-4 sm:px-6">
         {/* Background decoration */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
+          <div className="absolute top-1/4 left-1/4 w-64 h-64 sm:w-96 sm:h-96 bg-primary/5 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 sm:w-96 sm:h-96 bg-primary/5 rounded-full blur-3xl" />
         </div>
 
         {/* Theme Toggle - Top Right */}
-        <div className="absolute top-4 right-4 z-20">
+        <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20">
           <ThemeToggle variant="icon" />
         </div>
 
-        <div className="relative z-10 flex flex-col items-center space-y-4">
+        <div className="relative z-10 flex flex-col items-center space-y-3 sm:space-y-4">
           {/* Centered Logo */}
           <Logo size="lg" showText={false} variant="plain" />
           
           {/* Welcome Text */}
-          <h1 className="font-display text-2xl font-bold text-foreground text-center">
+          <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-bold text-foreground text-center">
             Welcome Back!
           </h1>
         </div>
       </div>
 
       {/* Content Area - White/Light Background */}
-      <div className="flex-1 bg-card rounded-t-3xl -mt-6 relative z-10 px-6 py-8">
-        <div className="space-y-6 animate-fade-up">
+      <div className="flex-1 bg-card rounded-t-3xl -mt-6 relative z-10 px-4 sm:px-6 md:px-8 py-6 sm:py-8">
+        <div className="space-y-4 sm:space-y-6 animate-fade-up max-w-md mx-auto w-full">
           <div className="space-y-4">
             {/* Error Message */}
             {error && (
-              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30">
-                <p className="text-sm text-destructive">{error}</p>
+              <div className="p-3 sm:p-4 rounded-xl bg-destructive/10 border border-destructive/30">
+                <p className="text-xs sm:text-sm text-destructive">{error}</p>
               </div>
             )}
 
             {/* Email Field */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Email Address</label>
+              <label className="text-xs sm:text-sm font-medium text-foreground">Email Address</label>
               <div className="relative">
                 <Input
                   type="email"
                   placeholder="john.doe@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pr-4 h-14 text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="pr-4 h-12 sm:h-14 text-base sm:text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
               </div>
             </div>
 
             {/* Password Field */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Password</label>
+              <label className="text-xs sm:text-sm font-medium text-foreground">Password</label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pr-12 h-14 text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="pr-12 h-12 sm:h-14 text-base sm:text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-muted-foreground hover:text-foreground transition-colors"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 p-2 sm:p-3 text-muted-foreground hover:text-foreground transition-colors tap-target"
                 >
                   {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
+                    <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />
                   ) : (
-                    <Eye className="w-5 h-5" />
+                    <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
                   )}
                 </button>
               </div>
               <Link 
                 to="/forgot-password" 
-                className="text-sm text-primary hover:underline text-right w-full mt-1 block"
+                className="text-xs sm:text-sm text-primary hover:underline text-right w-full mt-1 block"
               >
                 Forgot Password?
               </Link>
@@ -170,7 +170,7 @@ export default function Login() {
                 />
                 <label
                   htmlFor="remember"
-                  className="text-sm font-medium leading-none cursor-pointer text-foreground"
+                  className="text-xs sm:text-sm font-medium leading-none cursor-pointer text-foreground"
                 >
                   Remember me
                 </label>
@@ -179,7 +179,7 @@ export default function Login() {
 
             {/* Login Button */}
             <Button 
-              className="w-full mt-8"
+              className="w-full mt-6 sm:mt-8 h-12 sm:h-14 text-base sm:text-lg"
               size="lg"
               onClick={handleLogin}
               disabled={!email || !password || isLoading}
@@ -194,8 +194,8 @@ export default function Login() {
         </div>
 
         {/* Sign Up Link */}
-        <div className="text-center mt-8 pt-6 border-t border-border/50">
-          <p className="text-sm text-muted-foreground">
+        <div className="text-center mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-border/50 max-w-md mx-auto w-full">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Don't have an account?{" "}
             <Link to="/signup" className="text-primary font-semibold hover:underline">
               SIGN UP

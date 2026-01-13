@@ -72,18 +72,18 @@ export function KPICard({
         variantStyles[variant]
       )}
     >
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide truncate">
               {title}
             </p>
-            <p className="font-display text-2xl font-bold text-foreground mt-1">
+            <p className="font-display text-xl sm:text-2xl md:text-3xl font-bold text-foreground mt-0.5 sm:mt-1">
               {displayValue}{suffix}
             </p>
             {trend && trendValue && (
               <p className={cn(
-                "text-xs font-medium mt-1",
+                "text-[10px] sm:text-xs font-medium mt-0.5 sm:mt-1 truncate",
                 trend === "up" && "text-success",
                 trend === "down" && "text-destructive",
                 trend === "neutral" && "text-muted-foreground"
@@ -92,8 +92,8 @@ export function KPICard({
               </p>
             )}
           </div>
-          <div className={cn("p-3 rounded-xl", iconStyles[variant])}>
-            <Icon className="w-5 h-5" />
+          <div className={cn("p-2 sm:p-3 rounded-xl shrink-0", iconStyles[variant])}>
+            <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
         </div>
       </CardContent>

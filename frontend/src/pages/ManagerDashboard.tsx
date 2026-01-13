@@ -355,18 +355,18 @@ export default function ManagerDashboard() {
 
   return (
     <MobileLayout role={role || "manager"}>
-      <div className="p-4 space-y-6 safe-area-top">
+      <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 safe-area-top max-w-7xl mx-auto w-full overflow-x-hidden">
         {/* Header */}
-        <div className="flex flex-col items-center gap-4 opacity-0 animate-fade-up">
+        <div className="flex flex-col items-center gap-3 sm:gap-4 opacity-0 animate-fade-up">
           {/* Centered Large Logo */}
           <div className="flex justify-center w-full">
             <Logo size="xl" showText={false} />
           </div>
           
           {/* Date, Notifications, Theme Toggle and Status */}
-          <div className="flex items-center justify-between w-full">
-            <p className="text-xs text-muted-foreground">{currentDate}</p>
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between w-full px-2">
+            <p className="text-xs sm:text-sm text-muted-foreground">{currentDate}</p>
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <NotificationBell />
               <ThemeToggle variant="icon" />
               <StatusBadge status="success" label="Online" pulse />
@@ -458,7 +458,7 @@ export default function ManagerDashboard() {
         </Card>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
           <KPICard
             title="Active Projects"
             value={kpis.activeProjects}
@@ -498,19 +498,19 @@ export default function ManagerDashboard() {
 
         {/* Projects Overview */}
         <Card variant="gradient" className="opacity-0 animate-fade-up stagger-4">
-          <CardHeader className="flex-row items-center justify-between pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Building2 className="w-5 h-5 text-primary" />
+          <CardHeader className="flex-row items-center justify-between pb-3 px-4 sm:px-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
               Projects
             </CardTitle>
             <button 
               onClick={() => navigate("/projects")}
-              className="text-sm text-primary flex items-center gap-1"
+              className="text-xs sm:text-sm text-primary flex items-center gap-1 tap-target"
             >
-              View All <ChevronRight className="w-4 h-4" />
+              View All <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 px-4 sm:px-6 pb-4 sm:pb-6">
             {projectOverview.map((project, index) => (
               <div 
                 key={index} 

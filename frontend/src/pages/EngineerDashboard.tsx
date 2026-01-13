@@ -171,21 +171,21 @@ export default function EngineerDashboard() {
 
   return (
     <MobileLayout role="engineer">
-      <div className="p-4 space-y-6 safe-area-top">
+      <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 safe-area-top max-w-7xl mx-auto w-full overflow-x-hidden">
         {/* Header */}
-        <div className="flex flex-col items-center gap-4 opacity-0 animate-fade-up">
+        <div className="flex flex-col items-center gap-3 sm:gap-4 opacity-0 animate-fade-up">
           {/* Centered Large Logo */}
           <div className="flex justify-center w-full">
             <Logo size="xl" showText={false} />
           </div>
           
           {/* Time, Notifications, and Theme Toggle */}
-          <div className="flex items-center justify-between w-full">
+          <div className="flex items-center justify-between w-full px-2">
             <div className="text-left">
-              <p className="text-sm font-medium text-foreground">{currentTime}</p>
-              <p className="text-xs text-muted-foreground">{currentDate}</p>
+              <p className="text-sm sm:text-base font-medium text-foreground">{currentTime}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">{currentDate}</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <NotificationBell />
               <ThemeToggle variant="icon" />
             </div>
@@ -364,11 +364,11 @@ export default function EngineerDashboard() {
 
         {/* Quick Actions */}
         <div className="space-y-3">
-          <h2 className="font-display font-semibold text-lg text-foreground opacity-0 animate-fade-up stagger-3">
+          <h2 className="font-display font-semibold text-base sm:text-lg text-foreground opacity-0 animate-fade-up stagger-3 px-2">
             Quick Actions
           </h2>
           
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
             {hasPermission("canCreateDPR") && (
               <div className="opacity-0 animate-fade-up stagger-3">
                 <ActionButton
@@ -391,19 +391,18 @@ export default function EngineerDashboard() {
                 />
               </div>
             )}
+            {hasPermission("canRaiseMaterialRequest") && (
+              <div className="opacity-0 animate-fade-up stagger-5 col-span-2 sm:col-span-1">
+                <ActionButton
+                  icon={Package}
+                  label="Request Materials"
+                  sublabel="Raise new request"
+                  variant="outline"
+                  onClick={() => navigate("/materials")}
+                />
+              </div>
+            )}
           </div>
-          
-          {hasPermission("canRaiseMaterialRequest") && (
-            <div className="opacity-0 animate-fade-up stagger-5">
-              <ActionButton
-                icon={Package}
-                label="Request Materials"
-                sublabel="Raise new request"
-                variant="outline"
-                onClick={() => navigate("/materials")}
-              />
-            </div>
-          )}
         </div>
 
         {/* Recent Activity */}

@@ -289,15 +289,15 @@ export default function MaterialsPage() {
 
   return (
     <MobileLayout role="engineer">
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background w-full overflow-x-hidden">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top">
           <div className="flex items-center gap-0 relative">
-            <div className="absolute left-0 mt-3">
+            <div className="absolute left-0 mt-2 sm:mt-3">
               <Logo size="md" showText={false} />
             </div>
             <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="font-display font-semibold text-lg">Materials</h1>
+              <h1 className="font-display font-semibold text-base sm:text-lg">Materials</h1>
               <p className="text-xs text-muted-foreground">Request & track materials</p>
             </div>
           </div>
@@ -310,31 +310,31 @@ export default function MaterialsPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-background/95 flex items-center justify-center"
+              className="fixed inset-0 z-50 bg-background/95 flex items-center justify-center p-4"
             >
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
-                className="text-center space-y-4"
+                className="text-center space-y-4 max-w-sm w-full"
               >
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: "spring", stiffness: 200, damping: 15 }}
-                  className="w-20 h-20 mx-auto rounded-full bg-success/20 flex items-center justify-center"
+                  className="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full bg-success/20 flex items-center justify-center"
                 >
-                  <Check className="w-10 h-10 text-success" />
+                  <Check className="w-8 h-8 sm:w-10 sm:h-10 text-success" />
                 </motion.div>
-                <h2 className="font-display text-2xl font-bold text-foreground">Request Sent!</h2>
-                <p className="text-muted-foreground">Awaiting manager approval</p>
+                <h2 className="font-display text-xl sm:text-2xl font-bold text-foreground">Request Sent!</h2>
+                <p className="text-sm sm:text-base text-muted-foreground">Awaiting manager approval</p>
               </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
 
         {/* Content */}
-        <div className="p-4 space-y-6">
+        <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 max-w-4xl mx-auto w-full">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />

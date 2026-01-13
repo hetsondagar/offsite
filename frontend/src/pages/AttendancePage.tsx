@@ -428,28 +428,28 @@ export default function AttendancePage() {
 
   return (
     <MobileLayout role="engineer">
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background w-full overflow-x-hidden">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-4 pl-0 pr-4 safe-area-top">
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top">
           <div className="flex items-center gap-0 relative">
-            <div className="absolute left-0 mt-3">
+            <div className="absolute left-0 mt-2 sm:mt-3">
               <Logo size="md" showText={false} />
             </div>
             <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="font-display font-semibold text-lg">Attendance</h1>
+              <h1 className="font-display font-semibold text-base sm:text-lg">Attendance</h1>
               <p className="text-xs text-muted-foreground">GPS-based check in/out</p>
             </div>
           </div>
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-6">
+        <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 max-w-2xl mx-auto w-full">
           {/* Time Display */}
           <Card variant="gradient" className="text-center animate-fade-up">
-            <CardContent className="py-8">
-              <Clock className="w-8 h-8 text-primary mx-auto mb-4" />
-              <p className="font-display text-4xl font-bold text-foreground">{currentTime}</p>
-              <p className="text-muted-foreground mt-2">{currentDate}</p>
+            <CardContent className="py-6 sm:py-8 px-4">
+              <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-primary mx-auto mb-3 sm:mb-4" />
+              <p className="font-display text-2xl sm:text-3xl md:text-4xl font-bold text-foreground">{currentTime}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-2">{currentDate}</p>
             </CardContent>
           </Card>
 
@@ -572,22 +572,22 @@ export default function AttendancePage() {
                 <Button
                   variant="glow"
                   size="xl"
-                  className="w-full h-32 flex-col gap-3"
+                  className="w-full h-24 sm:h-32 flex-col gap-2 sm:gap-3"
                   onClick={handleCheckIn}
                   disabled={isLoading || !location || !selectedProject}
                 >
                   {isLoading ? (
-                    <Loader2 className="w-12 h-12 animate-spin" />
+                    <Loader2 className="w-8 h-8 sm:w-12 sm:h-12 animate-spin" />
                   ) : (
                     <>
                       <motion.div
                         animate={{ scale: [1, 1.1, 1] }}
                         transition={{ repeat: Infinity, duration: 2 }}
-                        className="w-16 h-16 rounded-full bg-primary-foreground/10 flex items-center justify-center"
+                        className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-primary-foreground/10 flex items-center justify-center"
                       >
-                        <MapPin className="w-8 h-8" />
+                        <MapPin className="w-6 h-6 sm:w-8 sm:h-8" />
                       </motion.div>
-                      <span className="font-display text-xl">Check In</span>
+                      <span className="font-display text-base sm:text-xl">Check In</span>
                     </>
                   )}
                 </Button>
@@ -601,18 +601,18 @@ export default function AttendancePage() {
                 <Button
                   variant="outline"
                   size="xl"
-                  className="w-full h-32 flex-col gap-3 border-destructive/50 text-destructive hover:bg-destructive/10"
+                  className="w-full h-24 sm:h-32 flex-col gap-2 sm:gap-3 border-destructive/50 text-destructive hover:bg-destructive/10"
                   onClick={handleCheckOut}
                   disabled={isLoading || !selectedProject}
                 >
                   {isLoading ? (
-                    <Loader2 className="w-12 h-12 animate-spin" />
+                    <Loader2 className="w-8 h-8 sm:w-12 sm:h-12 animate-spin" />
                   ) : (
                     <>
-                      <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
-                        <Check className="w-8 h-8" />
+                      <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-destructive/10 flex items-center justify-center">
+                        <Check className="w-6 h-6 sm:w-8 sm:h-8" />
                       </div>
-                      <span className="font-display text-xl">Check Out</span>
+                      <span className="font-display text-base sm:text-xl">Check Out</span>
                     </>
                   )}
                 </Button>

@@ -134,108 +134,108 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden">
       {/* Header Section - Dark Background */}
-      <div className="relative bg-gradient-to-b from-background via-background to-background/95 pt-12 pb-8 px-6">
+      <div className="relative bg-gradient-to-b from-background via-background to-background/95 pt-8 sm:pt-12 pb-6 sm:pb-8 px-4 sm:px-6">
         {/* Background decoration */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
+          <div className="absolute top-1/4 left-1/4 w-64 h-64 sm:w-96 sm:h-96 bg-primary/5 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 sm:w-96 sm:h-96 bg-primary/5 rounded-full blur-3xl" />
         </div>
 
         {/* Theme Toggle - Top Right */}
-        <div className="absolute top-4 right-4 z-20">
+        <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20">
           <ThemeToggle variant="icon" />
         </div>
 
         {/* Back Button & Title */}
-        <div className="relative z-10 flex items-center gap-4 mb-6">
+        <div className="relative z-10 flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
           <Button 
             variant="ghost" 
             size="icon"
             onClick={() => navigate("/login")}
-            className="text-foreground"
+            className="text-foreground tap-target"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </Button>
-          <h1 className="font-display text-xl font-semibold text-foreground">Create Account</h1>
+          <h1 className="font-display text-lg sm:text-xl md:text-2xl font-semibold text-foreground">Create Account</h1>
         </div>
 
-        <div className="relative z-10 flex flex-col items-center space-y-4">
+        <div className="relative z-10 flex flex-col items-center space-y-3 sm:space-y-4">
           {/* Centered Logo */}
           <Logo size="lg" showText={false} variant="plain" />
         </div>
       </div>
 
       {/* Content Area - White/Light Background */}
-      <div className="flex-1 bg-card rounded-t-3xl -mt-6 relative z-10 px-6 py-8">
+      <div className="flex-1 bg-card rounded-t-3xl -mt-6 relative z-10 px-4 sm:px-6 md:px-8 py-6 sm:py-8">
         {/* Details Step */}
         {step === "details" && (
-          <div className="space-y-6 animate-fade-up">
+          <div className="space-y-4 sm:space-y-6 animate-fade-up max-w-md mx-auto w-full">
             <div>
-              <h2 className="font-display text-xl font-semibold text-foreground mb-1">
+              <h2 className="font-display text-lg sm:text-xl md:text-2xl font-semibold text-foreground mb-1">
                 Get Started
               </h2>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 Enter your details to create an account
               </p>
             </div>
 
             {error && (
-              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30">
-                <p className="text-sm text-destructive">{error}</p>
+              <div className="p-3 sm:p-4 rounded-xl bg-destructive/10 border border-destructive/30">
+                <p className="text-xs sm:text-sm text-destructive">{error}</p>
               </div>
             )}
 
             <div className="space-y-4">
               {/* Name Field */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Full Name</label>
+                <label className="text-xs sm:text-sm font-medium text-foreground">Full Name</label>
                 <div className="relative">
                   <Input
                     type="text"
                     placeholder="John Doe"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="pr-4 h-14 text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                    className="pr-4 h-12 sm:h-14 text-base sm:text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
                 </div>
               </div>
 
               {/* Email Field */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Email Address</label>
+                <label className="text-xs sm:text-sm font-medium text-foreground">Email Address</label>
                 <div className="relative">
                   <Input
                     type="email"
                     placeholder="john.doe@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pr-4 h-14 text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                    className="pr-4 h-12 sm:h-14 text-base sm:text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
                 </div>
               </div>
 
               {/* Password Field */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Password</label>
+                <label className="text-xs sm:text-sm font-medium text-foreground">Password</label>
                 <div className="relative">
                   <Input
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pr-12 h-14 text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                    className="pr-12 h-12 sm:h-14 text-base sm:text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-muted-foreground hover:text-foreground transition-colors"
+                    className="absolute right-0 top-1/2 -translate-y-1/2 p-2 sm:p-3 text-muted-foreground hover:text-foreground transition-colors tap-target"
                   >
                     {showPassword ? (
-                      <EyeOff className="w-5 h-5" />
+                      <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />
                     ) : (
-                      <Eye className="w-5 h-5" />
+                      <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
                     )}
                   </button>
                 </div>
@@ -244,7 +244,7 @@ export default function Signup() {
 
               {/* Phone Number Field (Optional) */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
+                <label className="text-xs sm:text-sm font-medium text-foreground">
                   Phone Number <span className="text-muted-foreground">(Optional)</span>
                 </label>
                 <div className="relative">
@@ -253,14 +253,14 @@ export default function Signup() {
                     placeholder="+91 98765 43210"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="pr-4 h-14 text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                    className="pr-4 h-12 sm:h-14 text-base sm:text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
                 </div>
               </div>
 
               {/* Continue Button */}
               <Button 
-                className="w-full mt-8"
+                className="w-full mt-6 sm:mt-8 h-12 sm:h-14 text-base sm:text-lg"
                 size="lg"
                 onClick={handleDetailsSubmit}
                 disabled={!email || !password || !name || isLoading}
@@ -277,37 +277,37 @@ export default function Signup() {
 
         {/* Role Selection Step */}
         {step === "role" && (
-          <div className="space-y-4 animate-fade-up">
-            <div className="text-center mb-6">
-              <h2 className="font-display text-xl font-semibold text-foreground mb-1">
+          <div className="space-y-4 animate-fade-up max-w-md mx-auto w-full">
+            <div className="text-center mb-4 sm:mb-6">
+              <h2 className="font-display text-lg sm:text-xl md:text-2xl font-semibold text-foreground mb-1">
                 Select your role
               </h2>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 Choose how you'll use OffSite
               </p>
             </div>
 
             {error && (
-              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30">
-                <p className="text-sm text-destructive">{error}</p>
+              <div className="p-3 sm:p-4 rounded-xl bg-destructive/10 border border-destructive/30">
+                <p className="text-xs sm:text-sm text-destructive">{error}</p>
               </div>
             )}
 
             <div className="space-y-3">
               <div
                 className={cn(
-                  "p-4 rounded-xl border-2 cursor-pointer transition-all duration-300",
-                  "hover:border-primary/50 hover:bg-primary/5",
+                  "p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 tap-target",
+                  "hover:border-primary/50 hover:bg-primary/5 active:scale-[0.98]",
                   role === UserRole.SITE_ENGINEER ? "border-primary bg-primary/10" : "border-border/50"
                 )}
                 onClick={() => handleRoleSelect(UserRole.SITE_ENGINEER)}
               >
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-primary/10 border border-primary/30">
-                    <HardHat className="w-6 h-6 text-primary" />
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="p-2 sm:p-3 rounded-xl bg-primary/10 border border-primary/30 shrink-0">
+                    <HardHat className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-display font-semibold text-base text-foreground">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-display font-semibold text-sm sm:text-base text-foreground">
                       Site Engineer
                     </h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -319,18 +319,18 @@ export default function Signup() {
 
               <div
                 className={cn(
-                  "p-4 rounded-xl border-2 cursor-pointer transition-all duration-300",
-                  "hover:border-primary/50 hover:bg-primary/5",
+                  "p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 tap-target",
+                  "hover:border-primary/50 hover:bg-primary/5 active:scale-[0.98]",
                   role === UserRole.PROJECT_MANAGER ? "border-primary bg-primary/10" : "border-border/50"
                 )}
                 onClick={() => handleRoleSelect(UserRole.PROJECT_MANAGER)}
               >
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-primary/10 border border-primary/30">
-                    <Briefcase className="w-6 h-6 text-primary" />
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="p-2 sm:p-3 rounded-xl bg-primary/10 border border-primary/30 shrink-0">
+                    <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-display font-semibold text-base text-foreground">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-display font-semibold text-sm sm:text-base text-foreground">
                       Project Manager
                     </h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -342,18 +342,18 @@ export default function Signup() {
 
               <div
                 className={cn(
-                  "p-4 rounded-xl border-2 cursor-pointer transition-all duration-300",
-                  "hover:border-primary/50 hover:bg-primary/5",
+                  "p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 tap-target",
+                  "hover:border-primary/50 hover:bg-primary/5 active:scale-[0.98]",
                   role === UserRole.OWNER_ADMIN ? "border-primary bg-primary/10" : "border-border/50"
                 )}
                 onClick={() => handleRoleSelect(UserRole.OWNER_ADMIN)}
               >
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-primary/10 border border-primary/30">
-                    <Crown className="w-6 h-6 text-primary" />
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="p-2 sm:p-3 rounded-xl bg-primary/10 border border-primary/30 shrink-0">
+                    <Crown className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-display font-semibold text-base text-foreground">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-display font-semibold text-sm sm:text-base text-foreground">
                       Owner / Admin
                     </h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -367,7 +367,7 @@ export default function Signup() {
             {/* Back Button */}
             <Button
               variant="outline"
-              className="w-full mt-4"
+              className="w-full mt-4 h-12 sm:h-14"
               onClick={() => setStep("details")}
               disabled={isLoading}
             >
@@ -377,8 +377,8 @@ export default function Signup() {
         )}
 
         {/* Sign In Link */}
-        <div className="text-center mt-8 pt-6 border-t border-border/50">
-          <p className="text-sm text-muted-foreground">
+        <div className="text-center mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-border/50 max-w-md mx-auto w-full">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link to="/login" className="text-primary font-semibold hover:underline">
               LOG IN

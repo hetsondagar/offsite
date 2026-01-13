@@ -195,13 +195,14 @@ function AppContent() {
   }, [dispatch]);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <FaviconUpdater />
-        <Toaster />
-        <Sonner />
-        <BrowserRouter future={{ v7_relativeSplatPath: true }}>
-          <Routes>
+    <div className="w-full min-h-screen overflow-x-hidden">
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FaviconUpdater />
+          <Toaster />
+          <Sonner />
+          <BrowserRouter future={{ v7_relativeSplatPath: true }}>
+            <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -222,10 +223,11 @@ function AppContent() {
             <Route path="/tasks" element={<TasksPage />} />
             <Route path="/all-dprs" element={<AllDPRsPage />} />
             <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </div>
   );
 }
 

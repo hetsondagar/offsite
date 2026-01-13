@@ -27,15 +27,15 @@ export function ActionButton({
       size={size}
       onClick={onClick}
       className={cn(
-        "w-full flex-col h-auto py-6 gap-2",
+        "w-full flex-col h-auto py-4 sm:py-6 gap-1.5 sm:gap-2 tap-target",
         className
       )}
     >
-      <Icon className="w-8 h-8" />
+      <Icon className="w-6 h-6 sm:w-8 sm:h-8" />
       <div className="flex flex-col items-center">
-        <span className="font-display font-semibold text-base">{label}</span>
+        <span className="font-display font-semibold text-sm sm:text-base">{label}</span>
         {sublabel && (
-          <span className="text-xs opacity-80 font-normal">{sublabel}</span>
+          <span className="text-[10px] sm:text-xs opacity-80 font-normal">{sublabel}</span>
         )}
       </div>
     </Button>
