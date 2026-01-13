@@ -115,35 +115,36 @@ function AppContent() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
         
-        // Try to fetch a lightweight endpoint (health check or user info)
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/auth/me`, {
+        // Use health check endpoint that doesn't require authentication
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const response = await fetch(`${apiUrl}/health`, {
           method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-          },
           signal: controller.signal,
         });
         
         clearTimeout(timeoutId);
         
-        // If we get any response (even 401), we're online
-        dispatch(setOnlineStatus(true));
+        // If we get a successful response, we're online
+        if (response.ok) {
+          dispatch(setOnlineStatus(true));
+        } else {
+          // Even if not 200, if we got a response, server is reachable
+          dispatch(setOnlineStatus(true));
+        }
       } catch (error: unknown) {
         const err = error as { name?: string; message?: string };
 
-        // If fetch fails or times out, check if it's just auth error
+        // If fetch fails or times out, we're offline
         if (err?.name === 'AbortError') {
           // Timeout - assume offline
           dispatch(setOnlineStatus(false));
         } else {
-          // Other errors might still mean we're online (like 401)
-          // If we got a response (even error), we're online
-          // Only mark offline if it's a network error
+          // Network errors mean we're offline
           const message = err?.message || '';
           if (message.includes('Failed to fetch') || message.includes('NetworkError') || err?.name === 'TypeError') {
             dispatch(setOnlineStatus(false));
           } else {
-            // Got a response, so we're online (even if it's an error response)
+            // Other errors might still mean we're online
             dispatch(setOnlineStatus(true));
           }
         }
