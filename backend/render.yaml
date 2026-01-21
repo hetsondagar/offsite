@@ -1,0 +1,19 @@
+# Render Blueprint Configuration
+# This file can be used to deploy via Render Blueprint (optional)
+# Or configure manually in Render dashboard
+
+services:
+  - type: web
+    name: offsite-backend
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # Add other environment variables in Render dashboard
+      # Do not commit secrets here

@@ -6,7 +6,7 @@
 import { Task } from '../../modules/tasks/task.model';
 import { MaterialRequest } from '../../modules/materials/material.model';
 import { Attendance } from '../../modules/attendance/attendance.model';
-import { Project } from '../../modules/projects/project.model';
+// import { Project } from '../../modules/projects/project.model';
 import { DPR } from '../../modules/dpr/dpr.model';
 import { huggingFaceService } from './huggingface.service';
 import { logger } from '../../utils/logger';

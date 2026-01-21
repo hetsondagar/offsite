@@ -6,7 +6,7 @@
 import { DPR } from '../../modules/dpr/dpr.model';
 import { Task } from '../../modules/tasks/task.model';
 import { MaterialRequest } from '../../modules/materials/material.model';
-import { Project } from '../../modules/projects/project.model';
+// import { Project } from '../../modules/projects/project.model';
 import { huggingFaceService } from './huggingface.service';
 import { logger } from '../../utils/logger';
 
@@ -47,23 +47,23 @@ export async function aggregateDPRData(
     const project = dpr.projectId as any;
     const projectName = project?.name || 'Unknown Project';
 
-    // Fetch tasks worked on
-    const taskIds = dpr.tasksWorkedOn || [];
-    const tasks = await Task.find({ _id: { $in: taskIds } })
-      .select('title')
-      .limit(10); // Limit to prevent prompt bloat
-    const taskList = tasks.map(t => t.title);
+    // Fetch task worked on (DPR is linked to a single task)
+    const task = await Task.findById(dpr.taskId)
+      .select('title');
+    const taskList = task ? [task.title] : [];
 
-    // Calculate work completion
-    const completionPercent = dpr.workCompletedPercent || 0;
+    // Calculate work completion (not stored in DPR, default to 0)
+    const completionPercent = 0;
 
-    // Get labor count from attendance or DPR
-    const laborCount = dpr.laborCount || 0;
+    // Get labor count from attendance for this date
+    const laborCount = 0; // Not stored in DPR model
 
     // Aggregate material usage from material requests for this date
-    const dprDate = new Date(dpr.date);
-    const startOfDay = new Date(dprDate.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(dprDate.setHours(23, 59, 59, 999));
+    const dprDate = new Date(dpr.createdAt);
+    const startOfDay = new Date(dprDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(dprDate);
+    endOfDay.setHours(23, 59, 59, 999);
 
     const materialRequests = await MaterialRequest.find({
       projectId: projectId,
@@ -77,12 +77,12 @@ export async function aggregateDPRData(
       ? materialRequests.map(m => `${m.materialName}: ${m.quantity} ${m.unit}`).join(', ')
       : 'No materials recorded';
 
-    // Get issues from DPR
-    const issues = dpr.issues || dpr.notes || 'None';
+    // Get issues from DPR notes
+    const issues = dpr.notes || 'None';
 
     return {
       projectName,
-      date: dpr.date.toISOString().split('T')[0],
+      date: dpr.createdAt.toISOString().split('T')[0],
       taskList,
       completionPercent,
       laborCount,

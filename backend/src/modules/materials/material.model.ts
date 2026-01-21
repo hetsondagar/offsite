@@ -13,6 +13,7 @@ export interface IMaterialRequest extends Document {
   status: MaterialRequestStatus;
   anomalyDetected: boolean;
   anomalyReason?: string;
+  estimatedCost?: number; // Estimated cost in INR (quantity * approxPriceINR)
   approvedBy?: mongoose.Types.ObjectId;
   rejectedBy?: mongoose.Types.ObjectId;
   rejectionReason?: string;
@@ -75,6 +76,10 @@ const materialRequestSchema = new Schema<IMaterialRequest>(
     anomalyReason: {
       type: String,
       trim: true,
+    },
+    estimatedCost: {
+      type: Number,
+      min: 0,
     },
     approvedBy: {
       type: Schema.Types.ObjectId,

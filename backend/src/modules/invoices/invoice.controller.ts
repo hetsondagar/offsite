@@ -17,6 +17,7 @@ import { calculateGST } from './gst.util';
 import { calculateBillableAmount } from './billable-amount.service';
 import { generateInvoiceNumber } from './invoice-number.service';
 import { generateInvoicePDF } from './pdf.service';
+import { generateInvoiceSuggestion } from './invoiceAutoGenerator.service';
 
 /**
  * GST invoices are owner-generated, offline-capable, and finalized server-side.
@@ -662,6 +663,68 @@ export const deleteInvoice = async (
     const response: ApiResponse = {
       success: true,
       message: 'Invoice deleted successfully',
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get invoice suggestion
+export const getInvoiceSuggestion = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    if (req.user.role !== 'owner') {
+      throw new AppError('Only owners can get invoice suggestions', 403, 'FORBIDDEN');
+    }
+
+    const { projectId } = req.params;
+    const fromStr = req.query.from as string;
+    const toStr = req.query.to as string;
+    const supplierState = req.query.supplierState as string | undefined;
+    const clientState = req.query.clientState as string | undefined;
+
+    if (!fromStr || !toStr) {
+      throw new AppError('from and to query parameters are required', 400, 'VALIDATION_ERROR');
+    }
+
+    const from = new Date(fromStr);
+    const to = new Date(toStr);
+
+    if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+      throw new AppError('Invalid date format', 400, 'VALIDATION_ERROR');
+    }
+
+    if (from >= to) {
+      throw new AppError('from date must be before to date', 400, 'VALIDATION_ERROR');
+    }
+
+    // Verify project exists
+    const project = await Project.findById(projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    const suggestion = await generateInvoiceSuggestion(
+      projectId,
+      from,
+      to,
+      supplierState,
+      clientState
+    );
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Invoice suggestion generated successfully',
+      data: suggestion,
     };
 
     res.status(200).json(response);

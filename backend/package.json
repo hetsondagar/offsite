@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts",
-    "test": "jest"
+    "test": "jest",
+    "seed:materials": "tsx scripts/seedMaterialCatalog.ts"
   },
   "keywords": [
     "construction",

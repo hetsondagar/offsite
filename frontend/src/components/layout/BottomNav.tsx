@@ -1,36 +1,37 @@
 import { Home, FileText, MapPin, Package, User, LayoutDashboard, FolderKanban, CheckSquare, Lightbulb, Receipt, Calendar } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
 
 interface NavItem {
   icon: React.ElementType;
-  label: string;
+  labelKey: string;
   path: string;
 }
 
 const engineerNav: NavItem[] = [
-  { icon: Home, label: "Home", path: "/" },
-  { icon: CheckSquare, label: "Tasks", path: "/tasks" },
-  { icon: FileText, label: "DPR", path: "/dpr" },
-  { icon: MapPin, label: "Attendance", path: "/attendance" },
-  { icon: User, label: "Profile", path: "/profile" },
+  { icon: Home, labelKey: "navigation.home", path: "/" },
+  { icon: CheckSquare, labelKey: "navigation.tasks", path: "/tasks" },
+  { icon: FileText, labelKey: "navigation.dpr", path: "/dpr" },
+  { icon: MapPin, labelKey: "navigation.attendance", path: "/attendance" },
+  { icon: User, labelKey: "navigation.profile", path: "/profile" },
 ];
 
 const managerNav: NavItem[] = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: FolderKanban, label: "Projects", path: "/projects" },
-  { icon: CheckSquare, label: "Tasks", path: "/tasks" },
-  { icon: Package, label: "Approvals", path: "/approvals" },
-  { icon: User, label: "Profile", path: "/profile" },
+  { icon: LayoutDashboard, labelKey: "navigation.dashboard", path: "/" },
+  { icon: FolderKanban, labelKey: "navigation.projects", path: "/projects" },
+  { icon: CheckSquare, labelKey: "navigation.tasks", path: "/tasks" },
+  { icon: Package, labelKey: "navigation.approvals", path: "/approvals" },
+  { icon: User, labelKey: "navigation.profile", path: "/profile" },
 ];
 
 const ownerNav: NavItem[] = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: FolderKanban, label: "Projects", path: "/projects" },
-  { icon: CheckSquare, label: "Tasks", path: "/tasks" },
-  { icon: Receipt, label: "Invoices", path: "/invoicing" },
-  { icon: User, label: "Profile", path: "/profile" },
+  { icon: LayoutDashboard, labelKey: "navigation.dashboard", path: "/" },
+  { icon: FolderKanban, labelKey: "navigation.projects", path: "/projects" },
+  { icon: CheckSquare, labelKey: "navigation.tasks", path: "/tasks" },
+  { icon: Receipt, labelKey: "navigation.invoices", path: "/invoicing" },
+  { icon: User, labelKey: "navigation.profile", path: "/profile" },
 ];
 
 interface BottomNavProps {
@@ -39,6 +40,7 @@ interface BottomNavProps {
 
 export function BottomNav({ role }: BottomNavProps) {
   const location = useLocation();
+  const { t } = useTranslation();
   const { hasPermission } = usePermissions();
   
   // Filter nav items based on permissions
@@ -96,7 +98,7 @@ export function BottomNav({ role }: BottomNavProps) {
                 "text-[10px] sm:text-[11px] font-medium mt-0.5 sm:mt-1 transition-all duration-300",
                 isActive && "text-primary font-semibold"
               )}>
-                {item.label}
+                {t(item.labelKey)}
               </span>
             </Link>
           );

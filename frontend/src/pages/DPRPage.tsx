@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ type Step = 1 | 2 | 3 | 4 | 5 | 6;
 export default function DPRPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const { hasPermission } = usePermissions();
   const userId = useAppSelector((state) => state.auth.userId);
   const { isOnline } = useAppSelector((state) => state.offline);
@@ -354,7 +356,7 @@ export default function DPRPage() {
               <Logo size="md" showText={false} />
             </div>
             <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="font-display font-semibold text-lg">Create DPR</h1>
+              <h1 className="font-display font-semibold text-lg">{t("dpr.createDPR")}</h1>
               <p className="text-xs text-muted-foreground">{stepTitles[step]}</p>
             </div>
             <div className="absolute right-0">

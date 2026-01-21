@@ -25,6 +25,8 @@ import syncRoutes from './modules/sync/sync.routes';
 import eventRoutes from './modules/events/event.routes';
 import notificationRoutes from './modules/notifications/notification.routes';
 import aiRoutes from './modules/ai/ai.routes';
+import stockRoutes from './modules/stock/stock.routes';
+import ownerRoutes from './modules/owner/owner.routes';
 
 const app: Application = express();
 
@@ -66,6 +68,23 @@ app.get('/health', (_req, res) => {
   });
 });
 
+// API health check (includes database status)
+app.get('/api/health', async (_req, res) => {
+  const mongoose = require('mongoose');
+  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  
+  res.json({
+    success: true,
+    message: 'OffSite API Health Check',
+    data: {
+      status: 'ok',
+      database: dbStatus,
+      timestamp: new Date().toISOString(),
+      environment: env.NODE_ENV,
+    },
+  });
+});
+
 // Root
 app.get('/', (_req, res) => {
   res.json({
@@ -95,6 +114,8 @@ app.use('/api/sync', syncRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/stock', stockRoutes);
+app.use('/api/owner', ownerRoutes);
 
 // Serve frontend build (single-origin local/prod setup)
 // Build the frontend first: ../frontend/dist

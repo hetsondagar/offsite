@@ -39,7 +39,16 @@ export const getUserById = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
     const { id } = req.params;
+
+    // Users can only view their own profile unless they are owners
+    if (req.user.role !== 'owner' && id !== req.user.userId) {
+      throw new AppError('Access denied. You can only view your own profile.', 403, 'FORBIDDEN');
+    }
 
     const user = await User.findById(id)
       .populate('assignedProjects', 'name location')

@@ -142,7 +142,10 @@ class LLMService {
       throw new Error(`OpenAI API error: ${error}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as {
+      choices: Array<{ message: { content: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
     return {
       content: data.choices[0].message.content,
       usage: {
@@ -185,7 +188,10 @@ class LLMService {
       throw new Error(`Azure OpenAI API error: ${error}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as {
+      choices: Array<{ message: { content: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
     return {
       content: data.choices[0].message.content,
       usage: {
@@ -246,7 +252,9 @@ class LLMService {
       throw new Error(`Gemini API error: ${error}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as {
+      candidates: Array<{ content: { parts: Array<{ text: string }> } }>;
+    };
     return {
       content: data.candidates[0].content.parts[0].text,
     };
@@ -257,10 +265,8 @@ class LLMService {
    * This is NOT mock data - it's a last resort fallback that indicates service unavailability
    */
   private getStructuredFallback(
-    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+    _messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
   ): LLMResponse {
-    const lastMessage = messages[messages.length - 1]?.content || '';
-    
     // Return a structured response indicating AI service is unavailable
     // This allows the system to continue functioning but indicates the limitation
     return {

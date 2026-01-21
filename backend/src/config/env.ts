@@ -7,11 +7,29 @@ export const env = {
   PORT: parseInt(process.env.PORT || '3000', 10),
   
   // MongoDB
-  MONGODB_URI: process.env.MONGODB_URI || '',
+  MONGODB_URI: (() => {
+    const uri = process.env.MONGODB_URI || '';
+    if (!uri && process.env.NODE_ENV === 'production') {
+      throw new Error('MONGODB_URI must be set in production environment');
+    }
+    return uri;
+  })(),
   
   // JWT
-  JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET || 'change-me-in-production',
-  JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'change-me-in-production',
+  JWT_ACCESS_SECRET: (() => {
+    const secret = process.env.JWT_ACCESS_SECRET || 'change-me-in-production';
+    if (secret === 'change-me-in-production' && process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_ACCESS_SECRET must be set in production environment');
+    }
+    return secret;
+  })(),
+  JWT_REFRESH_SECRET: (() => {
+    const secret = process.env.JWT_REFRESH_SECRET || 'change-me-in-production';
+    if (secret === 'change-me-in-production' && process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_REFRESH_SECRET must be set in production environment');
+    }
+    return secret;
+  })(),
   JWT_ACCESS_EXPIRY: process.env.JWT_ACCESS_EXPIRY || '15m',
   JWT_REFRESH_EXPIRY: process.env.JWT_REFRESH_EXPIRY || '7d',
   
@@ -29,10 +47,10 @@ export const env = {
   OTP_EXPIRY: process.env.OTP_EXPIRY || '5m',
   
   // Cloudinary
-  CLOUDINARY_URL: process.env.CLOUDINARY_URL || 'cloudinary://325231953691433:4Z0bNThOPM0iMZuo9PtiwmwnfVc@dkemsv6ho',
-  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || 'dkemsv6ho',
-  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || '325231953691433',
-  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || '4Z0bNThOPM0iMZuo9PtiwmwnfVc',
+  CLOUDINARY_URL: process.env.CLOUDINARY_URL || '',
+  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || '',
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || '',
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || '',
   
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
@@ -51,10 +69,10 @@ export const env = {
 
   // Email (Gmail SMTP App Password recommended)
   EMAIL_FROM: process.env.EMAIL_FROM || process.env.GMAIL_USER || '',
-  GMAIL_USER: process.env.GMAIL_USER || 'vraj9112005@gmail.com',
-  GMAIL_PASS: process.env.GMAIL_PASS || 'zwtunsognrsoirty',
+  GMAIL_USER: process.env.GMAIL_USER || '',
+  GMAIL_PASS: process.env.GMAIL_PASS || '',
   
   // MapTiler
-  MAPTILER_API_KEY: process.env.VITE_MAPTILER_KEY || process.env.MAPTILER_API_KEY || 'g51nNpCPKcQQstInYAW2',
+  MAPTILER_API_KEY: process.env.VITE_MAPTILER_KEY || process.env.MAPTILER_API_KEY || '',
 };
 

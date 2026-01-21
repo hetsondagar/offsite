@@ -5,7 +5,7 @@ import { Project } from '../projects/project.model';
 import { Task } from '../tasks/task.model';
 import { User } from '../users/user.model';
 import { generateAISummary, uploadPhotos } from './dpr.service';
-import { createNotification, createBulkNotifications } from '../notifications/notification.service';
+import { createBulkNotifications } from '../notifications/notification.service';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 import { logger } from '../../utils/logger';
@@ -104,6 +104,25 @@ export const createDPR = async (
       throw new AppError('Task not found', 404, 'TASK_NOT_FOUND');
     }
 
+    // Verify task belongs to the project
+    if (task.projectId.toString() !== data.projectId) {
+      throw new AppError('Task does not belong to this project', 400, 'VALIDATION_ERROR');
+    }
+
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    // Verify user is a member of the project (engineers must be members to create DPR)
+    if (req.user.role === 'engineer') {
+      const isMember = project.members.some(
+        (memberId) => memberId.toString() === req.user!.userId
+      );
+      if (!isMember) {
+        throw new AppError('You are not a member of this project', 403, 'FORBIDDEN');
+      }
+    }
+
     // Upload photos (regular DPR photos)
     let photoUrls: string[] = [];
     // Upload work stoppage evidence photos if provided
@@ -163,6 +182,45 @@ export const createDPR = async (
     await dpr.populate('taskId', 'title');
     await dpr.populate('createdBy', 'name phone offsiteId');
 
+    // Add stock OUT entries if materials were used
+    // Note: Currently DPR model doesn't track materials used directly
+    // This can be extended when material usage tracking is added to DPR
+    // For now, we check for approved material requests on the DPR date as an approximation
+    try {
+      const { MaterialRequest } = await import('../materials/material.model');
+      const dprDate = new Date();
+      dprDate.setHours(0, 0, 0, 0);
+      const nextDay = new Date(dprDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+
+      // Find approved material requests on the DPR date
+      const approvedMaterials = await MaterialRequest.find({
+        projectId: data.projectId,
+        status: 'approved',
+        approvedAt: { $gte: dprDate, $lt: nextDay },
+      });
+
+      if (approvedMaterials.length > 0) {
+        const { addStockOut } = await import('../stock/stock.service');
+        for (const material of approvedMaterials) {
+          // Create stock OUT entry for each approved material on DPR date
+          // This is an approximation - ideally DPR should track actual material usage
+          await addStockOut(
+            data.projectId,
+            material.materialId,
+            material.materialName,
+            material.quantity,
+            material.unit,
+            dpr._id,
+            req.user.userId
+          );
+        }
+      }
+    } catch (stockError: any) {
+      logger.warn(`Failed to add stock OUT entries for DPR: ${stockError.message}`);
+      // Don't fail DPR creation if stock tracking fails
+    }
+
     // Send notifications to owners and project managers if images were uploaded
     if (photoUrls.length > 0) {
       try {
@@ -195,7 +253,7 @@ export const createDPR = async (
 
           // Exclude the DPR creator from notifications
           const recipients = ownersAndManagers.filter(
-            (user: any) => user._id.toString() !== req.user.userId
+            (user: any) => user._id.toString() !== req.user!.userId
           );
 
           if (recipients.length > 0) {
@@ -271,11 +329,29 @@ export const getDPRsByProject = async (
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
+    // Verify project exists and user has access
+    const project = await Project.findById(projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    // Authorization: Owners can access any project, others must be members
+    if (req.user.role !== 'owner') {
+      const isMember = project.members.some(
+        (memberId) => memberId.toString() === req.user!.userId
+      );
+      if (!isMember) {
+        throw new AppError('Access denied. You must be a member of this project.', 403, 'FORBIDDEN');
+      }
+    }
+
     // Build query based on role
     const query: any = { projectId };
     if (req.user.role === 'engineer') {
+      // Engineers can only see their own DPRs
       query.createdBy = req.user.userId;
     }
+    // Managers and owners can see all DPRs for the project (already verified membership above)
 
     const [dprs, total] = await Promise.all([
       DPR.find(query)

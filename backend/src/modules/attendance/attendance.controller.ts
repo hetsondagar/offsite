@@ -1,10 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { Attendance } from './attendance.model';
+import { Project } from '../projects/project.model';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 import { reverseGeocode } from '../../services/maptiler.service';
 import { logger } from '../../utils/logger';
+import { calculateDistance } from '../../utils/calculateDistance';
 
 const checkInSchema = z.object({
   projectId: z.string(),
@@ -30,6 +32,25 @@ export const checkIn = async (
     }
 
     const { projectId, latitude, longitude, location: fallbackLocation } = checkInSchema.parse(req.body);
+
+    // Validate geofence if project has geofence data
+    const project = await Project.findById(projectId);
+    if (project && project.siteLatitude && project.siteLongitude && project.siteRadiusMeters) {
+      const distance = calculateDistance(
+        latitude,
+        longitude,
+        project.siteLatitude,
+        project.siteLongitude
+      );
+
+      if (distance > project.siteRadiusMeters) {
+        throw new AppError(
+          `You are ${Math.round(distance)} meters away from the project site. Please be within ${project.siteRadiusMeters} meters to check in.`,
+          400,
+          'OUTSIDE_GEOFENCE'
+        );
+      }
+    }
 
     // Check if user already checked in today
     const today = new Date();
@@ -97,6 +118,42 @@ export const checkOut = async (
     }
 
     const { projectId, latitude, longitude } = checkOutSchema.parse(req.body);
+
+    // Verify project exists and user is a member
+    const project = await Project.findById(projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    // Verify user is a member of the project (engineers must be members to mark attendance)
+    if (req.user.role === 'engineer') {
+      const isMember = project.members.some(
+        (memberId) => memberId.toString() === req.user!.userId
+      );
+      if (!isMember) {
+        throw new AppError('You are not a member of this project', 403, 'FORBIDDEN');
+      }
+    }
+
+    // Validate geofence if project has geofence data and coordinates are provided
+    if (latitude && longitude) {
+      if (project.siteLatitude && project.siteLongitude && project.siteRadiusMeters) {
+        const distance = calculateDistance(
+          latitude,
+          longitude,
+          project.siteLatitude,
+          project.siteLongitude
+        );
+
+        if (distance > project.siteRadiusMeters) {
+          throw new AppError(
+            `You are ${Math.round(distance)} meters away from the project site. Please be within ${project.siteRadiusMeters} meters to check out.`,
+            400,
+            'OUTSIDE_GEOFENCE'
+          );
+        }
+      }
+    }
 
     // Get today's check-in to use same location if coordinates not provided
     const today = new Date();
@@ -175,10 +232,28 @@ export const getAttendanceByProject = async (
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
+    // Verify project exists and user has access
+    const project = await Project.findById(projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    // Authorization: Owners can access any project, others must be members
+    if (req.user.role !== 'owner') {
+      const isMember = project.members.some(
+        (memberId) => memberId.toString() === req.user!.userId
+      );
+      if (!isMember) {
+        throw new AppError('Access denied. You must be a member of this project.', 403, 'FORBIDDEN');
+      }
+    }
+
     const query: any = { projectId };
     if (req.user.role === 'engineer') {
+      // Engineers can only see their own attendance
       query.userId = req.user.userId;
     }
+    // Managers and owners can see all attendance for the project (already verified membership above)
 
     const [attendance, total] = await Promise.all([
       Attendance.find(query)

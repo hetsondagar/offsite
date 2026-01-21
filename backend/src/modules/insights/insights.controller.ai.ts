@@ -4,6 +4,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
+import { Project } from '../projects/project.model';
 import { generateDPRSummary } from '../../services/ai/dpr-summary.service';
 import { generateHealthExplanation } from '../../services/ai/health-explanation.service';
 import { generateDelayRiskExplanation } from '../../services/ai/delay-risk-explanation.service';
@@ -29,6 +30,22 @@ export const getDPRSummary = async (
 
     if (!projectId || !dprId) {
       throw new AppError('projectId and dprId are required', 400, 'VALIDATION_ERROR');
+    }
+
+    // Verify project exists and user has access
+    const project = await Project.findById(projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    // Authorization: Owners can access any project, others must be members
+    if (req.user.role !== 'owner') {
+      const isMember = project.members.some(
+        (memberId) => memberId.toString() === req.user!.userId
+      );
+      if (!isMember) {
+        throw new AppError('Access denied. You must be a member of this project.', 403, 'FORBIDDEN');
+      }
     }
 
     const summary = await generateDPRSummary(projectId as string, dprId as string);
@@ -67,6 +84,22 @@ export const getHealthExplanation = async (
 
     if (!projectId) {
       throw new AppError('projectId is required', 400, 'VALIDATION_ERROR');
+    }
+
+    // Verify project exists and user has access
+    const project = await Project.findById(projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    // Authorization: Owners can access any project, others must be members
+    if (req.user.role !== 'owner') {
+      const isMember = project.members.some(
+        (memberId) => memberId.toString() === req.user!.userId
+      );
+      if (!isMember) {
+        throw new AppError('Access denied. You must be a member of this project.', 403, 'FORBIDDEN');
+      }
     }
 
     const explanation = await generateHealthExplanation(projectId as string);
@@ -143,6 +176,22 @@ export const getMaterialAnomalyExplanation = async (
 
     if (!projectId || !materialId || !currentUsage) {
       throw new AppError('projectId, materialId, and currentUsage are required', 400, 'VALIDATION_ERROR');
+    }
+
+    // Verify project exists and user has access
+    const project = await Project.findById(projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    // Authorization: Owners can access any project, others must be members
+    if (req.user.role !== 'owner') {
+      const isMember = project.members.some(
+        (memberId) => memberId.toString() === req.user!.userId
+      );
+      if (!isMember) {
+        throw new AppError('Access denied. You must be a member of this project.', 403, 'FORBIDDEN');
+      }
     }
 
     const usage = parseFloat(currentUsage as string);

@@ -15,6 +15,9 @@ export const connectDB = async (): Promise<void> => {
     
     // Drop the old unique index on phone field if it exists (phone is now optional)
     try {
+      if (!conn.connection.db) {
+        throw new Error('Database connection not available');
+      }
       const collection = conn.connection.db.collection('users');
       const indexes = await collection.indexes();
       const phoneUniqueIndex = indexes.find((idx: any) => 

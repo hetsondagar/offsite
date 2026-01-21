@@ -29,14 +29,13 @@ export const getSiteRisk = async (
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
 
-    // Check permissions (managers and owners only)
-    if (req.user.role === 'engineer') {
-      // Engineers can only see their assigned projects
+    // Authorization: Owners can access any project, others must be members
+    if (req.user.role !== 'owner') {
       const isMember = project.members.some(
-        (member: any) => member.toString() === req.user.userId
+        (memberId) => memberId.toString() === req.user!.userId
       );
       if (!isMember) {
-        throw new AppError('Access denied', 403, 'FORBIDDEN');
+        throw new AppError('Access denied. You must be a member of this project.', 403, 'FORBIDDEN');
       }
     }
 
@@ -79,13 +78,13 @@ export const getAnomalies = async (
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
 
-    // Check permissions
-    if (req.user.role === 'engineer') {
+    // Authorization: Owners can access any project, others must be members
+    if (req.user.role !== 'owner') {
       const isMember = project.members.some(
-        (member: any) => member.toString() === req.user.userId
+        (memberId) => memberId.toString() === req.user!.userId
       );
       if (!isMember) {
-        throw new AppError('Access denied', 403, 'FORBIDDEN');
+        throw new AppError('Access denied. You must be a member of this project.', 403, 'FORBIDDEN');
       }
     }
 
@@ -114,7 +113,7 @@ export const getAnomalies = async (
  * GET /api/ai/health
  */
 export const getAIHealth = async (
-  req: Request,
+  _req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ interface LocationData {
 export default function AttendancePage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const { hasPermission } = usePermissions();
   const userId = useAppSelector((state) => state.auth.userId);
   const [isCheckedIn, setIsCheckedIn] = useState(false);
@@ -60,11 +62,11 @@ export default function AttendancePage() {
         if (data?.projects && data.projects.length > 0) {
           setSelectedProject(data.projects[0]._id);
         } else {
-          toast.warning('No projects available. Please contact your administrator.');
+          toast.warning(t("attendance.noProjects"));
         }
       } catch (error: any) {
         console.error('Error loading projects:', error);
-        const errorMessage = error?.message || 'Failed to load projects';
+        const errorMessage = error?.message || t("attendance.failedToLoadProjects");
         toast.error(errorMessage);
         // Set empty projects array to prevent further errors
         setProjects([]);
@@ -436,8 +438,8 @@ export default function AttendancePage() {
               <Logo size="md" showText={false} />
             </div>
             <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="font-display font-semibold text-base sm:text-lg">Attendance</h1>
-              <p className="text-xs text-muted-foreground">GPS-based check in/out</p>
+              <h1 className="font-display font-semibold text-base sm:text-lg">{t("attendance.title")}</h1>
+              <p className="text-xs text-muted-foreground">{t("attendance.checkIn")} / {t("attendance.checkOut")}</p>
             </div>
           </div>
         </div>
@@ -457,7 +459,7 @@ export default function AttendancePage() {
           {projects.length > 0 && (
             <Card variant="gradient">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Select Project</CardTitle>
+                <CardTitle className="text-base">{t("attendance.selectProject")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <select
@@ -547,7 +549,7 @@ export default function AttendancePage() {
                       ) : (
                         <>
                           <Navigation className="w-4 h-4 mr-2" />
-                          Get My Location
+                          {t("attendance.getLocation")}
                         </>
                       )}
                     </Button>
@@ -587,7 +589,7 @@ export default function AttendancePage() {
                       >
                         <MapPin className="w-6 h-6 sm:w-8 sm:h-8" />
                       </motion.div>
-                      <span className="font-display text-base sm:text-xl">Check In</span>
+                      <span className="font-display text-base sm:text-xl">{t("attendance.checkIn")}</span>
                     </>
                   )}
                 </Button>
@@ -612,7 +614,7 @@ export default function AttendancePage() {
                       <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-destructive/10 flex items-center justify-center">
                         <Check className="w-6 h-6 sm:w-8 sm:h-8" />
                       </div>
-                      <span className="font-display text-base sm:text-xl">Check Out</span>
+                      <span className="font-display text-base sm:text-xl">{t("attendance.checkOut")}</span>
                     </>
                   )}
                 </Button>
@@ -630,14 +632,14 @@ export default function AttendancePage() {
                       <Check className="w-5 h-5 text-success" />
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">Checked In</p>
-                      <p className="text-xs text-muted-foreground">at {checkInTime}</p>
+                      <p className="font-medium text-foreground">{t("attendance.checkIn")}</p>
+                      <p className="text-xs text-muted-foreground">{t("attendance.checkInTime")} {checkInTime}</p>
                       {location && (
                         <p className="text-xs text-muted-foreground mt-1">{location.address}</p>
                       )}
                     </div>
                   </div>
-                  <StatusBadge status="success" label="Active" pulse />
+                  <StatusBadge status="success" label={t("status.active")} pulse />
                 </div>
               </CardContent>
             </Card>
@@ -646,7 +648,7 @@ export default function AttendancePage() {
           {/* Offline Notice */}
           <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 text-muted-foreground animate-fade-up stagger-3">
             <WifiOff className="w-4 h-4" />
-            <span className="text-xs">Works offline. Will sync when connected.</span>
+            <span className="text-xs">{t("common.offline")}</span>
           </div>
         </div>
       </div>

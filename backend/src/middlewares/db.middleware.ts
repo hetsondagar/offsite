@@ -6,7 +6,7 @@ import { ApiResponse } from '../types';
  * When MongoDB goes unreachable (e.g., user turns internet off while using Atlas),
  * mongoose queries can hang for a long time. This middleware fails fast with 503.
  */
-export const requireDbConnection = (req: Request, res: Response, next: NextFunction): void => {
+export const requireDbConnection = (_req: Request, res: Response, next: NextFunction): void => {
   const readyState = mongoose.connection.readyState;
 
   // 1 = connected. 0 = disconnected, 2 = connecting, 3 = disconnecting

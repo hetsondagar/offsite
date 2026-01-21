@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
+import { LanguageToggle } from "@/components/common/LanguageToggle";
 import { Logo } from "@/components/common/Logo";
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { logout } from "@/store/slices/authSlice";
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { usersApi, User } from "@/services/api/users";
 import { projectsApi } from "@/services/api/projects";
@@ -30,6 +32,7 @@ import { projectsApi } from "@/services/api/projects";
 export default function ProfilePage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const { role, name, email, phone, userId } = useAppSelector((state) => state.auth);
   const { isOnline } = useAppSelector((state) => state.offline);
   const [autoSync, setAutoSync] = useState(() => {
@@ -282,8 +285,26 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Theme Toggle */}
+          {/* Language Toggle */}
           <Card variant="gradient" className="animate-fade-up stagger-3">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-primary/10 border border-primary/20">
+                    <LanguageToggle variant="icon" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{t("settings.language")}</p>
+                    <p className="text-xs text-muted-foreground">{t("settings.languageDescription")}</p>
+                  </div>
+                </div>
+                <LanguageToggle variant="compact" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Theme Toggle */}
+          <Card variant="gradient" className="animate-fade-up stagger-4">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -291,8 +312,8 @@ export default function ProfilePage() {
                     <ThemeToggle variant="icon" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-foreground">Theme</p>
-                    <p className="text-xs text-muted-foreground">Switch between light and dark</p>
+                    <p className="text-sm font-medium text-foreground">{t("settings.theme")}</p>
+                    <p className="text-xs text-muted-foreground">{t("settings.themeDescription")}</p>
                   </div>
                 </div>
                 <ThemeToggle variant="compact" />
@@ -301,7 +322,7 @@ export default function ProfilePage() {
           </Card>
 
           {/* Menu Items */}
-          <Card variant="gradient" className="animate-fade-up stagger-4">
+          <Card variant="gradient" className="animate-fade-up stagger-5">
             <CardContent className="p-2">
               {menuItems.map((item, index) => (
                 <button
@@ -326,11 +347,11 @@ export default function ProfilePage() {
           {/* Logout */}
           <Button
             variant="outline"
-            className="w-full border-destructive/50 text-destructive hover:bg-destructive/10 animate-fade-up stagger-4"
+            className="w-full border-destructive/50 text-destructive hover:bg-destructive/10 animate-fade-up stagger-6"
             onClick={handleLogout}
           >
             <LogOut className="w-5 h-5 mr-2" />
-            Logout
+            {t("common.logout") || "Logout"}
           </Button>
 
           {/* Version */}
