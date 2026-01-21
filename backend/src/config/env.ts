@@ -61,7 +61,8 @@ export const env = {
   RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
   RATE_LIMIT_MAX_REQUESTS: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
   
-  // CORS
+  // CORS - Can be comma-separated list of origins
+  // Example: "https://offsite-be-off-the-site.vercel.app,https://another-domain.com"
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:8080',
   
   // AI / LLM

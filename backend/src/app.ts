@@ -32,10 +32,53 @@ const app: Application = express();
 
 // Security middleware
 app.use(helmet());
+
+// CORS configuration - support multiple origins
+const getAllowedOrigins = (): string[] => {
+  const origins: string[] = [];
+  
+  // Parse CORS_ORIGIN - can be comma-separated list
+  if (env.CORS_ORIGIN) {
+    const corsOrigins = env.CORS_ORIGIN.split(',').map(origin => origin.trim()).filter(Boolean);
+    origins.push(...corsOrigins);
+  }
+  
+  // Add default development origin
+  if (env.NODE_ENV === 'development') {
+    origins.push('http://localhost:8080', 'http://localhost:5173', 'http://localhost:3000');
+  }
+  
+  // Add Capacitor origins for mobile apps
+  origins.push('capacitor://localhost', 'http://localhost');
+  
+  // Remove duplicates and normalize (remove trailing slashes)
+  const normalizedOrigins = origins.map(origin => origin.replace(/\/+$/, ''));
+  return [...new Set(normalizedOrigins)];
+};
+
 app.use(
   cors({
-    origin: env.CORS_ORIGIN,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, Postman, etc.)
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      const allowedOrigins = getAllowedOrigins();
+      const normalizedOrigin = origin.replace(/\/+$/, '');
+      
+      if (allowedOrigins.includes(normalizedOrigin)) {
+        callback(null, true);
+      } else {
+        // Log for debugging
+        console.warn(`CORS blocked origin: ${origin} (normalized: ${normalizedOrigin})`);
+        console.warn(`Allowed origins: ${allowedOrigins.join(', ')}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   })
 );
 
