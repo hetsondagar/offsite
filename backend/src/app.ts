@@ -70,8 +70,8 @@ app.get('/health', (_req, res) => {
 
 // API health check (includes database status)
 app.get('/api/health', async (_req, res) => {
-  const mongoose = require('mongoose');
-  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  const mongoose = await import('mongoose');
+  const dbStatus = mongoose.default.connection.readyState === 1 ? 'connected' : 'disconnected';
   
   res.json({
     success: true,

@@ -82,13 +82,20 @@ Fill in the following:
 - **Name:** `offsite-backend` (or your preferred name)
 - **Region:** Choose closest to your users (e.g., `Oregon (US West)`)
 - **Branch:** `main` (or your main branch)
-- **Root Directory:** `offsite/backend` ⚠️ **IMPORTANT: Set this!**
+- **Root Directory:** 
+  - If your repo root is the `offsite/` folder → Use: `backend`
+  - If your repo root contains `offsite/` folder → Use: `offsite/backend`
+  - ⚠️ **CRITICAL: Check your repository structure on GitHub to determine the correct path!**
 - **Runtime:** `Node`
-- **Build Command:** `npm install && npm run build`
+- **Build Command:** `npm install --include=dev && npm run build` ⚠️ **IMPORTANT: Must include `--include=dev` to install TypeScript types**
 - **Start Command:** `npm start`
 - **Instance Type:** 
   - **Free tier:** `Free` (512 MB RAM)
   - **Production:** `Starter` ($7/month) or higher
+
+⚠️ **IMPORTANT:** If your repository root is the `offsite` folder, the Root Directory should be `backend` (not `offsite/backend`). Check your repository structure:
+- If repo root = `offsite/` → Root Directory = `backend`
+- If repo root = project root (contains `offsite/`) → Root Directory = `offsite/backend`
 
 **Advanced Settings (Optional):**
 - **Health Check Path:** `/api/health` (if you have a health endpoint)

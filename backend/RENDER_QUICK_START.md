@@ -18,8 +18,8 @@
 - Connect your Git repository
 - Configure:
   - **Name:** `offsite-backend`
-  - **Root Directory:** `offsite/backend` ⚠️
-  - **Build Command:** `npm install && npm run build`
+  - **Root Directory:** `backend` ⚠️ **CRITICAL: Use `backend` if repo root is `offsite/`, or `offsite/backend` if repo root is project root**
+  - **Build Command:** `npm install --include=dev && npm run build` ⚠️ **Must include `--include=dev`**
   - **Start Command:** `npm start`
 
 ### 2. Add Environment Variables
