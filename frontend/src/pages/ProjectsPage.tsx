@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ import { Search, X, UserPlus } from "lucide-react";
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { role } = useAppSelector((state) => state.auth);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -106,7 +108,7 @@ export default function ProjectsPage() {
   const handleRejectInvitation = async (invitationId: string) => {
     try {
       await notificationsApi.rejectInvitation(invitationId);
-      toast.success('Invitation rejected');
+      toast.success(t('messages.invitationRejected'));
       await loadInvitations();
     } catch (error: any) {
       console.error('Error rejecting invitation:', error);
@@ -267,9 +269,9 @@ export default function ProjectsPage() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="font-medium text-foreground">Pending invitations</p>
+                    <p className="font-medium text-foreground">{t('projects.pendingInvitations')}</p>
                     <p className="text-xs text-muted-foreground">
-                      Accept to see the project in your list
+                      {t('projects.acceptToSeeProject')}
                     </p>
                   </div>
                   <span className="text-xs text-muted-foreground">{invitations.length}</span>
@@ -287,7 +289,7 @@ export default function ProjectsPage() {
                             {inv.projectId?.name || 'Project'}
                           </p>
                           <p className="text-xs text-muted-foreground mt-1">
-                            Invited as {inv.role === 'engineer' ? 'Site Engineer' : 'Project Manager'}
+                            {t('projects.invitedAs')} {inv.role === 'engineer' ? t('auth.engineer') : t('auth.manager')}
                           </p>
                           {inv.projectId?.location && (
                             <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
@@ -305,7 +307,7 @@ export default function ProjectsPage() {
                           onClick={() => handleAcceptInvitation(inv._id)}
                         >
                           <UserPlus className="w-3 h-3 mr-1" />
-                          Accept
+                          {t('common.accept')}
                         </Button>
                         <Button
                           size="sm"
@@ -314,7 +316,7 @@ export default function ProjectsPage() {
                           onClick={() => handleRejectInvitation(inv._id)}
                         >
                           <X className="w-3 h-3 mr-1" />
-                          Reject
+                          {t('common.reject')}
                         </Button>
                       </div>
                     </div>
@@ -332,11 +334,11 @@ export default function ProjectsPage() {
             <Card variant="gradient">
               <CardContent className="p-8 text-center">
                 <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p className="font-medium text-foreground">No projects found</p>
+                <p className="font-medium text-foreground">{t('projects.noProjects')}</p>
                 <p className="text-sm text-muted-foreground">
                   {role === 'owner'
-                    ? 'Create your first project to get started'
-                    : 'Ask an owner to invite you, then accept the invitation'}
+                    ? t('projects.createFirstProject')
+                    : t('projects.askOwnerToInvite')}
                 </p>
               </CardContent>
             </Card>

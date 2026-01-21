@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { InvoiceCard } from "@/components/invoicing/InvoiceCard";
 
 export default function InvoicingPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { role } = useAppSelector((state) => state.auth);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -191,9 +193,9 @@ export default function InvoicingPage() {
               <Card variant="gradient">
                 <CardContent className="p-8 text-center">
                   <Receipt className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                  <p className="font-medium text-foreground">No invoices found</p>
+                  <p className="font-medium text-foreground">{t('invoices.noInvoices')}</p>
                   <p className="text-sm text-muted-foreground">
-                    Create your first invoice to get started
+                    {t('invoices.createFirstInvoice')}
                   </p>
                 </CardContent>
               </Card>
@@ -242,12 +244,12 @@ export default function InvoicingPage() {
                             {downloadingId === invoice._id ? (
                               <>
                                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                Downloading...
+                                {t('invoices.downloading')}
                               </>
                             ) : (
                               <>
                                 <Download className="w-4 h-4 mr-2" />
-                                Download PDF
+                                {t('invoices.downloadPDFButton')}
                               </>
                             )}
                           </Button>
@@ -275,8 +277,8 @@ export default function InvoicingPage() {
               <Logo size="md" showText={false} />
             </div>
             <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="font-display font-semibold text-base sm:text-lg">Invoices</h1>
-              <p className="text-xs text-muted-foreground">View-only access</p>
+              <h1 className="font-display font-semibold text-base sm:text-lg">{t('invoices.title')}</h1>
+              <p className="text-xs text-muted-foreground">{t('invoices.viewOnlyAccess')}</p>
             </div>
           </div>
         </div>
@@ -291,9 +293,9 @@ export default function InvoicingPage() {
             <Card variant="gradient">
               <CardContent className="p-8 text-center">
                 <Receipt className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p className="font-medium text-foreground">No invoices found</p>
+                <p className="font-medium text-foreground">{t('invoices.noInvoices')}</p>
                 <p className="text-sm text-muted-foreground">
-                  No invoices are available for your assigned projects
+                  {t('invoices.noInvoicesForProjects')}
                 </p>
               </CardContent>
             </Card>

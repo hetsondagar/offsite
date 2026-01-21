@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +28,7 @@ import { cn } from "@/lib/utils";
 
 export default function AICommandCenter() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { hasPermission } = usePermissions();
   const { isOnline } = useAppSelector((state) => state.offline);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -73,7 +75,7 @@ export default function AICommandCenter() {
       }
     } catch (error) {
       console.error('Error loading projects:', error);
-      toast.error('Failed to load projects');
+      toast.error(t('projects.failedToLoadProjects'));
     } finally {
       setIsLoading(false);
     }
@@ -167,7 +169,7 @@ export default function AICommandCenter() {
           setIsUsingCache(true);
           toast.warning('Using cached data - offline or API error');
         } else {
-          toast.error(error.message || 'Failed to load risk assessment');
+          toast.error(error.message || t('aiCommand.noRiskAssessment'));
         }
       } catch (cacheError) {
         toast.error(error.message || 'Failed to load risk assessment');
@@ -210,7 +212,7 @@ export default function AICommandCenter() {
         setIsUsingCache(true);
         toast.warning('Using cached data - offline or API error');
       } else {
-        toast.error(error.message || 'Failed to load anomalies');
+        toast.error(error.message || t('aiCommand.noAnomaliesDetected'));
       }
     } finally {
       setIsLoadingAnomalies(false);
@@ -261,9 +263,9 @@ export default function AICommandCenter() {
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Sparkles className="w-6 h-6 text-primary" />
-              AI Command Center
+              {t('aiCommand.title')}
             </h1>
-            <p className="text-sm text-muted-foreground">AI-powered risk & anomaly insights</p>
+            <p className="text-sm text-muted-foreground">{t('insights.smartAnalysis')}</p>
           </div>
         </div>
 
@@ -271,7 +273,7 @@ export default function AICommandCenter() {
         <Card>
           <CardContent className="pt-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Select Project</label>
+              <label className="text-sm font-medium">{t('projects.selectProject')}</label>
               <select
                 value={selectedProjectId || ''}
                 onChange={(e) => setSelectedProjectId(e.target.value)}
@@ -293,7 +295,7 @@ export default function AICommandCenter() {
             <CardContent className="pt-6">
               <div className="flex items-center gap-2 text-yellow-600">
                 <WifiOff className="w-4 h-4" />
-                <p className="text-sm">Showing cached data. Refresh when online for latest insights.</p>
+                <p className="text-sm">{t('aiCommand.showingCachedData')}</p>
               </div>
             </CardContent>
           </Card>
@@ -305,14 +307,14 @@ export default function AICommandCenter() {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="w-5 h-5" />
-                Site Risk Radar
+                {t('aiCommand.siteRiskRadar')}
               </CardTitle>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={loadRiskAssessment}
                 disabled={isLoadingRisk}
-                title={!isOnline ? "Offline - will use cached data if available" : "Refresh risk assessment"}
+                title={!isOnline ? t('aiCommand.offlineWillUseCache') : t('aiCommand.refreshRiskAssessment')}
               >
                 {isLoadingRisk ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -332,7 +334,7 @@ export default function AICommandCenter() {
                 {/* Risk Score & Level */}
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Risk Score</p>
+                    <p className="text-sm text-muted-foreground">{t('aiCommand.riskScore')}</p>
                     <p className="text-3xl font-bold">
                       {riskAssessment.riskScore ?? 0}/100
                     </p>
@@ -350,7 +352,7 @@ export default function AICommandCenter() {
                       showLabel={true}
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Health Score
+                      {t('aiCommand.healthScore')}
                     </p>
                   </div>
                 </div>
@@ -360,13 +362,13 @@ export default function AICommandCenter() {
                   <div className="space-y-2 pt-4 border-t">
                     <div className="flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-primary" />
-                      <p className="text-sm font-medium">AI Analysis</p>
+                      <p className="text-sm font-medium">{t('aiCommand.aiAnalysis')}</p>
                       <span className="text-xs text-muted-foreground">
-                        (Confidence: {Math.round((riskAssessment.aiAnalysis.confidence ?? 0.7) * 100)}%)
+                        ({t('aiCommand.confidence', { percent: Math.round((riskAssessment.aiAnalysis.confidence ?? 0.7) * 100) })})
                       </span>
                     </div>
                     <p className="text-sm text-foreground">
-                      {riskAssessment.aiAnalysis.summary || 'No analysis available.'}
+                      {riskAssessment.aiAnalysis.summary || t('aiCommand.noAnalysisAvailable')}
                     </p>
                   </div>
                 )}
@@ -374,7 +376,7 @@ export default function AICommandCenter() {
                 {/* Top Reasons */}
                 {riskAssessment.aiAnalysis && riskAssessment.aiAnalysis.topReasons && riskAssessment.aiAnalysis.topReasons.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-sm font-medium">Top Risk Factors</p>
+                    <p className="text-sm font-medium">{t('aiCommand.topRiskFactors')}</p>
                     <div className="space-y-2">
                       {riskAssessment.aiAnalysis.topReasons.map((reason, idx) => (
                         <div key={idx} className="flex items-start gap-2 p-2 rounded-lg bg-muted/50">
@@ -389,7 +391,7 @@ export default function AICommandCenter() {
                 {/* Recommendations */}
                 {riskAssessment.aiAnalysis && (
                   <div className="space-y-2">
-                    <p className="text-sm font-medium">AI Recommendations</p>
+                    <p className="text-sm font-medium">{t('aiCommand.aiRecommendations')}</p>
                     {riskAssessment.aiAnalysis.recommendations && riskAssessment.aiAnalysis.recommendations.length > 0 ? (
                       <div className="space-y-2">
                         {riskAssessment.aiAnalysis.recommendations.map((rec, idx) => (
@@ -402,7 +404,7 @@ export default function AICommandCenter() {
                     ) : (
                       <div className="p-3 rounded-lg bg-muted/50 border border-dashed">
                         <p className="text-sm text-muted-foreground text-center">
-                          No specific recommendations available. Review risk signals above for areas to address.
+                          {t('aiCommand.noSpecificRecommendations')}
                         </p>
                       </div>
                     )}
@@ -412,13 +414,13 @@ export default function AICommandCenter() {
                 {/* Signal Details */}
                 {riskAssessment.signals && (
                   <div className="space-y-2 pt-4 border-t">
-                    <p className="text-sm font-medium">Risk Signals</p>
+                    <p className="text-sm font-medium">{t('aiCommand.riskSignals')}</p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="p-2 rounded bg-muted/50">
-                        <p className="text-muted-foreground">DPR Delay</p>
+                        <p className="text-muted-foreground">{t('aiCommand.dprDelay')}</p>
                         <p className="font-medium">
                           {riskAssessment.signals.dprDelayDays === 0 && (riskAssessment.signals.dprDelayHours === 0 || !riskAssessment.signals.dprDelayHours) ? (
-                            <span className="text-green-600">No delay</span>
+                            <span className="text-green-600">{t('aiCommand.noDelay')}</span>
                           ) : riskAssessment.signals.dprDelayHours !== undefined && riskAssessment.signals.dprDelayHours < 24 ? (
                             `${riskAssessment.signals.dprDelayHours.toFixed(1)} hours`
                           ) : (
@@ -427,15 +429,15 @@ export default function AICommandCenter() {
                         </p>
                       </div>
                       <div className="p-2 rounded bg-muted/50">
-                        <p className="text-muted-foreground">Attendance Variance</p>
+                        <p className="text-muted-foreground">{t('aiCommand.attendanceVariance')}</p>
                         <p className="font-medium">{riskAssessment.signals.attendanceVariance ?? 0}%</p>
                       </div>
                       <div className="p-2 rounded bg-muted/50">
-                        <p className="text-muted-foreground">Pending Approvals</p>
+                        <p className="text-muted-foreground">{t('aiCommand.pendingApprovals')}</p>
                         <p className="font-medium">{riskAssessment.signals.pendingApprovals ?? 0}</p>
                       </div>
                       <div className="p-2 rounded bg-muted/50">
-                        <p className="text-muted-foreground">Material Shortage</p>
+                        <p className="text-muted-foreground">{t('aiCommand.materialShortage')}</p>
                         <p className="font-medium">
                           {riskAssessment.signals.materialShortage ? (
                             <XCircle className="w-4 h-4 text-red-600 inline" />
@@ -451,18 +453,18 @@ export default function AICommandCenter() {
                 {/* Task Status Breakdown */}
                 {riskAssessment.projectContext && riskAssessment.projectContext.taskStatus && (
                   <div className="space-y-2 pt-4 border-t">
-                    <p className="text-sm font-medium">Task Status</p>
+                    <p className="text-sm font-medium">{t('aiCommand.taskStatus')}</p>
                     <div className="grid grid-cols-3 gap-2 text-xs">
                       <div className="p-2 rounded bg-yellow-500/10 border border-yellow-500/20">
-                        <p className="text-muted-foreground">Not Started</p>
+                        <p className="text-muted-foreground">{t('aiCommand.notStarted')}</p>
                         <p className="font-medium text-yellow-600">{riskAssessment.projectContext.taskStatus.pending ?? 0}</p>
                       </div>
                       <div className="p-2 rounded bg-blue-500/10 border border-blue-500/20">
-                        <p className="text-muted-foreground">In Progress</p>
+                        <p className="text-muted-foreground">{t('aiCommand.inProgress')}</p>
                         <p className="font-medium text-blue-600">{riskAssessment.projectContext.taskStatus.inProgress ?? 0}</p>
                       </div>
                       <div className="p-2 rounded bg-green-500/10 border border-green-500/20">
-                        <p className="text-muted-foreground">Completed</p>
+                        <p className="text-muted-foreground">{t('aiCommand.completed')}</p>
                         <p className="font-medium text-green-600">{riskAssessment.projectContext.taskStatus.completed ?? 0}</p>
                       </div>
                     </div>
@@ -470,21 +472,21 @@ export default function AICommandCenter() {
                       <div className="mt-2 space-y-1">
                         {riskAssessment.projectContext.taskStatus.delayed > 0 && (
                           <div className="p-2 rounded bg-red-500/10 border border-red-500/30 flex items-center justify-between">
-                            <p className="text-muted-foreground text-xs">⚠️ Delayed Tasks</p>
-                            <p className="font-medium text-red-600 text-xs">{riskAssessment.projectContext.taskStatus.delayed} task(s) pending &gt;3 hours</p>
+                            <p className="text-muted-foreground text-xs">{t('aiCommand.delayedTasks')}</p>
+                            <p className="font-medium text-red-600 text-xs">{t('aiCommand.tasksPendingOver3Hours', { count: riskAssessment.projectContext.taskStatus.delayed })}</p>
                           </div>
                         )}
                         {riskAssessment.projectContext.taskStatus.approachingDelay > 0 && (
                           <div className="p-2 rounded bg-orange-500/10 border border-orange-500/30 flex items-center justify-between">
-                            <p className="text-muted-foreground text-xs">⚠️ Approaching Delay</p>
-                            <p className="font-medium text-orange-600 text-xs">{riskAssessment.projectContext.taskStatus.approachingDelay} task(s) pending 2-3 hours</p>
+                            <p className="text-muted-foreground text-xs">{t('aiCommand.approachingDelay')}</p>
+                            <p className="font-medium text-orange-600 text-xs">{t('aiCommand.tasksPending2To3Hours', { count: riskAssessment.projectContext.taskStatus.approachingDelay })}</p>
                           </div>
                         )}
                       </div>
                     )}
                     {riskAssessment.projectContext.taskStatus.total > 0 && (
                       <p className="text-xs text-muted-foreground mt-2">
-                        Completion Rate: {Math.round((riskAssessment.projectContext.taskStatus.completed / riskAssessment.projectContext.taskStatus.total) * 100)}%
+                        {t('aiCommand.completionRate', { percent: Math.round((riskAssessment.projectContext.taskStatus.completed / riskAssessment.projectContext.taskStatus.total) * 100) })}
                       </p>
                     )}
                   </div>
@@ -492,7 +494,7 @@ export default function AICommandCenter() {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground text-center py-8">
-                No risk assessment available
+                {t('aiCommand.noRiskAssessment')}
               </p>
             )}
           </CardContent>
@@ -504,14 +506,14 @@ export default function AICommandCenter() {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5" />
-                Anomaly Alerts ({anomalies.length})
+                {t('aiCommand.anomalyAlerts', { count: anomalies.length })}
               </CardTitle>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={loadAnomalies}
                 disabled={isLoadingAnomalies}
-                title={!isOnline ? "Offline - will use cached data if available" : "Refresh anomalies"}
+                title={!isOnline ? t('aiCommand.offlineWillUseCache') : t('aiCommand.refreshAnomalies')}
               >
                 {isLoadingAnomalies ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -547,7 +549,7 @@ export default function AICommandCenter() {
                                 {anomaly.severity}
                               </span>
                               <span className="text-xs text-muted-foreground">
-                                {Math.round(anomaly.confidence * 100)}% confidence
+                                {t('aiCommand.confidencePercent', { percent: Math.round(anomaly.confidence * 100) })}
                               </span>
                             </div>
                             <p className="font-medium text-sm break-words w-full">{anomaly.patternDetected}</p>
@@ -559,21 +561,21 @@ export default function AICommandCenter() {
 
                         <div className="space-y-3 pt-2 border-t w-full">
                           <div className="min-w-0 w-full">
-                            <p className="text-xs font-medium text-muted-foreground mb-1">AI Explanation</p>
+                            <p className="text-xs font-medium text-muted-foreground mb-1">{t('aiCommand.aiExplanation')}</p>
                             <div className="text-sm break-words whitespace-pre-wrap w-full overflow-visible" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
-                              {anomaly.explanation || 'No explanation available'}
+                              {anomaly.explanation || t('aiCommand.noAnalysisAvailable')}
                             </div>
                           </div>
                           <div className="min-w-0 w-full">
-                            <p className="text-xs font-medium text-muted-foreground mb-1">Business Impact</p>
+                            <p className="text-xs font-medium text-muted-foreground mb-1">{t('aiCommand.businessImpact')}</p>
                             <div className="text-sm break-words whitespace-pre-wrap w-full overflow-visible" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
-                              {anomaly.businessImpact || 'No impact information available'}
+                              {anomaly.businessImpact || t('aiCommand.noImpactInfo')}
                             </div>
                           </div>
                           <div className="min-w-0 w-full">
-                            <p className="text-xs font-medium text-muted-foreground mb-1">Recommended Action</p>
+                            <p className="text-xs font-medium text-muted-foreground mb-1">{t('aiCommand.recommendedAction')}</p>
                             <div className="text-sm break-words whitespace-pre-wrap leading-relaxed w-full overflow-visible" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
-                              {anomaly.recommendedAction || 'No recommended action available'}
+                              {anomaly.recommendedAction || t('aiCommand.noRecommendedAction')}
                             </div>
                           </div>
                         </div>
@@ -585,9 +587,9 @@ export default function AICommandCenter() {
             ) : (
               <div className="text-center py-8">
                 <CheckCircle2 className="w-12 h-12 text-success mx-auto mb-2 opacity-50" />
-                <p className="text-sm text-muted-foreground">No anomalies detected</p>
+                <p className="text-sm text-muted-foreground">{t('aiCommand.noAnomaliesDetected')}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  All systems operating normally
+                  {t('aiCommand.noAnomaliesDetected')}
                 </p>
               </div>
             )}

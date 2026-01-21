@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, Link } from "react-router-dom";
 import { useAppDispatch } from "@/store/hooks";
 import { login } from "@/store/slices/authSlice";
@@ -239,7 +240,7 @@ export default function Signup() {
                     )}
                   </button>
                 </div>
-                <p className="text-xs text-muted-foreground">Must be at least 6 characters</p>
+                <p className="text-xs text-muted-foreground">{t('auth.passwordMinLength')}</p>
               </div>
 
               {/* Phone Number Field (Optional) */}

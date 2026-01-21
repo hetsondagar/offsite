@@ -660,7 +660,7 @@ export default function DPRPage() {
             ) : (
               <Card>
                 <CardContent className="pt-6 text-center py-8">
-                  <p className="text-sm text-muted-foreground">No previous DPRs found</p>
+                  <p className="text-sm text-muted-foreground">{t('dpr.noPreviousDPRs')}</p>
                 </CardContent>
               </Card>
             )}
@@ -679,7 +679,7 @@ export default function DPRPage() {
               ) : projects.length === 0 ? (
                 <Card>
                   <CardContent className="p-8 text-center">
-                    <p className="text-muted-foreground">No projects available</p>
+                    <p className="text-muted-foreground">{t('dpr.noProjectsAvailable')}</p>
                   </CardContent>
                 </Card>
               ) : (
@@ -772,7 +772,7 @@ export default function DPRPage() {
               ) : tasks.length === 0 ? (
                 <Card>
                   <CardContent className="p-8 text-center">
-                    <p className="text-muted-foreground">No tasks available for this project</p>
+                    <p className="text-muted-foreground">{t('dpr.noTasksAvailable')}</p>
                   </CardContent>
                 </Card>
               ) : (
@@ -911,19 +911,19 @@ export default function DPRPage() {
                           className="w-full p-3 rounded-xl bg-muted/50 border border-border/50 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                           required
                         >
-                          <option value="">Select reason</option>
-                          <option value="MATERIAL_DELAY">Material Delay</option>
-                          <option value="LABOUR_SHORTAGE">Labour Shortage</option>
-                          <option value="WEATHER">Weather</option>
-                          <option value="MACHINE_BREAKDOWN">Machine Breakdown</option>
-                          <option value="APPROVAL_PENDING">Approval Pending</option>
-                          <option value="SAFETY_ISSUE">Safety Issue</option>
+                          <option value="">{t('dpr.selectReason')}</option>
+                          <option value="MATERIAL_DELAY">{t('dpr.materialDelay')}</option>
+                          <option value="LABOUR_SHORTAGE">{t('dpr.labourShortage')}</option>
+                          <option value="WEATHER">{t('dpr.weather')}</option>
+                          <option value="MACHINE_BREAKDOWN">{t('dpr.machineBreakdown')}</option>
+                          <option value="APPROVAL_PENDING">{t('dpr.approvalPending')}</option>
+                          <option value="SAFETY_ISSUE">{t('dpr.safetyIssue')}</option>
                         </select>
                       </div>
 
                       <div>
                         <label className="text-sm font-medium text-foreground mb-2 block">
-                          Duration (Hours) *
+                          {t('dpr.durationHours')} *
                         </label>
                         <Input
                           type="number"
@@ -1080,7 +1080,7 @@ export default function DPRPage() {
 
               <div className="flex items-center gap-2 p-3 rounded-xl bg-warning/10 border border-warning/30">
                 <WifiOff className="w-4 h-4 text-warning shrink-0" />
-                <span className="text-sm text-warning">Will sync when online</span>
+                <span className="text-sm text-warning">{t('dpr.willSyncWhenOnline')}</span>
               </div>
 
               <Button 

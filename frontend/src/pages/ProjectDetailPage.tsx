@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +40,7 @@ import { cn } from "@/lib/utils";
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { role } = useAppSelector((state) => state.auth);
   const [isLoading, setIsLoading] = useState(true);
   const [projectData, setProjectData] = useState<any>(null);
@@ -213,9 +215,9 @@ export default function ProjectDetailPage() {
     return (
       <MobileLayout role={role}>
         <div className="text-center py-12">
-          <p className="text-muted-foreground">Project not found</p>
+          <p className="text-muted-foreground">{t('projects.projectNotFound')}</p>
           <Button onClick={() => navigate('/projects')} className="mt-4">
-            Back to Projects
+            {t('projects.backToProjects')}
           </Button>
         </div>
       </MobileLayout>
@@ -237,9 +239,9 @@ export default function ProjectDetailPage() {
     return (
       <MobileLayout role={role}>
         <div className="text-center py-12">
-          <p className="text-muted-foreground">Invalid project data</p>
+          <p className="text-muted-foreground">{t('projects.invalidProjectData')}</p>
           <Button onClick={() => navigate('/projects')} className="mt-4">
-            Back to Projects
+            {t('projects.backToProjects')}
           </Button>
         </div>
       </MobileLayout>
@@ -397,7 +399,7 @@ export default function ProjectDetailPage() {
                   <span className="text-xs">DPRs</span>
                 </div>
                 <p className="text-2xl font-bold">{statistics.dprs.total}</p>
-                <p className="text-xs text-muted-foreground">Daily reports</p>
+                <p className="text-xs text-muted-foreground">{t('projects.dailyReports')}</p>
               </div>
             </CardContent>
           </Card>
@@ -427,7 +429,7 @@ export default function ProjectDetailPage() {
                   <span className="text-xs">Attendance</span>
                 </div>
                 <p className="text-2xl font-bold">{statistics.attendance.todayCheckIns}</p>
-                <p className="text-xs text-muted-foreground">Checked in today</p>
+                <p className="text-xs text-muted-foreground">{t('projects.checkedInToday')}</p>
               </div>
             </CardContent>
           </Card>
@@ -712,7 +714,7 @@ export default function ProjectDetailPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">No members assigned</p>
+              <p className="text-sm text-muted-foreground text-center py-4">{t('projects.noMembersAssigned')}</p>
             )}
           </CardContent>
         </Card>
@@ -740,7 +742,7 @@ export default function ProjectDetailPage() {
                         )}
                         <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                           {task.assignedTo && (
-                            <span>Assigned to: {task.assignedTo.name}</span>
+                            <span>{t('projects.assignedTo')} {task.assignedTo.name}</span>
                           )}
                           {task.dueDate && (
                             <span>Due: {formatDate(task.dueDate)}</span>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ interface Approval {
 
 export default function ApprovalsPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { hasPermission } = usePermissions();
   const userId = useAppSelector((state) => state.auth.userId);
   const [approvals, setApprovals] = useState<any[]>([]);
@@ -265,8 +267,8 @@ export default function ApprovalsPage() {
               <Card variant="gradient">
                 <CardContent className="p-8 text-center">
                   <Check className="w-12 h-12 text-success mx-auto mb-3" />
-                  <p className="font-medium text-foreground">All caught up!</p>
-                  <p className="text-sm text-muted-foreground">No pending approvals</p>
+                  <p className="font-medium text-foreground">{t('approvals.allCaughtUp')}</p>
+                  <p className="text-sm text-muted-foreground">{t('approvals.noPendingApprovals')}</p>
                 </CardContent>
               </Card>
             ) : (

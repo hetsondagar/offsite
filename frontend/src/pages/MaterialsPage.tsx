@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ import { usersApi } from "@/services/api/users";
 export default function MaterialsPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const { hasPermission } = usePermissions();
   const userId = useAppSelector((state) => state.auth.userId);
   const role = useAppSelector((state) => state.auth.role);
@@ -326,8 +328,8 @@ export default function MaterialsPage() {
                 >
                   <Check className="w-8 h-8 sm:w-10 sm:h-10 text-success" />
                 </motion.div>
-                <h2 className="font-display text-xl sm:text-2xl font-bold text-foreground">Request Sent!</h2>
-                <p className="text-sm sm:text-base text-muted-foreground">Awaiting manager approval</p>
+                <h2 className="font-display text-xl sm:text-2xl font-bold text-foreground">{t('materials.requestSubmitted')}</h2>
+                <p className="text-sm sm:text-base text-muted-foreground">{t('materials.awaitingManagerApproval')}</p>
               </motion.div>
             </motion.div>
           )}
@@ -528,7 +530,7 @@ export default function MaterialsPage() {
             <CardContent>
               <div className="space-y-3">
                 {pendingRequests.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">No pending requests</p>
+                  <p className="text-sm text-muted-foreground text-center py-4">{t('materials.noPendingRequests')}</p>
                 ) : (
                   pendingRequests.map((request) => (
                     <div key={request.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">

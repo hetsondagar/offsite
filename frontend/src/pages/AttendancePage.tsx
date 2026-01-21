@@ -506,7 +506,7 @@ export default function AttendancePage() {
                       <p className="text-xs text-muted-foreground mt-1">
                         {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-1">Location verified via GPS</p>
+                      <p className="text-xs text-muted-foreground mt-1">{t('attendance.locationVerifiedGPS')}</p>
                     </div>
                   </div>
                   
@@ -523,7 +523,7 @@ export default function AttendancePage() {
                     <Navigation className="w-8 h-8 text-muted-foreground" />
                   </div>
                   <div className="text-center">
-                    <p className="text-muted-foreground text-sm mb-2">Location not captured</p>
+                    <p className="text-muted-foreground text-sm mb-2">{t('attendance.locationNotCaptured')}</p>
                     <Button 
                       variant="outline" 
                       onClick={handleGetLocation}
