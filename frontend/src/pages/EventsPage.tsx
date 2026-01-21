@@ -250,7 +250,7 @@ export default function EventsPage() {
                     {isCreating ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      {t('events.createEvent')}
+                      t('events.createEvent')
                     )}
                   </Button>
                 </div>
