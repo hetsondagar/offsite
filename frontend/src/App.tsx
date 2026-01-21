@@ -116,7 +116,9 @@ function AppContent() {
         const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
         
         // Use health check endpoint that doesn't require authentication
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+        // Remove /api suffix for health check endpoint
+        const apiUrl = apiBaseUrl.replace('/api', '');
         const response = await fetch(`${apiUrl}/health`, {
           method: 'GET',
           signal: controller.signal,
