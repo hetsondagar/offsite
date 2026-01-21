@@ -64,5 +64,7 @@ projectInvitationSchema.index({ userId: 1, status: 1 });
 projectInvitationSchema.index({ offsiteId: 1, status: 1 });
 projectInvitationSchema.index({ projectId: 1, status: 1 });
 
-export const ProjectInvitation = mongoose.model<IProjectInvitation>('ProjectInvitation', projectInvitationSchema);
+export const ProjectInvitation =
+  (mongoose.models.ProjectInvitation as mongoose.Model<IProjectInvitation>) ||
+  mongoose.model<IProjectInvitation>('ProjectInvitation', projectInvitationSchema);
 

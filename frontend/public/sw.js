@@ -19,9 +19,29 @@ self.addEventListener('install', (event) => {
       const cache = await caches.open(CACHE_NAME);
 
       // Use "reload" to avoid HTTP cache pitfalls during install.
-      await Promise.all(
-        APP_SHELL_URLS.map((url) => cache.add(new Request(url, { cache: 'reload' })))
+      // Use Promise.allSettled to handle failures gracefully
+      const results = await Promise.allSettled(
+        APP_SHELL_URLS.map(async (url) => {
+          try {
+            const request = new Request(url, { cache: 'reload' });
+            const response = await fetch(request);
+            if (response && response.ok) {
+              await cache.put(request, response);
+            } else {
+              console.warn(`Failed to cache ${url}: ${response.status}`);
+            }
+          } catch (error) {
+            console.warn(`Failed to cache ${url}:`, error);
+            // Continue even if one resource fails
+          }
+        })
       );
+
+      // Log any failures but don't block installation
+      const failures = results.filter(r => r.status === 'rejected');
+      if (failures.length > 0) {
+        console.warn(`${failures.length} resources failed to cache during install`);
+      }
 
       await self.skipWaiting();
     })()
@@ -45,12 +65,17 @@ self.addEventListener('activate', (event) => {
 async function cacheFirst(request) {
   const cached = await caches.match(request);
   if (cached) return cached;
-  const response = await fetch(request);
-  if (response && response.ok) {
-    const cache = await caches.open(CACHE_NAME);
-    cache.put(request, response.clone());
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    console.warn('Cache first fetch failed:', error);
+    return new Response('Network error', { status: 503 });
   }
-  return response;
 }
 
 async function staleWhileRevalidate(request) {
@@ -58,12 +83,19 @@ async function staleWhileRevalidate(request) {
   const fetchPromise = fetch(request)
     .then(async (response) => {
       if (response && response.ok) {
-        const cache = await caches.open(CACHE_NAME);
-        cache.put(request, response.clone());
+        try {
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put(request, response.clone());
+        } catch (error) {
+          console.warn('Failed to cache response:', error);
+        }
       }
       return response;
     })
-    .catch(() => null);
+    .catch((error) => {
+      console.warn('Stale while revalidate fetch failed:', error);
+      return null;
+    });
 
   return cached || (await fetchPromise) || new Response('Offline', { status: 503 });
 }
@@ -72,11 +104,16 @@ async function networkFirst(request) {
   try {
     const response = await fetch(request);
     if (response && response.ok) {
-      const cache = await caches.open(CACHE_NAME);
-      cache.put(request, response.clone());
+      try {
+        const cache = await caches.open(CACHE_NAME);
+        await cache.put(request, response.clone());
+      } catch (error) {
+        console.warn('Failed to cache response:', error);
+      }
     }
     return response;
-  } catch {
+  } catch (error) {
+    console.warn('Network first fetch failed:', error);
     const cached = await caches.match(request);
     if (cached) return cached;
     return new Response('Offline', { status: 503 });
@@ -99,10 +136,17 @@ self.addEventListener('fetch', (event) => {
         try {
           // Prefer fresh HTML when online.
           const response = await fetch(request);
-          const cache = await caches.open(CACHE_NAME);
-          cache.put('/index.html', response.clone());
+          if (response && response.ok) {
+            try {
+              const cache = await caches.open(CACHE_NAME);
+              await cache.put('/index.html', response.clone());
+            } catch (error) {
+              console.warn('Failed to cache index.html:', error);
+            }
+          }
           return response;
-        } catch {
+        } catch (error) {
+          console.warn('Navigation fetch failed:', error);
           return (await caches.match('/index.html')) || new Response('Offline', { status: 503 });
         }
       })()

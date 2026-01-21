@@ -25,6 +25,7 @@ import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { projectsApi, Project } from "@/services/api/projects";
 import { usersApi } from "@/services/api/users";
+import { notificationsApi, ProjectInvitation } from "@/services/api/notifications";
 import { toast } from "sonner";
 import { Search, X, UserPlus } from "lucide-react";
 
@@ -34,6 +35,8 @@ export default function ProjectsPage() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
+  const [isInvitationsLoading, setIsInvitationsLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newProject, setNewProject] = useState({
@@ -53,6 +56,7 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     loadProjects();
+    loadInvitations();
     
     // Cleanup timeout on unmount
     return () => {
@@ -72,6 +76,41 @@ export default function ProjectsPage() {
       toast.error('Failed to load projects');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadInvitations = async () => {
+    try {
+      setIsInvitationsLoading(true);
+      const data = await notificationsApi.getMyInvitations();
+      setInvitations(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading invitations:', error);
+      setInvitations([]);
+    } finally {
+      setIsInvitationsLoading(false);
+    }
+  };
+
+  const handleAcceptInvitation = async (invitationId: string) => {
+    try {
+      await notificationsApi.acceptInvitation(invitationId);
+      toast.success('Invitation accepted. You have been added to the project.');
+      await Promise.all([loadInvitations(), loadProjects()]);
+    } catch (error: any) {
+      console.error('Error accepting invitation:', error);
+      toast.error(error.message || 'Failed to accept invitation');
+    }
+  };
+
+  const handleRejectInvitation = async (invitationId: string) => {
+    try {
+      await notificationsApi.rejectInvitation(invitationId);
+      toast.success('Invitation rejected');
+      await loadInvitations();
+    } catch (error: any) {
+      console.error('Error rejecting invitation:', error);
+      toast.error(error.message || 'Failed to reject invitation');
     }
   };
 
@@ -217,7 +256,74 @@ export default function ProjectsPage() {
         </div>
 
         {/* Content */}
-        <div className="p-3 sm:p-4 space-y-4 pb-6 w-full overflow-x-hidden max-w-full">
+        <div className="p-4 space-y-4 pb-6">
+          {/* Pending invitations (managers/engineers won't see projects until accepted) */}
+          {isInvitationsLoading ? (
+            <div className="flex items-center justify-center py-2">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            </div>
+          ) : invitations.length > 0 ? (
+            <Card variant="gradient">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-foreground">Pending invitations</p>
+                    <p className="text-xs text-muted-foreground">
+                      Accept to see the project in your list
+                    </p>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{invitations.length}</span>
+                </div>
+
+                <div className="mt-3 space-y-3">
+                  {invitations.map((inv) => (
+                    <div
+                      key={inv._id}
+                      className="rounded-lg border border-border/50 bg-background/40 p-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm text-foreground truncate">
+                            {inv.projectId?.name || 'Project'}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Invited as {inv.role === 'engineer' ? 'Site Engineer' : 'Project Manager'}
+                          </p>
+                          {inv.projectId?.location && (
+                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              <span className="truncate">{inv.projectId.location}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex gap-2">
+                        <Button
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => handleAcceptInvitation(inv._id)}
+                        >
+                          <UserPlus className="w-3 h-3 mr-1" />
+                          Accept
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => handleRejectInvitation(inv._id)}
+                        >
+                          <X className="w-3 h-3 mr-1" />
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -227,7 +333,11 @@ export default function ProjectsPage() {
               <CardContent className="p-8 text-center">
                 <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
                 <p className="font-medium text-foreground">No projects found</p>
-                <p className="text-sm text-muted-foreground">Create your first project to get started</p>
+                <p className="text-sm text-muted-foreground">
+                  {role === 'owner'
+                    ? 'Create your first project to get started'
+                    : 'Ask an owner to invite you, then accept the invitation'}
+                </p>
               </CardContent>
             </Card>
           ) : (

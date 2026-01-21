@@ -64,5 +64,7 @@ const materialCatalogSchema = new Schema<IMaterialCatalog>(
 materialCatalogSchema.index({ name: 1 }, { unique: true });
 materialCatalogSchema.index({ isActive: 1 });
 
-export const MaterialCatalog = mongoose.model<IMaterialCatalog>('MaterialCatalog', materialCatalogSchema);
+export const MaterialCatalog =
+  (mongoose.models.MaterialCatalog as mongoose.Model<IMaterialCatalog>) ||
+  mongoose.model<IMaterialCatalog>('MaterialCatalog', materialCatalogSchema);
 

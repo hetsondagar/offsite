@@ -8,11 +8,16 @@ export const env = {
   
   // MongoDB
   MONGODB_URI: (() => {
-    const uri = process.env.MONGODB_URI || '';
-    if (!uri && process.env.NODE_ENV === 'production') {
-      throw new Error('MONGODB_URI must be set in production environment');
+    const uri = process.env.MONGODB_URI;
+    if (!uri || uri.trim().length === 0) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('MONGODB_URI must be set in production environment');
+      }
+      throw new Error(
+        'MONGODB_URI is missing. Check backend/.env formatting (no spaces around =), then restart the backend.'
+      );
     }
-    return uri;
+    return uri.trim();
   })(),
   
   // JWT

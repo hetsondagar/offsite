@@ -30,5 +30,7 @@ const counterSchema = new Schema<ICounter>(
 // Index for fast lookup
 counterSchema.index({ role: 1 }, { unique: true });
 
-export const Counter = mongoose.model<ICounter>('Counter', counterSchema);
+export const Counter =
+  (mongoose.models.Counter as mongoose.Model<ICounter>) ||
+  mongoose.model<ICounter>('Counter', counterSchema);
 
