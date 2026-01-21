@@ -11,6 +11,7 @@ import { useAppDispatch } from "./store/hooks";
 import { initializeAuth } from "./store/slices/authSlice";
 import { setOnlineStatus } from "./store/slices/offlineSlice";
 import { syncOfflineStores } from "@/lib/offlineSync";
+import { getNetworkStatus, addNetworkListener } from "@/lib/capacitor-network";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -155,44 +156,42 @@ function AppContent() {
 
     // Set initial online status
     const initialCheck = async () => {
-      if (navigator.onLine) {
-        // If navigator says online, verify with actual API call
+      const networkStatus = await getNetworkStatus();
+      if (networkStatus.connected) {
+        // If network says online, verify with actual API call
         await checkConnectivity();
       } else {
-        // If navigator says offline, trust it
+        // If network says offline, trust it
         dispatch(setOnlineStatus(false));
       }
     };
     
     initialCheck();
 
-    // Listen for online/offline events
-    const handleOnline = () => {
-      dispatch(setOnlineStatus(true));
-
-      // Fire-and-forget: if user is authenticated, sync offline data.
-      // This keeps all pages consistent without requiring manual Sync button.
-      syncOfflineStores().catch((error) => {
-        console.error('Auto-sync failed:', error);
-      });
-    };
-    const handleOffline = () => {
-      dispatch(setOnlineStatus(false));
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    // Listen for network status changes using Capacitor
+    const removeNetworkListener = addNetworkListener((status) => {
+      if (status.connected) {
+        dispatch(setOnlineStatus(true));
+        // Fire-and-forget: if user is authenticated, sync offline data.
+        // This keeps all pages consistent without requiring manual Sync button.
+        syncOfflineStores().catch((error) => {
+          console.error('Auto-sync failed:', error);
+        });
+      } else {
+        dispatch(setOnlineStatus(false));
+      }
+    });
 
     // Periodically check connectivity (every 30 seconds)
-    const connectivityInterval = setInterval(() => {
-      if (navigator.onLine) {
+    const connectivityInterval = setInterval(async () => {
+      const networkStatus = await getNetworkStatus();
+      if (networkStatus.connected) {
         checkConnectivity();
       }
     }, 30000);
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      removeNetworkListener();
       clearInterval(connectivityInterval);
     };
   }, [dispatch]);

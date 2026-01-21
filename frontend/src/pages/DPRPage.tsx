@@ -30,6 +30,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { projectsApi } from "@/services/api/projects";
 import { tasksApi } from "@/services/api/tasks";
 import { dprApi } from "@/services/api/dpr";
+import { pickImages } from "@/lib/capacitor-camera";
 import { insightsApi } from "@/services/api/insights";
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
@@ -113,13 +114,10 @@ export default function DPRPage() {
     loadTasks();
   }, [selectedProject]);
 
-  const handlePhotoUpload = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.multiple = true;
-    input.onchange = (e: any) => {
-      const files = Array.from(e.target.files) as File[];
+  const handlePhotoUpload = async () => {
+    try {
+      const files = await pickImages({ quality: 90 });
+      
       if (files.length + photos.length > 6) {
         alert('Maximum 6 photos allowed');
         return;
@@ -136,8 +134,10 @@ export default function DPRPage() {
         };
         reader.readAsDataURL(file);
       });
-    };
-    input.click();
+    } catch (error: any) {
+      console.error('Photo upload error:', error);
+      // User cancelled or error occurred - silently fail
+    }
   };
 
   const handleGenerateAI = async () => {
@@ -153,13 +153,9 @@ export default function DPRPage() {
     }
   };
 
-  const handleWorkStoppagePhotoUpload = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.multiple = true;
-    input.onchange = (e: any) => {
-      const files = Array.from(e.target.files) as File[];
+  const handleWorkStoppagePhotoUpload = async () => {
+    try {
+      const files = await pickImages({ quality: 90 });
       setWorkStoppageEvidencePhotos(prev => [...prev, ...files]);
       
       // Create previews
@@ -170,8 +166,10 @@ export default function DPRPage() {
         };
         reader.readAsDataURL(file);
       });
-    };
-    input.click();
+    } catch (error: any) {
+      console.error('Photo upload error:', error);
+      // User cancelled or error occurred - silently fail
+    }
   };
 
   const loadOldDPRs = async (projectId: string) => {

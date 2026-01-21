@@ -27,6 +27,7 @@ import { addPendingItem } from "@/store/slices/offlineSlice";
 import { attendanceApi } from "@/services/api/attendance";
 import { projectsApi } from "@/services/api/projects";
 import { toast } from "sonner";
+import { getCurrentPosition } from "@/lib/capacitor-geolocation";
 
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || 'g51nNpCPKcQQstInYAW2';
 
@@ -162,27 +163,14 @@ export default function AttendancePage() {
     setIsLocating(true);
     setLocationError(null);
 
-    if (!navigator.geolocation) {
-      setLocationError('Geolocation is not supported by your browser');
-      setIsLocating(false);
-      toast.error('Geolocation not supported');
-      return;
-    }
-
     try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          resolve,
-          reject,
-          {
-            enableHighAccuracy: true,
-            timeout: 30000, // Increased to 30 seconds
-            maximumAge: 60000, // Accept cached position up to 1 minute old
-          }
-        );
+      const locationData = await getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 30000, // Increased to 30 seconds
+        maximumAge: 60000, // Accept cached position up to 1 minute old
       });
 
-      const { latitude, longitude } = position.coords;
+      const { latitude, longitude } = locationData;
 
       // Reverse geocode using MapTiler
       try {
