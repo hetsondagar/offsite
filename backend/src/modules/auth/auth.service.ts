@@ -156,12 +156,12 @@ export const signup = async (
               const hashedPassword = await bcrypt.hash(password, salt);
               
               // Import mongoose for ObjectId
-              const mongoose = require('mongoose');
+              const mongoose = await import('mongoose');
               
               // Prepare document - CRITICAL: Do NOT include phone field at all
               // Not as null, not as undefined, not as empty string - completely omit it
               const userDoc: any = {
-                _id: new mongoose.Types.ObjectId(),
+                _id: new mongoose.default.Types.ObjectId(),
                 email: email.toLowerCase().trim(),
                 password: hashedPassword,
                 name: name.trim(),
