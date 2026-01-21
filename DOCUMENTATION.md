@@ -21,9 +21,12 @@ OffSite is a mobile-first full-stack application designed for construction field
 ### Key Technologies
 - **Backend**: Express.js + TypeScript, MongoDB (Mongoose), JWT authentication
 - **Frontend**: React + Vite + TypeScript, PWA with IndexedDB for offline support
+- **Mobile**: Capacitor for native Android app
 - **Media Storage**: Cloudinary for photo uploads
 - **AI Services**: Support for OpenAI, Azure OpenAI, Gemini, and HuggingFace
 - **Maps**: MapTiler for geocoding and location services
+- **i18n**: react-i18next for multilingual support (English, Hindi, Marathi, Tamil)
+- **Deployment**: Render (backend), Vercel (frontend)
 
 ---
 
@@ -200,14 +203,15 @@ frontend/
 
 **Features:**
 - Create material requests
-- Get materials catalog
+- Get materials catalog (with Indian construction materials and prices)
 - Get pending material requests
 - Approve/reject material requests (managers only)
 - Anomaly detection for material requests
+- Estimated cost calculation for requests
 
 **Routes:**
 - `POST /api/materials/request` - Create material request (requires canRaiseMaterialRequests permission)
-- `GET /api/materials/catalog` - Get materials catalog
+- `GET /api/materials/catalog` - Get materials catalog (grouped by category, includes prices)
 - `GET /api/materials/pending` - Get pending requests
 - `POST /api/materials/:id/approve` - Approve request (requires canApproveMaterialRequests permission)
 - `POST /api/materials/:id/reject` - Reject request (requires canApproveMaterialRequests permission)
@@ -219,9 +223,23 @@ frontend/
 - `status` (pending/approved/rejected)
 - `anomalyDetected` (boolean)
 - `anomalyReason` (optional string)
+- `estimatedCost` (calculated: quantity × approxPriceINR)
 - `approvedBy`, `rejectedBy` (optional user IDs)
 - `rejectionReason` (optional string)
 - `approvedAt`, `rejectedAt` (optional dates)
+
+**Material Catalog Features:**
+- Pre-seeded with 24+ realistic Indian construction materials
+- Categories: Cement & Aggregates, Steel & Metals, Bricks & Blocks, Concrete & Chemicals, Wood & Fixtures, Electrical, Plumbing
+- Each material includes:
+  - Name
+  - Category
+  - Unit (bag, kg, ton, nos, meter, sqm, cum, liter)
+  - Approximate price in INR
+  - Price unit
+  - Active status
+- Quantity validation based on unit type (integer for bag/nos, decimal for others)
+- Estimated cost automatically calculated when creating requests
 
 ### 8. Insights Module (`/api/insights`)
 
@@ -354,6 +372,33 @@ frontend/
 - `GET /api/ai/health` - AI service health check (no auth required)
 - `GET /api/ai/site-risk/:siteId` - Get site risk assessment (requires canViewAIInsights permission)
 - `GET /api/ai/anomalies/:siteId` - Get anomalies (requires canViewAIInsights permission)
+
+### 14. Stock Module (`/api/stock`)
+
+**Features:**
+- Get current stock balance per project
+- Get stock alerts for low inventory
+- Track material stock levels
+
+**Routes:**
+- `GET /api/stock/project/:projectId` - Get project stock balance (requires auth)
+- `GET /api/stock/alerts/:projectId` - Get stock alerts (requires auth)
+
+**Stock Ledger Model Fields:**
+- `projectId`, `materialId`, `materialName`
+- `transactionType` (IN/OUT)
+- `quantity`, `unit`
+- `transactionDate`
+- `notes` (optional)
+
+### 15. Owner Module (`/api/owner`)
+
+**Features:**
+- Owner-specific overview and statistics
+- System-wide analytics
+
+**Routes:**
+- `GET /api/owner/overview/:projectId` - Get owner overview (owner only)
 
 ---
 
@@ -624,7 +669,14 @@ frontend/
 
 ### Material Catalog Model
 - **Collection**: `materialcatalogs`
-- **Fields**: name, category, unit, description (optional)
+- **Fields**: name, category, unit, description (optional), approxPriceINR, priceUnit, isActive, defaultAnomalyThreshold
+- **Indexes**: name (unique), isActive
+- **Pre-seeded**: 24+ realistic Indian construction materials with prices
+
+### Stock Ledger Model
+- **Collection**: `stockledgers`
+- **Fields**: projectId, materialId, materialName, transactionType (IN/OUT), quantity, unit, transactionDate, notes (optional)
+- **Indexes**: projectId + materialId, projectId + transactionDate
 
 ### Invoice Counter Model
 - **Collection**: `invoicecounters`
