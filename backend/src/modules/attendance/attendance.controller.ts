@@ -217,6 +217,59 @@ export const checkOut = async (
   }
 };
 
+export const getTodayCheckIn = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Find today's check-in for the user (any project)
+    const todayCheckIn = await Attendance.findOne({
+      userId: req.user.userId,
+      type: 'checkin',
+      timestamp: { $gte: today, $lt: tomorrow },
+    })
+      .populate('projectId', 'name')
+      .sort({ timestamp: -1 })
+      .select('-__v');
+
+    // Check if there's a corresponding checkout
+    let todayCheckOut = null;
+    if (todayCheckIn) {
+      todayCheckOut = await Attendance.findOne({
+        userId: req.user.userId,
+        projectId: todayCheckIn.projectId,
+        type: 'checkout',
+        timestamp: { $gte: todayCheckIn.timestamp, $lt: tomorrow },
+      })
+        .select('-__v');
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Today\'s check-in status retrieved successfully',
+      data: {
+        checkIn: todayCheckIn,
+        checkOut: todayCheckOut,
+        isCheckedIn: !!todayCheckIn && !todayCheckOut,
+      },
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getAttendanceByProject = async (
   req: Request,
   res: Response,

@@ -66,3 +66,88 @@ export async function getCurrentPosition(
     });
   }
 }
+
+/**
+ * Watch position continuously
+ * Returns a watch ID that can be used to clear the watch
+ */
+export async function watchPosition(
+  callback: (location: LocationData) => void,
+  errorCallback?: (error: GeolocationPositionError) => void,
+  options?: PositionOptions
+): Promise<number | string> {
+  if (isNative()) {
+    // Use Capacitor Geolocation on native
+    // Capacitor's watchPosition returns a Promise<CallbackID>
+    try {
+      const watchId = await Geolocation.watchPosition(
+        {
+          enableHighAccuracy: options?.enableHighAccuracy ?? true,
+          timeout: options?.timeout ?? 30000,
+          maximumAge: options?.maximumAge ?? 10000, // More frequent updates for watch
+        },
+        (position, err) => {
+          if (err) {
+            errorCallback?.(err);
+            return;
+          }
+          callback({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            altitude: position.coords.altitude ?? null,
+            altitudeAccuracy: position.coords.altitudeAccuracy ?? null,
+            heading: position.coords.heading ?? null,
+            speed: position.coords.speed ?? null,
+          });
+        }
+      );
+      return watchId;
+    } catch (error: any) {
+      errorCallback?.(error as GeolocationPositionError);
+      return '';
+    }
+  } else {
+    // Fallback to browser geolocation on web
+    if (!navigator.geolocation) {
+      const error = new Error('Geolocation not supported') as any;
+      error.code = 0;
+      errorCallback?.(error as GeolocationPositionError);
+      return -1;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        callback({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          altitude: position.coords.altitude ?? null,
+          altitudeAccuracy: position.coords.altitudeAccuracy ?? null,
+          heading: position.coords.heading ?? null,
+          speed: position.coords.speed ?? null,
+        });
+      },
+      errorCallback,
+      {
+        enableHighAccuracy: options?.enableHighAccuracy ?? true,
+        timeout: options?.timeout ?? 30000,
+        maximumAge: options?.maximumAge ?? 10000, // More frequent updates for watch
+      }
+    );
+    return watchId;
+  }
+}
+
+/**
+ * Clear position watch
+ */
+export function clearWatch(watchId: number | string): void {
+  if (isNative()) {
+    Geolocation.clearWatch({ id: watchId as string });
+  } else {
+    if (typeof watchId === 'number') {
+      navigator.geolocation.clearWatch(watchId);
+    }
+  }
+}

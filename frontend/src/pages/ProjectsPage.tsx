@@ -125,6 +125,14 @@ export default function ProjectsPage() {
       return;
     }
 
+    // Minimum length check: OffSite IDs are at least 8 characters (OS + 2 role + 4 digits)
+    // But allow search from 6 characters to catch partial matches
+    if (trimmedId.length < 6) {
+      setSearchResults([]);
+      setLastSearchQuery('');
+      return;
+    }
+
     // Don't search if it's the same query
     if (trimmedId === lastSearchQuery) {
       return;
@@ -160,9 +168,10 @@ export default function ProjectsPage() {
         role: user.role,
       }]);
     } catch (error: any) {
-      console.error('Error searching user:', error);
-      // Only show error toast if explicitly requested (button click or Enter key)
-      if (showErrorToast && trimmedId.length > 0) {
+      // Only log errors when explicitly searching (Enter key or button click)
+      // Suppress console errors for 404s during typing to avoid noise
+      if (showErrorToast) {
+        console.error('Error searching user:', error);
         toast.error(error.message || 'User not found');
       }
       setSearchResults([]);

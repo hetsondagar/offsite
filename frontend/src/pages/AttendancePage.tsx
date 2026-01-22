@@ -27,7 +27,7 @@ import { addPendingItem } from "@/store/slices/offlineSlice";
 import { attendanceApi } from "@/services/api/attendance";
 import { projectsApi } from "@/services/api/projects";
 import { toast } from "sonner";
-import { getCurrentPosition } from "@/lib/capacitor-geolocation";
+import { getCurrentPosition, watchPosition, clearWatch } from "@/lib/capacitor-geolocation";
 
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || 'g51nNpCPKcQQstInYAW2';
 
@@ -53,8 +53,9 @@ export default function AttendancePage() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
+  const watchIdRef = useRef<number | string | null>(null);
 
-  // Load projects
+  // Load projects and check existing check-in status
   useEffect(() => {
     const loadProjects = async () => {
       try {
@@ -74,6 +75,47 @@ export default function AttendancePage() {
       }
     };
     loadProjects();
+  }, []);
+
+  // Check for existing check-in status on page load
+  useEffect(() => {
+    const checkExistingCheckIn = async () => {
+      try {
+        const todayStatus = await attendanceApi.getTodayCheckIn();
+        if (todayStatus.isCheckedIn && todayStatus.checkIn) {
+          setIsCheckedIn(true);
+          setCheckInTime(new Date(todayStatus.checkIn.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+          setSelectedProject(todayStatus.checkIn.projectId);
+          
+          // Set location from check-in data
+          if (todayStatus.checkIn.latitude && todayStatus.checkIn.longitude) {
+            setLocation({
+              latitude: todayStatus.checkIn.latitude,
+              longitude: todayStatus.checkIn.longitude,
+              address: todayStatus.checkIn.location,
+            });
+            
+            // Start GPS watching for continuous tracking
+            startLocationWatching();
+          }
+        }
+      } catch (error: any) {
+        console.error('Error checking existing check-in:', error);
+        // Don't show error to user, just continue
+      }
+    };
+    
+    checkExistingCheckIn();
+  }, []);
+
+  // Cleanup GPS watch on unmount
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) {
+        clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
   }, []);
 
   // Check permission
@@ -159,6 +201,68 @@ export default function AttendancePage() {
     };
   }, [location]);
 
+  const updateLocationFromCoordinates = async (latitude: number, longitude: number) => {
+    // Reverse geocode using MapTiler
+    try {
+      const response = await fetch(
+        `https://api.maptiler.com/geocoding/${longitude},${latitude}.json?key=${MAPTILER_KEY}`
+      );
+      
+      if (!response.ok) {
+        throw new Error('Geocoding service unavailable');
+      }
+      
+      const data = await response.json();
+
+      let address = `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+      if (data.features && data.features.length > 0) {
+        const feature = data.features[0];
+        address = feature.properties?.label || feature.place_name || address;
+      }
+
+      setLocation({
+        latitude,
+        longitude,
+        address,
+      });
+    } catch (geocodeError) {
+      console.error('Geocoding error:', geocodeError);
+      // Still set location with coordinates even if geocoding fails
+      setLocation({
+        latitude,
+        longitude,
+        address: `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+      });
+    }
+  };
+
+  const startLocationWatching = async () => {
+    // Clear any existing watch
+    if (watchIdRef.current !== null) {
+      clearWatch(watchIdRef.current);
+    }
+
+    // Start watching position
+    try {
+      watchIdRef.current = await watchPosition(
+        (locationData) => {
+          updateLocationFromCoordinates(locationData.latitude, locationData.longitude);
+        },
+        (error) => {
+          console.error('Location watch error:', error);
+          // Don't show error to user for watch errors, just log
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 30000,
+          maximumAge: 10000, // Update every 10 seconds
+        }
+      );
+    } catch (error) {
+      console.error('Failed to start location watching:', error);
+    }
+  };
+
   const handleGetLocation = async () => {
     setIsLocating(true);
     setLocationError(null);
@@ -171,41 +275,8 @@ export default function AttendancePage() {
       });
 
       const { latitude, longitude } = locationData;
-
-      // Reverse geocode using MapTiler
-      try {
-        const response = await fetch(
-          `https://api.maptiler.com/geocoding/${longitude},${latitude}.json?key=${MAPTILER_KEY}`
-        );
-        
-        if (!response.ok) {
-          throw new Error('Geocoding service unavailable');
-        }
-        
-        const data = await response.json();
-
-        let address = `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-        if (data.features && data.features.length > 0) {
-          const feature = data.features[0];
-          address = feature.properties?.label || feature.place_name || address;
-        }
-
-        setLocation({
-          latitude,
-          longitude,
-          address,
-        });
-        toast.success('Location captured successfully');
-      } catch (geocodeError) {
-        console.error('Geocoding error:', geocodeError);
-        // Still set location with coordinates even if geocoding fails
-        setLocation({
-          latitude,
-          longitude,
-          address: `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-        });
-        toast.success('Location captured (address lookup failed)');
-      }
+      await updateLocationFromCoordinates(latitude, longitude);
+      toast.success('Location captured successfully');
     } catch (error: any) {
       console.error('Location error:', error);
       
@@ -251,6 +322,10 @@ export default function AttendancePage() {
       );
       setIsCheckedIn(true);
       setCheckInTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+      
+      // Start GPS watching for continuous tracking
+      startLocationWatching();
+      
       toast.success('Checked in successfully!');
     } catch (error: any) {
       // If API fails, save to IndexedDB for offline sync
@@ -282,6 +357,10 @@ export default function AttendancePage() {
       
       setIsCheckedIn(true);
       setCheckInTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+      
+      // Start GPS watching for continuous tracking even in offline mode
+      startLocationWatching();
+      
       toast.success('Checked in (offline mode)');
     } finally {
       setIsLoading(false);
@@ -296,52 +375,33 @@ export default function AttendancePage() {
     
     setIsLoading(true);
     
+    // Stop GPS watching
+    if (watchIdRef.current !== null) {
+      clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    
     try {
-      // Get current location for checkout
-      let checkoutLocation: LocationData | null = null;
-      if (navigator.geolocation) {
-        try {
-          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              enableHighAccuracy: true,
-              timeout: 15000, // 15 seconds for checkout (shorter since it's optional)
-              maximumAge: 60000, // Accept cached position
-            });
-          });
-
-          const { latitude, longitude } = position.coords;
-          
-          // Try to get address
-          try {
-            const response = await fetch(
-              `https://api.maptiler.com/geocoding/${longitude},${latitude}.json?key=${MAPTILER_KEY}`
-            );
-            
-            if (response.ok) {
-              const data = await response.json();
-              let address = `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-              if (data.features && data.features.length > 0) {
-                address = data.features[0].properties?.label || address;
-              }
-              checkoutLocation = { latitude, longitude, address };
-            } else {
-              checkoutLocation = { 
-                latitude, 
-                longitude, 
-                address: `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}` 
-              };
-            }
-          } catch {
-            checkoutLocation = { 
-              latitude, 
-              longitude, 
-              address: `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}` 
-            };
-          }
-        } catch (error) {
-          // Location not available, will use check-in location
-          console.warn('Checkout location not available, using check-in location:', error);
-        }
+      // Use current location if available, otherwise use check-in location
+      let checkoutLocation: LocationData | null = location;
+      
+      // Try to get fresh location for checkout
+      try {
+        const locationData = await getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 60000,
+        });
+        
+        await updateLocationFromCoordinates(locationData.latitude, locationData.longitude);
+        checkoutLocation = {
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+          address: location?.address || `Coordinates: ${locationData.latitude.toFixed(6)}, ${locationData.longitude.toFixed(6)}`,
+        };
+      } catch (error) {
+        // Location not available, will use existing location
+        console.warn('Checkout location not available, using current location:', error);
       }
 
       // Try to submit to API first
