@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 
 dotenv.config();
+console.log('MONGODB_URI from env:', process.env.MONGODB_URI);
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
