@@ -19,6 +19,11 @@ export const attendanceApi = {
     return response.data;
   },
 
+  getTodayCheckIn: async () => {
+    const response = await apiGet<{ checkIn: Attendance | null; checkOut: Attendance | null; isCheckedIn: boolean }>('/attendance/today');
+    return response.data;
+  },
+
   checkIn: async (projectId: string, latitude: number, longitude: number, location?: string) => {
     const response = await apiPost<Attendance>('/attendance/checkin', { 
       projectId, 

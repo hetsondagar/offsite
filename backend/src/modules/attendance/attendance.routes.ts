@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { checkIn, checkOut, getAttendanceByProject } from './attendance.controller';
+import { checkIn, checkOut, getAttendanceByProject, getTodayCheckIn } from './attendance.controller';
 import { authenticateUser } from '../../middlewares/auth.middleware';
 import { authorizePermission } from '../../middlewares/role.middleware';
 
@@ -16,6 +16,11 @@ router.post(
   authenticateUser,
   authorizePermission('canMarkAttendance'),
   checkOut
+);
+router.get(
+  '/today',
+  authenticateUser,
+  getTodayCheckIn
 );
 router.get(
   '/project/:projectId',

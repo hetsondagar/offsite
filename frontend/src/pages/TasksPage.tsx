@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +49,7 @@ export default function TasksPage() {
   const [isSearchingEngineer, setIsSearchingEngineer] = useState(false);
   const [engineerSearch, setEngineerSearch] = useState("");
   const [searchResults, setSearchResults] = useState<User[]>([]);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const [newTask, setNewTask] = useState({
     projectId: "",
@@ -103,26 +104,45 @@ export default function TasksPage() {
     }
   };
 
-  const handleSearchEngineer = async (offsiteId: string) => {
-    if (!offsiteId || offsiteId.trim().length === 0) {
+  const handleSearchEngineer = async (offsiteId: string, showErrorToast: boolean = false) => {
+    const trimmedId = offsiteId.trim().toUpperCase();
+    
+    if (!trimmedId || trimmedId.length === 0) {
       setSearchResults([]);
+      setNewTask(prev => ({ ...prev, assignedTo: "" }));
+      return;
+    }
+
+    // Minimum length check: OffSite IDs are at least 8 characters (OS + 2 role + 4 digits)
+    // But allow search from 6 characters to catch partial matches
+    if (trimmedId.length < 6) {
+      setSearchResults([]);
+      setNewTask(prev => ({ ...prev, assignedTo: "" }));
       return;
     }
 
     setIsSearchingEngineer(true);
     try {
-      const user = await usersApi.searchByOffsiteId(offsiteId.trim());
+      const user = await usersApi.searchByOffsiteId(trimmedId);
       if (user && user.role === 'engineer') {
         setSearchResults([user]);
         setNewTask(prev => ({ ...prev, assignedTo: user._id }));
       } else {
         setSearchResults([]);
-        toast.error('User not found or is not an engineer');
+        setNewTask(prev => ({ ...prev, assignedTo: "" }));
+        if (showErrorToast) {
+          toast.error('User not found or is not an engineer');
+        }
       }
     } catch (error: any) {
-      console.error('Error searching engineer:', error);
+      // Only log errors when explicitly searching (Enter key or button click)
+      // Suppress console errors for 404s during typing to avoid noise
+      if (showErrorToast) {
+        console.error('Error searching engineer:', error);
+        toast.error(error?.message || 'Failed to search engineer');
+      }
       setSearchResults([]);
-      toast.error(error?.message || 'Failed to search engineer');
+      setNewTask(prev => ({ ...prev, assignedTo: "" }));
     } finally {
       setIsSearchingEngineer(false);
     }
@@ -335,12 +355,34 @@ export default function TasksPage() {
                             id="assignedTo"
                             value={engineerSearch}
                             onChange={(e) => {
-                              setEngineerSearch(e.target.value);
-                              if (e.target.value.trim().length > 0) {
-                                handleSearchEngineer(e.target.value);
-                              } else {
+                              const value = e.target.value;
+                              setEngineerSearch(value);
+                              
+                              // Clear previous timeout
+                              if (searchTimeoutRef.current) {
+                                clearTimeout(searchTimeoutRef.current);
+                              }
+                              
+                              if (value.trim().length === 0) {
                                 setSearchResults([]);
                                 setNewTask(prev => ({ ...prev, assignedTo: "" }));
+                                return;
+                              }
+                              
+                              // Debounce search - only search after user stops typing for 500ms
+                              // Don't show error toast for debounced searches
+                              searchTimeoutRef.current = setTimeout(() => {
+                                handleSearchEngineer(value, false);
+                              }, 500);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && engineerSearch.trim().length > 0) {
+                                // Clear timeout and search immediately on Enter
+                                if (searchTimeoutRef.current) {
+                                  clearTimeout(searchTimeoutRef.current);
+                                }
+                                // Show error toast on explicit search (Enter key)
+                                handleSearchEngineer(engineerSearch, true);
                               }
                             }}
                             className="bg-background text-foreground"
