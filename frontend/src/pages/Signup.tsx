@@ -16,6 +16,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
 type Step = "details" | "role";
 
 export default function Signup() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const [step, setStep] = useState<Step>("details");
