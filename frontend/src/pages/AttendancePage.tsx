@@ -381,9 +381,12 @@ export default function AttendancePage() {
       watchIdRef.current = null;
     }
     
+    // Declare checkoutLocation outside try block so it's accessible in catch block
+    let checkoutLocation: LocationData | null = location;
+    
     try {
       // Use current location if available, otherwise use check-in location
-      let checkoutLocation: LocationData | null = location;
+      checkoutLocation = location;
       
       // Try to get fresh location for checkout
       try {

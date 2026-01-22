@@ -22,6 +22,42 @@ allprojects {
         google()
         mavenCentral()
     }
+    
+    // Configure Java 17 for all projects including Capacitor modules
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            project.android {
+                compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_17
+                    targetCompatibility JavaVersion.VERSION_17
+                }
+            }
+        }
+    }
+    
+    // Also configure Java compilation tasks
+    tasks.withType(JavaCompile).configureEach {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+subprojects {
+    afterEvaluate { project ->
+        // Configure Kotlin JVM target to match Java 17
+        project.tasks.configureEach { task ->
+            if (task.class.simpleName == 'KotlinCompile' || task.class.name.contains('KotlinCompile')) {
+                try {
+                    def kotlinOptions = task.metaClass.getProperty(task, 'kotlinOptions')
+                    if (kotlinOptions) {
+                        kotlinOptions.jvmTarget = "17"
+                    }
+                } catch (Exception e) {
+                    // Task doesn't have kotlinOptions, skip
+                }
+            }
+        }
+    }
 }
 
 task clean(type: Delete) {
