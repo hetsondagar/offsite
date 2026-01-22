@@ -72,5 +72,7 @@ attendanceSchema.index({ projectId: 1, timestamp: -1 });
 attendanceSchema.index({ synced: 1 });
 attendanceSchema.index({ userId: 1, clientId: 1 }, { unique: true, sparse: true });
 
-export const Attendance = mongoose.model<IAttendance>('Attendance', attendanceSchema);
+export const Attendance =
+  (mongoose.models.Attendance as mongoose.Model<IAttendance>) ||
+  mongoose.model<IAttendance>('Attendance', attendanceSchema);
 

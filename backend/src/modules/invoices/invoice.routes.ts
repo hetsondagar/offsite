@@ -8,6 +8,7 @@ import {
   downloadInvoicePDF,
   updatePaymentStatus,
   deleteInvoice,
+  getInvoiceSuggestion,
 } from './invoice.controller';
 import { authenticateUser } from '../../middlewares/auth.middleware';
 import { authorizeRoles } from '../../middlewares/role.middleware';
@@ -23,6 +24,9 @@ const router = Router();
 
 // Create invoice (Owner only)
 router.post('/', authenticateUser, authorizeRoles('owner'), createInvoice);
+
+// Get invoice suggestion (Owner only)
+router.get('/suggest/:projectId', authenticateUser, authorizeRoles('owner'), getInvoiceSuggestion);
 
 // Get invoices (All authenticated users, filtered by role)
 router.get('/', authenticateUser, authorizeRoles('owner', 'manager', 'engineer'), getInvoices);

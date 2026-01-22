@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,7 @@ const eventTypeColors = {
 
 export default function EventsPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { userId } = useAppSelector((state) => state.auth);
   const [events, setEvents] = useState<Event[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -158,14 +160,14 @@ export default function EventsPage() {
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Create New Event</DialogTitle>
+                  <DialogTitle>{t('events.createEvent')}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Project *</label>
+                    <label className="text-sm font-medium">{t('events.selectProject')} *</label>
                     <Select value={formData.projectId} onValueChange={(value) => setFormData({...formData, projectId: value})}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select project" />
+                        <SelectValue placeholder={t('events.selectProject')} />
                       </SelectTrigger>
                       <SelectContent>
                         {projects.map((project) => (
@@ -178,33 +180,33 @@ export default function EventsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Event Title *</label>
+                    <label className="text-sm font-medium">{t('events.eventTitle')} *</label>
                     <Input
                       value={formData.title}
                       onChange={(e) => setFormData({...formData, title: e.target.value})}
-                      placeholder="Enter event title"
+                      placeholder={t('events.eventTitle')}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Event Type *</label>
+                    <label className="text-sm font-medium">{t('events.eventType')} *</label>
                     <Select value={formData.type} onValueChange={(value: Event['type']) => setFormData({...formData, type: value})}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="meeting">Meeting</SelectItem>
-                        <SelectItem value="inspection">Inspection</SelectItem>
-                        <SelectItem value="delivery">Delivery</SelectItem>
-                        <SelectItem value="safety">Safety</SelectItem>
-                        <SelectItem value="maintenance">Maintenance</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
+                        <SelectItem value="meeting">{t('events.meeting')}</SelectItem>
+                        <SelectItem value="inspection">{t('events.inspection')}</SelectItem>
+                        <SelectItem value="delivery">{t('events.delivery')}</SelectItem>
+                        <SelectItem value="safety">{t('events.safety')}</SelectItem>
+                        <SelectItem value="maintenance">{t('events.maintenance')}</SelectItem>
+                        <SelectItem value="other">{t('events.other')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Start Date & Time *</label>
+                    <label className="text-sm font-medium">{t('events.startDateTime')} *</label>
                     <Input
                       type="datetime-local"
                       value={formData.startDate}
@@ -213,7 +215,7 @@ export default function EventsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">End Date & Time</label>
+                    <label className="text-sm font-medium">{t('events.endDateTime')}</label>
                     <Input
                       type="datetime-local"
                       value={formData.endDate}
@@ -222,20 +224,20 @@ export default function EventsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Location</label>
+                    <label className="text-sm font-medium">{t('events.location')}</label>
                     <Input
                       value={formData.location}
                       onChange={(e) => setFormData({...formData, location: e.target.value})}
-                      placeholder="Event location"
+                      placeholder={t('events.eventLocation')}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Description</label>
+                    <label className="text-sm font-medium">{t('events.description')}</label>
                     <Textarea
                       value={formData.description}
                       onChange={(e) => setFormData({...formData, description: e.target.value})}
-                      placeholder="Event description"
+                      placeholder={t('events.eventDescription')}
                       rows={3}
                     />
                   </div>
@@ -248,7 +250,7 @@ export default function EventsPage() {
                     {isCreating ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      "Create Event"
+                      t('events.createEvent')
                     )}
                   </Button>
                 </div>
@@ -267,8 +269,8 @@ export default function EventsPage() {
             <Card variant="gradient">
               <CardContent className="p-8 text-center">
                 <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p className="font-medium text-foreground">No events scheduled</p>
-                <p className="text-sm text-muted-foreground">Create your first event to get started</p>
+                <p className="font-medium text-foreground">{t('events.noEventsScheduled')}</p>
+                <p className="text-sm text-muted-foreground">{t('events.createFirstEvent')}</p>
               </CardContent>
             </Card>
           ) : (

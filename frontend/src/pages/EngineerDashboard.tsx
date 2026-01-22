@@ -6,6 +6,7 @@ import { OfflineBanner } from "@/components/common/OfflineBanner";
 import { Logo } from "@/components/common/Logo";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useTranslation } from "react-i18next";
 import { FileText, MapPin, Package, ClipboardList, Clock, AlertTriangle, CheckCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -23,6 +24,7 @@ import { NotificationBell } from "@/components/common/NotificationBell";
 
 export default function EngineerDashboard() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { hasPermission } = usePermissions();
   const { userId } = useAppSelector((state) => state.auth);
   const { isOnline, pendingItems } = useAppSelector((state) => state.offline);
@@ -148,24 +150,24 @@ export default function EngineerDashboard() {
   const handleAcceptInvitation = async (invitationId: string) => {
     try {
       await notificationsApi.acceptInvitation(invitationId);
-      toast.success('Project invitation accepted!');
+      toast.success(t("messages.invitationAccepted"));
       // Reload dashboard data
       loadDashboardData();
     } catch (error: any) {
       console.error('Error accepting invitation:', error);
-      toast.error(error.message || 'Failed to accept invitation');
+      toast.error(error.message || t("messages.failedToAccept"));
     }
   };
 
   const handleRejectInvitation = async (invitationId: string) => {
     try {
       await notificationsApi.rejectInvitation(invitationId);
-      toast.success('Invitation rejected');
+      toast.success(t("messages.invitationRejected"));
       // Reload dashboard data
       loadDashboardData();
     } catch (error: any) {
       console.error('Error rejecting invitation:', error);
-      toast.error(error.message || 'Failed to reject invitation');
+      toast.error(error.message || t("messages.failedToReject"));
     }
   };
 
@@ -205,7 +207,7 @@ export default function EngineerDashboard() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <UserPlus className="w-5 h-5 text-primary" />
-                Project Invitations ({pendingInvitations.length})
+                {t("dashboard.projectInvitations")} ({pendingInvitations.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -213,9 +215,9 @@ export default function EngineerDashboard() {
                 <div key={invitation._id} className="p-3 rounded-lg border bg-card">
                   <div className="space-y-2">
                     <div>
-                      <p className="font-medium text-sm">{invitation.projectId?.name || 'Project'}</p>
+                      <p className="font-medium text-sm">{invitation.projectId?.name || t("pages.projects")}</p>
                       <p className="text-xs text-muted-foreground">
-                        Invited as {invitation.role === 'engineer' ? 'Site Engineer' : 'Project Manager'}
+                        {t("dashboard.invitedAs")} {invitation.role === 'engineer' ? t("dashboard.siteEngineer") : t("dashboard.projectManager")}
                       </p>
                       {invitation.projectId?.location && (
                         <p className="text-xs text-muted-foreground mt-1">
@@ -230,7 +232,7 @@ export default function EngineerDashboard() {
                         onClick={() => handleAcceptInvitation(invitation._id)}
                       >
                         <UserPlus className="w-4 h-4 mr-1" />
-                        Accept
+                        {t("common.accept")}
                       </Button>
                       <Button
                         size="sm"
@@ -239,7 +241,7 @@ export default function EngineerDashboard() {
                         onClick={() => handleRejectInvitation(invitation._id)}
                       >
                         <X className="w-4 h-4 mr-1" />
-                        Reject
+                        {t("common.reject")}
                       </Button>
                     </div>
                   </div>
@@ -254,7 +256,7 @@ export default function EngineerDashboard() {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg">
               <Clock className="w-5 h-5 text-primary" />
-              Today at a Glance
+              {t("dashboard.today")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -272,13 +274,13 @@ export default function EngineerDashboard() {
                         <CheckCircle className="w-4 h-4 text-success" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">Checked In</p>
+                        <p className="text-sm font-medium text-foreground">{t("dashboard.checkIn")}</p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(todayAttendance.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} · {todayAttendance.location}
                         </p>
                       </div>
                     </div>
-                    <StatusBadge status="success" label="Active" pulse />
+                    <StatusBadge status="success" label={t("status.active")} pulse />
                   </div>
                 ) : (
                   <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
@@ -287,11 +289,11 @@ export default function EngineerDashboard() {
                         <MapPin className="w-4 h-4 text-muted-foreground" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">Not Checked In</p>
-                        <p className="text-xs text-muted-foreground">Mark your attendance</p>
+                        <p className="text-sm font-medium text-foreground">{t("dashboard.notCheckedIn")}</p>
+                        <p className="text-xs text-muted-foreground">{t("dashboard.markAttendance")}</p>
                       </div>
                     </div>
-                    <StatusBadge status="offline" label="Not Active" />
+                    <StatusBadge status="offline" label={t("common.offline")} />
                   </div>
                 )}
 
@@ -309,7 +311,7 @@ export default function EngineerDashboard() {
                         </p>
                       </div>
                     </div>
-                    <StatusBadge status="info" label="Active" />
+                    <StatusBadge status="info" label={t("status.active")} />
                   </div>
                 ) : (
                   <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
@@ -318,8 +320,8 @@ export default function EngineerDashboard() {
                         <ClipboardList className="w-4 h-4 text-muted-foreground" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">No Active Tasks</p>
-                        <p className="text-xs text-muted-foreground">Check your assigned projects</p>
+                        <p className="text-sm font-medium text-foreground">{t("dashboard.noTasks")}</p>
+                        <p className="text-xs text-muted-foreground">{t("dashboard.viewTasks")}</p>
                       </div>
                     </div>
                   </div>
@@ -334,7 +336,7 @@ export default function EngineerDashboard() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-foreground">
-                          {pendingRequests.length} Pending Request{pendingRequests.length > 1 ? 's' : ''}
+                          {pendingRequests.length} {t("dashboard.pendingRequests")}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {pendingRequests.slice(0, 2).map((r: any) => r.materialName).join(', ')}
@@ -342,7 +344,7 @@ export default function EngineerDashboard() {
                         </p>
                       </div>
                     </div>
-                    <StatusBadge status="pending" label="Waiting" />
+                    <StatusBadge status="pending" label={t("status.pending")} />
                   </div>
                 ) : (
                   <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
@@ -351,8 +353,8 @@ export default function EngineerDashboard() {
                         <CheckCircle className="w-4 h-4 text-success" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">No Pending Requests</p>
-                        <p className="text-xs text-muted-foreground">All requests processed</p>
+                        <p className="text-sm font-medium text-foreground">{t("dashboard.noPendingRequests")}</p>
+                        <p className="text-xs text-muted-foreground">{t("messages.saved")}</p>
                       </div>
                     </div>
                   </div>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAppDispatch } from "@/store/hooks";
 import { login } from "@/store/slices/authSlice";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Logo } from "@/components/common/Logo";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
+import { LanguageToggle } from "@/components/common/LanguageToggle";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
@@ -14,6 +16,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
 export default function Login() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -23,12 +26,12 @@ export default function Login() {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      setError("Please fill in all fields");
+      setError(t("auth.fillAllFields"));
       return;
     }
 
     if (!navigator.onLine) {
-      setError("You are offline. Connect to the internet (or start the local backend) to login.");
+      setError(t("auth.offlineError"));
       return;
     }
 
@@ -47,7 +50,7 @@ export default function Login() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+        throw new Error(data.message || t("auth.loginFailed"));
       }
 
       if (data.success && data.data) {
@@ -64,14 +67,14 @@ export default function Login() {
 
         navigate("/");
       } else {
-        throw new Error(data.message || 'Login failed');
+        throw new Error(data.message || t("auth.loginFailed"));
       }
     } catch (err: any) {
       const msg = String(err?.message || '');
       if (msg.includes('Failed to fetch') || msg.includes('ERR_CONNECTION_REFUSED')) {
-        setError('Cannot reach backend API. Start the backend on http://localhost:3000 (and MongoDB), then try again.');
+        setError(t("auth.cannotReachBackend"));
       } else {
-        setError(err.message || 'An error occurred during login');
+        setError(err.message || t("auth.errorOccurred"));
       }
     } finally {
       setIsLoading(false);
@@ -88,8 +91,9 @@ export default function Login() {
           <div className="absolute bottom-1/4 right-1/4 w-64 h-64 sm:w-96 sm:h-96 bg-primary/5 rounded-full blur-3xl" />
         </div>
 
-        {/* Theme Toggle - Top Right */}
-        <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20">
+        {/* Theme Toggle and Language Toggle - Top Right */}
+        <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 flex items-center gap-2">
+          <LanguageToggle variant="icon" />
           <ThemeToggle variant="icon" />
         </div>
 
@@ -99,7 +103,7 @@ export default function Login() {
           
           {/* Welcome Text */}
           <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-bold text-foreground text-center">
-            Welcome Back!
+            {t("auth.welcomeBack")}
           </h1>
         </div>
       </div>
@@ -117,7 +121,7 @@ export default function Login() {
 
             {/* Email Field */}
             <div className="space-y-2">
-              <label className="text-xs sm:text-sm font-medium text-foreground">Email Address</label>
+              <label className="text-xs sm:text-sm font-medium text-foreground">{t("auth.email")}</label>
               <div className="relative">
                 <Input
                   type="email"
@@ -131,7 +135,7 @@ export default function Login() {
 
             {/* Password Field */}
             <div className="space-y-2">
-              <label className="text-xs sm:text-sm font-medium text-foreground">Password</label>
+              <label className="text-xs sm:text-sm font-medium text-foreground">{t("auth.password")}</label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
@@ -156,7 +160,7 @@ export default function Login() {
                 to="/forgot-password" 
                 className="text-xs sm:text-sm text-primary hover:underline text-right w-full mt-1 block"
               >
-                Forgot Password?
+                {t("auth.forgotPassword")}
               </Link>
             </div>
 
@@ -172,7 +176,7 @@ export default function Login() {
                   htmlFor="remember"
                   className="text-xs sm:text-sm font-medium leading-none cursor-pointer text-foreground"
                 >
-                  Remember me
+                  {t("auth.rememberMe")}
                 </label>
               </div>
             </div>
@@ -187,7 +191,7 @@ export default function Login() {
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                "LOGIN"
+                t("auth.login")
               )}
             </Button>
           </div>
@@ -196,9 +200,9 @@ export default function Login() {
         {/* Sign Up Link */}
         <div className="text-center mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-border/50 max-w-md mx-auto w-full">
           <p className="text-xs sm:text-sm text-muted-foreground">
-            Don't have an account?{" "}
+            {t("auth.noAccount")}{" "}
             <Link to="/signup" className="text-primary font-semibold hover:underline">
-              SIGN UP
+              {t("auth.signUp")}
             </Link>
           </p>
         </div>

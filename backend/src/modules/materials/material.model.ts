@@ -13,6 +13,7 @@ export interface IMaterialRequest extends Document {
   status: MaterialRequestStatus;
   anomalyDetected: boolean;
   anomalyReason?: string;
+  estimatedCost?: number; // Estimated cost in INR (quantity * approxPriceINR)
   approvedBy?: mongoose.Types.ObjectId;
   rejectedBy?: mongoose.Types.ObjectId;
   rejectionReason?: string;
@@ -76,6 +77,10 @@ const materialRequestSchema = new Schema<IMaterialRequest>(
       type: String,
       trim: true,
     },
+    estimatedCost: {
+      type: Number,
+      min: 0,
+    },
     approvedBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',
@@ -105,5 +110,7 @@ materialRequestSchema.index({ requestedBy: 1 });
 materialRequestSchema.index({ status: 1, createdAt: -1 });
 materialRequestSchema.index({ requestedBy: 1, clientId: 1 }, { unique: true, sparse: true });
 
-export const MaterialRequest = mongoose.model<IMaterialRequest>('MaterialRequest', materialRequestSchema);
+export const MaterialRequest =
+  (mongoose.models.MaterialRequest as mongoose.Model<IMaterialRequest>) ||
+  mongoose.model<IMaterialRequest>('MaterialRequest', materialRequestSchema);
 

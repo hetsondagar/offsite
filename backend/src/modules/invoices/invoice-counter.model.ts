@@ -33,8 +33,7 @@ const invoiceCounterSchema = new Schema<IInvoiceCounter>(
 
 invoiceCounterSchema.index({ financialYear: 1 }, { unique: true });
 
-export const InvoiceCounter = mongoose.model<IInvoiceCounter>(
-  'InvoiceCounter',
-  invoiceCounterSchema
-);
+export const InvoiceCounter =
+  (mongoose.models.InvoiceCounter as mongoose.Model<IInvoiceCounter>) ||
+  mongoose.model<IInvoiceCounter>('InvoiceCounter', invoiceCounterSchema);
 

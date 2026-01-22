@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import { syncOfflineStores } from "@/lib/offlineSync";
 export default function SyncPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const { isOnline, isSyncing, lastSyncTime } = useAppSelector((state) => state.offline);
   const [pendingItems, setPendingItems] = useState<any[]>([]);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
@@ -94,8 +96,8 @@ export default function SyncPage() {
               <Logo size="md" showText={false} />
             </div>
             <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="font-display font-semibold text-lg">Sync</h1>
-              <p className="text-xs text-muted-foreground">Offline data synchronization</p>
+              <h1 className="font-display font-semibold text-lg">{t('sync.title')}</h1>
+              <p className="text-xs text-muted-foreground">{t('sync.offlineDataSync')}</p>
             </div>
           </div>
         </div>
@@ -123,22 +125,22 @@ export default function SyncPage() {
                     )}
                     <div>
                       <h2 className="font-display font-semibold text-foreground">
-                        {isOnline ? 'Online' : 'Offline'}
+                        {isOnline ? t('common.online') : t('common.offline')}
                       </h2>
                       <p className="text-sm text-muted-foreground">
-                        {isOnline ? 'Ready to sync' : 'Connect to sync'}
+                        {isOnline ? t('sync.readyToSync') : t('sync.connectToSync')}
                       </p>
                     </div>
                   </div>
                   <StatusBadge 
                     status={isOnline ? "success" : "warning"} 
-                    label={isOnline ? "Connected" : "Offline"} 
+                    label={isOnline ? t('sync.connected') : t('common.offline')} 
                   />
                 </div>
 
                 {lastSyncTime && (
                   <p className="text-xs text-muted-foreground">
-                    Last sync: {new Date(lastSyncTime).toLocaleString()}
+                    {t('sync.lastSync')} {new Date(lastSyncTime).toLocaleString()}
                   </p>
                 )}
               </CardContent>
@@ -168,7 +170,7 @@ export default function SyncPage() {
                     className="flex items-center gap-3"
                   >
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Syncing...</span>
+                    <span>{t('sync.syncing')}</span>
                   </motion.div>
                 ) : syncStatus === 'success' ? (
                   <motion.div
@@ -179,7 +181,7 @@ export default function SyncPage() {
                     className="flex items-center gap-3"
                   >
                     <Check className="w-5 h-5" />
-                    <span>Sync Complete!</span>
+                    <span>{t('sync.syncComplete')}</span>
                   </motion.div>
                 ) : syncStatus === 'error' ? (
                   <motion.div
@@ -189,7 +191,7 @@ export default function SyncPage() {
                     className="flex items-center gap-3"
                   >
                     <X className="w-5 h-5" />
-                    <span>Sync Failed</span>
+                    <span>{t('sync.syncFailed')}</span>
                   </motion.div>
                 ) : (
                   <motion.div
@@ -200,7 +202,7 @@ export default function SyncPage() {
                     className="flex items-center gap-3"
                   >
                     <RefreshCw className="w-5 h-5" />
-                    <span>Sync Now ({pendingItems.length} items)</span>
+                    <span>{t('sync.syncNowWithCount', { count: pendingItems.length })}</span>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -216,7 +218,7 @@ export default function SyncPage() {
             <Card variant="gradient">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">
-                  Pending Items ({pendingItems.length})
+                  {t('sync.pendingItems')} ({pendingItems.length})
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -228,7 +230,7 @@ export default function SyncPage() {
                       className="text-center py-8 text-muted-foreground"
                     >
                       <Check className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">All items synced</p>
+                      <p className="text-sm">{t('sync.allItemsSynced')}</p>
                     </motion.div>
                   ) : (
                     <div className="space-y-3">

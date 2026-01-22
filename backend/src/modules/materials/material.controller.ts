@@ -22,6 +22,23 @@ const createMaterialRequestSchema = z.object({
   quantity: z.number().min(0),
   unit: z.string(),
   reason: z.string().min(1),
+}).refine((data) => {
+  // Validate quantity based on unit type
+  const integerUnits = ['bag', 'nos'];
+  const decimalUnits = ['kg', 'ton', 'meter', 'sqm', 'cum', 'liter'];
+  
+  if (integerUnits.includes(data.unit)) {
+    // Must be integer for bag and nos
+    return Number.isInteger(data.quantity);
+  } else if (decimalUnits.includes(data.unit)) {
+    // Allow decimals for kg, ton, meter, sqm, cum, liter
+    return true;
+  }
+  // Unknown unit, allow for backward compatibility
+  return true;
+}, {
+  message: 'Quantity must be a whole number for bag and nos units',
+  path: ['quantity'],
 });
 
 export const createMaterialRequest = async (
@@ -36,6 +53,35 @@ export const createMaterialRequest = async (
 
     const data = createMaterialRequestSchema.parse(req.body);
 
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    // Verify project exists and user is a member
+    const { Project } = await import('../projects/project.model');
+    const project = await Project.findById(data.projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    // Verify user is a member of the project (engineers must be members)
+    if (req.user!.role === 'engineer') {
+      const isMember = project.members.some(
+        (memberId) => memberId.toString() === req.user!.userId
+      );
+      if (!isMember) {
+        throw new AppError('You are not a member of this project', 403, 'FORBIDDEN');
+      }
+    }
+
+    // Get material catalog entry to calculate estimated cost
+    const materialCatalog = await MaterialCatalog.findById(data.materialId);
+    let estimatedCost: number | undefined;
+    
+    if (materialCatalog && materialCatalog.approxPriceINR) {
+      estimatedCost = data.quantity * materialCatalog.approxPriceINR;
+    }
+
     // Detect anomaly
     const anomalyCheck = await detectMaterialAnomaly(
       data.materialId,
@@ -45,10 +91,11 @@ export const createMaterialRequest = async (
 
     const materialRequest = new MaterialRequest({
       ...data,
-      requestedBy: req.user.userId,
+      requestedBy: req.user!.userId,
       status: 'pending',
       anomalyDetected: anomalyCheck.isAnomaly,
       anomalyReason: anomalyCheck.reason,
+      estimatedCost,
     });
 
     await materialRequest.save();
@@ -213,14 +260,34 @@ export const approveRequest = async (
 
     const { id } = req.params;
 
-    const request = await MaterialRequest.findById(id);
+    const request = await MaterialRequest.findById(id).populate('projectId');
 
     if (!request) {
       throw new AppError('Material request not found', 404, 'REQUEST_NOT_FOUND');
     }
 
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    // Verify project exists
+    const project = request.projectId as any;
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    // Verify user is a member of the project (for managers) or is owner
+    if (req.user!.role === 'manager') {
+      const isMember = project.members?.some(
+        (memberId: any) => memberId.toString() === req.user!.userId
+      );
+      if (!isMember) {
+        throw new AppError('You are not a member of this project', 403, 'FORBIDDEN');
+      }
+    }
+
     // Prevent self-approval
-    if (request.requestedBy.toString() === req.user.userId) {
+    if (request.requestedBy.toString() === req.user!.userId) {
       throw new AppError('Cannot approve your own request', 400, 'SELF_APPROVAL_NOT_ALLOWED');
     }
 
@@ -233,6 +300,23 @@ export const approveRequest = async (
     request.approvedAt = new Date();
 
     await request.save();
+
+    // Add stock IN entry
+    try {
+      const { addStockIn } = await import('../stock/stock.service');
+      await addStockIn(
+        request.projectId.toString(),
+        request.materialId,
+        request.materialName,
+        request.quantity,
+        request.unit,
+        request._id,
+        req.user.userId
+      );
+    } catch (stockError: any) {
+      logger.warn(`Failed to add stock entry for approved material: ${stockError.message}`);
+      // Don't fail the approval if stock tracking fails
+    }
 
     await request.populate('requestedBy', 'name phone offsiteId');
     await request.populate('approvedBy', 'name phone');
@@ -287,14 +371,34 @@ export const rejectRequest = async (
     const { id } = req.params;
     const data = rejectMaterialRequestSchema.parse(req.body);
 
-    const request = await MaterialRequest.findById(id);
+    const request = await MaterialRequest.findById(id).populate('projectId');
 
     if (!request) {
       throw new AppError('Material request not found', 404, 'REQUEST_NOT_FOUND');
     }
 
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    // Verify project exists
+    const project = request.projectId as any;
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    // Verify user is a member of the project (for managers) or is owner
+    if (req.user!.role === 'manager') {
+      const isMember = project.members?.some(
+        (memberId: any) => memberId.toString() === req.user!.userId
+      );
+      if (!isMember) {
+        throw new AppError('You are not a member of this project', 403, 'FORBIDDEN');
+      }
+    }
+
     // Prevent self-rejection
-    if (request.requestedBy.toString() === req.user.userId) {
+    if (request.requestedBy.toString() === req.user!.userId) {
       throw new AppError('Cannot reject your own request', 400, 'SELF_REJECTION_NOT_ALLOWED');
     }
 
@@ -361,33 +465,29 @@ export const getMaterialsCatalog = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    let materials = await MaterialCatalog.find({ isActive: true })
-      .sort({ name: 1 })
-      .select('-__v');
+    const materials = await MaterialCatalog.find({ isActive: true })
+      .sort({ category: 1, name: 1 })
+      .select('name category unit approxPriceINR priceUnit defaultAnomalyThreshold _id')
+      .lean();
 
-    // If catalog is empty, seed with default materials
-    if (materials.length === 0) {
-      const defaultMaterials = [
-        { name: 'Cement', unit: 'bags', defaultAnomalyThreshold: 1.3, category: 'Construction' },
-        { name: 'Steel Bars', unit: 'tons', defaultAnomalyThreshold: 1.3, category: 'Construction' },
-        { name: 'Bricks', unit: 'pieces', defaultAnomalyThreshold: 1.3, category: 'Construction' },
-        { name: 'Sand', unit: 'cubic meters', defaultAnomalyThreshold: 1.3, category: 'Construction' },
-        { name: 'Gravel', unit: 'cubic meters', defaultAnomalyThreshold: 1.3, category: 'Construction' },
-        { name: 'Concrete Mix', unit: 'cubic meters', defaultAnomalyThreshold: 1.3, category: 'Construction' },
-        { name: 'Steel Rods', unit: 'kg', defaultAnomalyThreshold: 1.3, category: 'Construction' },
-        { name: 'Tiles', unit: 'pieces', defaultAnomalyThreshold: 1.3, category: 'Finishing' },
-      ];
+    // Group by category if materials exist
+    const groupedMaterials: Record<string, typeof materials> = {};
+    materials.forEach((material) => {
+      const category = material.category || 'Other';
+      if (!groupedMaterials[category]) {
+        groupedMaterials[category] = [];
+      }
+      groupedMaterials[category].push(material);
+    });
 
-      await MaterialCatalog.insertMany(defaultMaterials);
-      materials = await MaterialCatalog.find({ isActive: true })
-        .sort({ name: 1 })
-        .select('-__v');
-    }
-
+    // Return both flat list and grouped structure for backward compatibility
     const response: ApiResponse = {
       success: true,
       message: 'Materials catalog retrieved successfully',
-      data: materials,
+      data: {
+        materials, // Flat list for backward compatibility
+        grouped: groupedMaterials, // Grouped by category
+      },
     };
 
     res.status(200).json(response);

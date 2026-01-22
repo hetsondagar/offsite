@@ -78,7 +78,8 @@ export const dprApi = {
     }
 
     const token = localStorage.getItem('accessToken');
-    const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/dpr`, {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    const response = await fetch(`${apiUrl}/dpr`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

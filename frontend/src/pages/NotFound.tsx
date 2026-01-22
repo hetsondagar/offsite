@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Logo } from "@/components/common/Logo";
 import { Button } from "@/components/ui/button";
 import { Home } from "lucide-react";
@@ -7,6 +8,7 @@ import { Home } from "lucide-react";
 const NotFound = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   useEffect(() => {
     console.error("404 Error: User attempted to access non-existent route:", location.pathname);
@@ -19,10 +21,10 @@ const NotFound = () => {
           <Logo size="lg" showText={true} />
         </div>
         <div className="space-y-2">
-          <h1 className="text-6xl font-display font-bold text-foreground">404</h1>
-          <p className="text-xl text-muted-foreground">Oops! Page not found</p>
+          <h1 className="text-6xl font-display font-bold text-foreground">{t("notFound.title")}</h1>
+          <p className="text-xl text-muted-foreground">{t("notFound.message")}</p>
           <p className="text-sm text-muted-foreground">
-            The page you're looking for doesn't exist or has been moved.
+            {t("notFound.description")}
           </p>
         </div>
         <Button
@@ -31,7 +33,7 @@ const NotFound = () => {
           className="gap-2"
         >
           <Home className="w-4 h-4" />
-          Return to Home
+          {t("notFound.returnHome")}
         </Button>
       </div>
     </div>

@@ -102,7 +102,8 @@ export const acceptInvitation = async (
         message: 'You are already a member of this project',
         data: invitation,
       };
-      return res.status(200).json(response);
+      res.status(200).json(response);
+      return;
     }
 
     // Add user to project members using $addToSet to prevent duplicates

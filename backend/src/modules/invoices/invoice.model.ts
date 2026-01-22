@@ -260,4 +260,6 @@ invoiceSchema.index({ status: 1 });
 invoiceSchema.index({ ownerId: 1 });
 invoiceSchema.index({ 'billingPeriod.from': 1, 'billingPeriod.to': 1 });
 
-export const Invoice = mongoose.model<IInvoice>('Invoice', invoiceSchema);
+export const Invoice =
+  (mongoose.models.Invoice as mongoose.Model<IInvoice>) ||
+  mongoose.model<IInvoice>('Invoice', invoiceSchema);

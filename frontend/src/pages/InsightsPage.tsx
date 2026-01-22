@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import { Loader2, Sparkles } from "lucide-react";
 
 export default function InsightsPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { hasPermission } = usePermissions();
   const { role } = useAppSelector((state) => state.auth);
   const [siteHealth, setSiteHealth] = useState<any>(null);
@@ -104,8 +106,8 @@ export default function InsightsPage() {
               <Logo size="md" showText={false} />
             </div>
             <div className="flex-1 flex flex-col items-center justify-center px-16 sm:px-0">
-              <h1 className="font-display font-semibold text-lg">AI Insights</h1>
-              <p className="text-xs text-muted-foreground hidden sm:block">Smart analysis & predictions</p>
+              <h1 className="font-display font-semibold text-lg">{t('insights.title')}</h1>
+              <p className="text-xs text-muted-foreground hidden sm:block">{t('insights.smartAnalysis')}</p>
             </div>
             <Button
               variant="outline"
@@ -114,8 +116,8 @@ export default function InsightsPage() {
               className="absolute right-0 text-xs sm:text-sm px-2 sm:px-4"
             >
               <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
-              <span className="hidden sm:inline">AI Command</span>
-              <span className="sm:hidden">AI Command</span>
+              <span className="hidden sm:inline">{t('insights.aiCommand')}</span>
+              <span className="sm:hidden">{t('insights.aiCommand')}</span>
             </Button>
           </div>
         </div>
@@ -134,14 +136,14 @@ export default function InsightsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <h2 className="font-display font-semibold text-foreground">
-                        Overall Health Score
+                        {t('insights.overallHealthScore')}
                       </h2>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Based on {siteHealth?.totalProjects || projects.length} active projects
+                        {t('insights.basedOnProjects', { count: siteHealth?.totalProjects || projects.length })}
                       </p>
                       <div className="flex gap-2 mt-4">
-                        <StatusBadge status="success" label={`${siteHealth?.projectHealthScores?.filter((p: any) => p.healthScore >= 70).length || 0} Healthy`} />
-                        <StatusBadge status="warning" label={`${siteHealth?.projectHealthScores?.filter((p: any) => p.healthScore < 70 && p.healthScore >= 50).length || 0} At Risk`} />
+                        <StatusBadge status="success" label={`${siteHealth?.projectHealthScores?.filter((p: any) => p.healthScore >= 70).length || 0} ${t('insights.healthy')}`} />
+                        <StatusBadge status="warning" label={`${siteHealth?.projectHealthScores?.filter((p: any) => p.healthScore < 70 && p.healthScore >= 50).length || 0} ${t('insights.atRisk')}`} />
                       </div>
                     </div>
                     <HealthScoreRing score={siteHealth?.overallHealthScore || 0} size="lg" />
@@ -154,12 +156,12 @@ export default function InsightsPage() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Clock className="w-4 h-4 text-primary" />
-                Delay Risk Predictor
+                {t('insights.delayRiskPredictor')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {delayRisks.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No delay risks detected</p>
+                <p className="text-sm text-muted-foreground text-center py-4">{t('insights.noDelayRisks')}</p>
               ) : (
                 delayRisks.map((risk: any, index: number) => (
                   <div 
@@ -256,7 +258,7 @@ export default function InsightsPage() {
                           <span className="font-medium text-foreground">{request.quantity} {request.unit}</span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span>Requested by: {requesterName}</span>
+                          <span>{t('insights.requestedBy')} {requesterName}</span>
                           {request.delayDays > 0 && (
                             <span className={delaySeverity === 'critical' ? 'text-destructive font-medium' : delaySeverity === 'warning' ? 'text-warning font-medium' : ''}>
                               {request.delayDays} day(s) pending

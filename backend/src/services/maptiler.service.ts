@@ -44,7 +44,15 @@ export async function reverseGeocode(
       throw new Error(`MapTiler API error: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as {
+      features?: Array<{
+        properties?: {
+          context?: Record<string, any>;
+          [key: string]: any;
+        };
+        [key: string]: any;
+      }>;
+    };
 
     if (!data.features || data.features.length === 0) {
       logger.warn(`No address found for coordinates ${latitude}, ${longitude}`);
@@ -131,7 +139,13 @@ export async function geocode(address: string): Promise<GeocodeResult | null> {
       throw new Error(`MapTiler API error: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as {
+      features?: Array<{
+        geometry: { coordinates: [number, number] };
+        properties?: Record<string, any>;
+        [key: string]: any;
+      }>;
+    };
 
     if (!data.features || data.features.length === 0) {
       return null;

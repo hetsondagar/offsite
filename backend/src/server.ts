@@ -13,10 +13,10 @@ const startServer = async (): Promise<void> => {
     startCronJobs();
 
     // Start server
-    const server = app.listen(env.PORT, () => {
+    const server = app.listen(env.PORT, '0.0.0.0', () => {
       logger.info(`🚀 Server running on port ${env.PORT}`);
       logger.info(`📱 Environment: ${env.NODE_ENV}`);
-      logger.info(`🔗 API: http://localhost:${env.PORT}/api`);
+      logger.info(`🔗 API: http://0.0.0.0:${env.PORT}/api`);
     });
 
     // Graceful shutdown

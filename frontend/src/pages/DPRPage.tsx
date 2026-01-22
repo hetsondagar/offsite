@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { projectsApi } from "@/services/api/projects";
 import { tasksApi } from "@/services/api/tasks";
 import { dprApi } from "@/services/api/dpr";
+import { pickImages } from "@/lib/capacitor-camera";
 import { insightsApi } from "@/services/api/insights";
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
@@ -36,6 +38,7 @@ type Step = 1 | 2 | 3 | 4 | 5 | 6;
 export default function DPRPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const { hasPermission } = usePermissions();
   const userId = useAppSelector((state) => state.auth.userId);
   const { isOnline } = useAppSelector((state) => state.offline);
@@ -111,13 +114,10 @@ export default function DPRPage() {
     loadTasks();
   }, [selectedProject]);
 
-  const handlePhotoUpload = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.multiple = true;
-    input.onchange = (e: any) => {
-      const files = Array.from(e.target.files) as File[];
+  const handlePhotoUpload = async () => {
+    try {
+      const files = await pickImages({ quality: 90 });
+      
       if (files.length + photos.length > 6) {
         alert('Maximum 6 photos allowed');
         return;
@@ -134,8 +134,10 @@ export default function DPRPage() {
         };
         reader.readAsDataURL(file);
       });
-    };
-    input.click();
+    } catch (error: any) {
+      console.error('Photo upload error:', error);
+      // User cancelled or error occurred - silently fail
+    }
   };
 
   const handleGenerateAI = async () => {
@@ -151,13 +153,9 @@ export default function DPRPage() {
     }
   };
 
-  const handleWorkStoppagePhotoUpload = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.multiple = true;
-    input.onchange = (e: any) => {
-      const files = Array.from(e.target.files) as File[];
+  const handleWorkStoppagePhotoUpload = async () => {
+    try {
+      const files = await pickImages({ quality: 90 });
       setWorkStoppageEvidencePhotos(prev => [...prev, ...files]);
       
       // Create previews
@@ -168,8 +166,10 @@ export default function DPRPage() {
         };
         reader.readAsDataURL(file);
       });
-    };
-    input.click();
+    } catch (error: any) {
+      console.error('Photo upload error:', error);
+      // User cancelled or error occurred - silently fail
+    }
   };
 
   const loadOldDPRs = async (projectId: string) => {
@@ -354,7 +354,7 @@ export default function DPRPage() {
               <Logo size="md" showText={false} />
             </div>
             <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="font-display font-semibold text-lg">Create DPR</h1>
+              <h1 className="font-display font-semibold text-lg">{t("dpr.createDPR")}</h1>
               <p className="text-xs text-muted-foreground">{stepTitles[step]}</p>
             </div>
             <div className="absolute right-0">
@@ -660,7 +660,7 @@ export default function DPRPage() {
             ) : (
               <Card>
                 <CardContent className="pt-6 text-center py-8">
-                  <p className="text-sm text-muted-foreground">No previous DPRs found</p>
+                  <p className="text-sm text-muted-foreground">{t('dpr.noPreviousDPRs')}</p>
                 </CardContent>
               </Card>
             )}
@@ -679,7 +679,7 @@ export default function DPRPage() {
               ) : projects.length === 0 ? (
                 <Card>
                   <CardContent className="p-8 text-center">
-                    <p className="text-muted-foreground">No projects available</p>
+                    <p className="text-muted-foreground">{t('dpr.noProjectsAvailable')}</p>
                   </CardContent>
                 </Card>
               ) : (
@@ -772,7 +772,7 @@ export default function DPRPage() {
               ) : tasks.length === 0 ? (
                 <Card>
                   <CardContent className="p-8 text-center">
-                    <p className="text-muted-foreground">No tasks available for this project</p>
+                    <p className="text-muted-foreground">{t('dpr.noTasksAvailable')}</p>
                   </CardContent>
                 </Card>
               ) : (
@@ -911,19 +911,19 @@ export default function DPRPage() {
                           className="w-full p-3 rounded-xl bg-muted/50 border border-border/50 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                           required
                         >
-                          <option value="">Select reason</option>
-                          <option value="MATERIAL_DELAY">Material Delay</option>
-                          <option value="LABOUR_SHORTAGE">Labour Shortage</option>
-                          <option value="WEATHER">Weather</option>
-                          <option value="MACHINE_BREAKDOWN">Machine Breakdown</option>
-                          <option value="APPROVAL_PENDING">Approval Pending</option>
-                          <option value="SAFETY_ISSUE">Safety Issue</option>
+                          <option value="">{t('dpr.selectReason')}</option>
+                          <option value="MATERIAL_DELAY">{t('dpr.materialDelay')}</option>
+                          <option value="LABOUR_SHORTAGE">{t('dpr.labourShortage')}</option>
+                          <option value="WEATHER">{t('dpr.weather')}</option>
+                          <option value="MACHINE_BREAKDOWN">{t('dpr.machineBreakdown')}</option>
+                          <option value="APPROVAL_PENDING">{t('dpr.approvalPending')}</option>
+                          <option value="SAFETY_ISSUE">{t('dpr.safetyIssue')}</option>
                         </select>
                       </div>
 
                       <div>
                         <label className="text-sm font-medium text-foreground mb-2 block">
-                          Duration (Hours) *
+                          {t('dpr.durationHours')} *
                         </label>
                         <Input
                           type="number"
@@ -1080,7 +1080,7 @@ export default function DPRPage() {
 
               <div className="flex items-center gap-2 p-3 rounded-xl bg-warning/10 border border-warning/30">
                 <WifiOff className="w-4 h-4 text-warning shrink-0" />
-                <span className="text-sm text-warning">Will sync when online</span>
+                <span className="text-sm text-warning">{t('dpr.willSyncWhenOnline')}</span>
               </div>
 
               <Button 

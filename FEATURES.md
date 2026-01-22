@@ -1138,6 +1138,276 @@ OffSite is a mobile-first construction field operations management application d
 
 ## Additional Features
 
+### 18. Multilingual Support (i18n)
+
+**Supported Languages:**
+- **English** (en) - Default language
+- **Hindi** (hi) - हिंदी
+- **Marathi** (mr) - मराठी
+- **Tamil** (ta) - தமிழ்
+
+**Features:**
+- Complete UI translation for all 4 languages
+- Language selector in Settings/Profile page
+- Persistent language preference (saved in localStorage)
+- Automatic language detection from device locale
+- All pages, components, and UI elements are translated
+- Translation keys organized by feature/page
+- Real-time language switching without page reload
+
+**Implementation:**
+- Uses `react-i18next` for internationalization
+- Translation files in `src/i18n/locales/`
+- Language toggle component with visual indicators
+- Native language names displayed in selector
+
+**Translated Sections:**
+- Authentication (login, signup, password reset)
+- Dashboards (engineer and manager)
+- DPR creation and viewing
+- Attendance tracking
+- Material requests and approvals
+- Projects and tasks
+- Insights and AI features
+- Invoicing
+- Events
+- Profile and settings
+- Common UI elements (buttons, labels, messages)
+
+---
+
+### 19. Android Native App (Capacitor)
+
+**Platform Support:**
+- Native Android application via Capacitor
+- Web app continues to work on browsers
+- Same codebase for both web and mobile
+
+**Capacitor Features:**
+- **App ID**: `com.offsite.app`
+- **App Name**: OffSite
+- **Web Directory**: `dist/` (Vite build output)
+- **Android Scheme**: HTTPS for production
+
+**Native Plugins:**
+- `@capacitor/geolocation` - GPS-based attendance tracking
+- `@capacitor/camera` - DPR photo capture (camera + gallery)
+- `@capacitor/network` - Network status detection
+- `@capacitor/preferences` - Secure storage (available)
+
+**Integration:**
+- Automatic platform detection (`isNative()`)
+- Unified API wrappers for web and native
+- Camera wrapper supports both native camera and web file input
+- Geolocation wrapper supports both native GPS and browser geolocation
+- Network status wrapper supports both Capacitor Network plugin and browser events
+
+**Build Process:**
+- `npm run build` - Build web app
+- `npm run cap:sync` - Sync web assets to Android
+- `npm run cap:open:android` - Open in Android Studio
+- `npm run cap:build` - Build and sync
+
+**Android Studio:**
+- Project located in `android/` directory
+- Gradle-based build system
+- Supports Android 5.0+ (API level 21+)
+- Can generate APK/AAB for distribution
+
+**Features Preserved:**
+- All web features work in native app
+- Offline sync functionality
+- IndexedDB storage
+- Service Worker support
+- JWT authentication
+- Role-based access control
+- All UI components and pages
+
+---
+
+### 20. Material Catalog with Indian Construction Materials
+
+**Realistic Material Database:**
+- Pre-seeded catalog with 24+ Indian construction materials
+- Realistic Indian market prices (approximate)
+- Proper units for each material
+- Categorized by material type
+
+**Material Categories:**
+1. **Cement & Aggregates**
+   - OPC Cement (50kg bag) - ₹380/bag
+   - PPC Cement (50kg bag) - ₹360/bag
+   - River Sand - ₹1,500/ton
+   - M-Sand - ₹1,200/ton
+   - 20mm Aggregate - ₹1,100/ton
+   - 40mm Aggregate - ₹950/ton
+
+2. **Steel & Metals**
+   - TMT Steel Bar (Fe500) - ₹62/kg
+   - Binding Wire - ₹68/kg
+   - Structural Steel - ₹70/kg
+
+3. **Bricks & Blocks**
+   - Red Clay Bricks - ₹9/nos
+   - Fly Ash Bricks - ₹6/nos
+   - AAC Blocks - ₹3,500/cum
+
+4. **Concrete & Chemicals**
+   - Ready Mix Concrete (M20) - ₹5,200/cum
+   - Ready Mix Concrete (M25) - ₹5,800/cum
+   - Waterproofing Chemical - ₹180/liter
+   - Curing Compound - ₹160/liter
+
+5. **Wood & Fixtures**
+   - Plywood (18mm) - ₹95/sqm
+   - Door Frame - ₹1,800/nos
+   - Window Frame - ₹2,200/nos
+
+6. **Electrical**
+   - Copper Wire (2.5 sqmm) - ₹95/meter
+   - Switch Socket - ₹120/nos
+   - Distribution Board - ₹1,900/nos
+
+7. **Plumbing**
+   - PVC Pipe (1 inch) - ₹85/meter
+   - PVC Pipe (2 inch) - ₹140/meter
+   - Water Tap - ₹320/nos
+
+**Material Units:**
+- `bag` - For cement (50kg bags)
+- `kg` - For steel and metals
+- `ton` - For aggregates and sand
+- `nos` - For bricks, fixtures, electrical items
+- `meter` - For pipes and wires
+- `sqm` - For plywood and area-based materials
+- `cum` - For concrete and blocks (cubic meters)
+- `liter` - For chemicals and liquids
+
+**Features:**
+- Material catalog API returns materials grouped by category
+- Each material includes:
+  - Name
+  - Category
+  - Unit of measurement
+  - Approximate price in INR
+  - Price unit
+  - Active status
+- Quantity validation based on unit type:
+  - Integer quantities for `bag` and `nos`
+  - Decimal quantities for `kg`, `ton`, `meter`, `sqm`, `cum`, `liter`
+- Estimated cost calculation when creating material requests
+- Prices are approximate and configurable in database
+
+**Seed Script:**
+- One-time seed script: `backend/scripts/seedMaterialCatalog.ts`
+- Inserts materials only if they don't exist
+- Prevents duplicates
+- Run with: `npm run seed:materials`
+
+---
+
+### 21. Stock Management
+
+**Stock Ledger System:**
+- Track material stock levels per project
+- Stock in/out transactions
+- Current stock balance calculation
+- Stock alerts for low inventory
+
+**Features:**
+- Get current stock balance for a project
+- View stock by material
+- Stock alerts for low inventory levels
+- Transaction history
+- Project-based stock tracking
+
+**Routes:**
+- `GET /api/stock/project/:projectId` - Get project stock balance
+- `GET /api/stock/alerts/:projectId` - Get stock alerts
+
+**Stock Ledger Model:**
+- `projectId` - Associated project
+- `materialId` - Material identifier
+- `materialName` - Material name
+- `transactionType` - IN or OUT
+- `quantity` - Transaction quantity
+- `unit` - Unit of measurement
+- `transactionDate` - Date of transaction
+- `notes` - Optional transaction notes
+
+---
+
+### 22. All DPRs Page
+
+**Page:** `/all-dprs`
+
+**Features:**
+- View all DPRs across projects (for Managers/Owners)
+- Filter DPRs by project
+- View DPR details:
+  - Project and task information
+  - Photos
+  - Notes
+  - Work stoppage information (if any)
+  - AI summary (if available)
+  - Creation date and time
+- Chronological list of DPRs
+- Search and filter capabilities
+
+**Access:**
+- Managers: Can view all DPRs from assigned projects
+- Owners: Can view all DPRs across all projects
+- Engineers: Redirected (can only view own DPRs)
+
+---
+
+### 23. Settings & Preferences
+
+**Settings Features:**
+- **Language Selection**: Choose from 4 supported languages
+- **Theme Toggle**: Switch between dark and light mode
+- **Auto Sync**: Enable/disable automatic synchronization
+- **Connection Status**: View current connectivity status
+- **Sync Now**: Manual sync trigger
+- **Notifications**: Notification preferences (if implemented)
+
+**Language Toggle:**
+- Available in Profile/Settings page
+- Visual language selector with native names
+- Instant language switching
+- Preference saved to localStorage
+
+**Theme Management:**
+- Dark/Light mode toggle
+- System theme detection
+- Persistent theme preference
+- Automatic favicon updates
+- Smooth theme transitions
+
+---
+
+### 24. Owner-Specific Features
+
+**Owner Overview:**
+- Comprehensive project overview
+- System-wide statistics
+- User management capabilities
+- Project management
+- Invoice management
+
+**Routes:**
+- `GET /api/owner/overview/:projectId` - Get owner overview for project
+
+**Owner Dashboard:**
+- All manager features plus:
+  - Project creation
+  - User management
+  - Invoice creation and management
+  - System configuration access
+  - Global analytics
+
+---
+
 ### Theme Management
 **Dark/Light Mode:**
 - Toggle between dark and light themes
@@ -1180,6 +1450,31 @@ OffSite is a mobile-first construction field operations management application d
 - Efficient data fetching
 - Background processing
 - Lazy loading (if implemented)
+
+---
+
+## Deployment & Production
+
+### Backend Deployment (Render)
+- Deployed on Render.com
+- MongoDB Atlas for database
+- Environment variables configured
+- Health check endpoint available
+- CORS configured for multiple origins
+
+### Frontend Deployment (Vercel)
+- Deployed on Vercel
+- Production build optimized
+- Environment variables configured
+- API URL pointing to Render backend
+- Static asset caching configured
+
+### Android App Distribution
+- Build APK/AAB from Android Studio
+- Can be distributed via:
+  - Google Play Store
+  - Direct APK installation
+  - Enterprise distribution
 
 ---
 

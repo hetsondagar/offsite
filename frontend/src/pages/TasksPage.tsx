@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ import { format } from "date-fns";
 
 export default function TasksPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { role, userId } = useAppSelector((state) => state.auth);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -260,8 +262,8 @@ export default function TasksPage() {
               <Logo size="md" showText={false} />
             </div>
             <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="font-display font-semibold text-lg">Tasks</h1>
-              <p className="text-xs text-muted-foreground">Manage project tasks</p>
+              <h1 className="font-display font-semibold text-lg">{t('tasks.title')}</h1>
+              <p className="text-xs text-muted-foreground">{t('tasks.manageProjectTasks')}</p>
             </div>
           </div>
         </div>
@@ -275,22 +277,22 @@ export default function TasksPage() {
                 <DialogTrigger asChild>
                   <Button className="w-full" variant="glow">
                     <Plus className="w-4 h-4 mr-2" />
-                    Create New Task
+                    {t('tasks.createTask')}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[425px] bg-card text-foreground max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle className="text-foreground">Create New Task</DialogTitle>
+                    <DialogTitle className="text-foreground">{t('tasks.createTask')}</DialogTitle>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
                     <div className="space-y-2">
-                      <Label htmlFor="projectId">Project *</Label>
+                      <Label htmlFor="projectId">{t('tasks.project')} *</Label>
                       <Select
                         value={newTask.projectId}
                         onValueChange={(value) => setNewTask({ ...newTask, projectId: value })}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select project" />
+                          <SelectValue placeholder={t('tasks.selectProject')} />
                         </SelectTrigger>
                         <SelectContent>
                           {projects.map((project) => (
@@ -303,30 +305,30 @@ export default function TasksPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="title">Task Title *</Label>
+                      <Label htmlFor="title">{t('tasks.taskTitle')} *</Label>
                       <Input
                         id="title"
                         value={newTask.title}
                         onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
                         className="bg-background text-foreground"
-                        placeholder="Enter task title"
+                        placeholder={t('tasks.enterTaskTitle')}
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="description">Description</Label>
+                      <Label htmlFor="description">{t('tasks.description')}</Label>
                       <Textarea
                         id="description"
                         value={newTask.description}
                         onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
                         className="bg-background text-foreground"
-                        placeholder="Enter task description (optional)"
+                        placeholder={t('tasks.enterTaskDescription')}
                         rows={4}
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="assignedTo">Assign to Engineer (Optional)</Label>
+                      <Label htmlFor="assignedTo">{t('tasks.assignToEngineerOptional')}</Label>
                       <div className="space-y-2">
                         <div className="flex gap-2">
                           <Input
@@ -395,7 +397,7 @@ export default function TasksPage() {
                             {newTask.dueDate ? (
                               format(newTask.dueDate, "PPP")
                             ) : (
-                              <span>Pick a date</span>
+                              <span>{t('tasks.pickDate')}</span>
                             )}
                           </Button>
                         </PopoverTrigger>
@@ -420,7 +422,7 @@ export default function TasksPage() {
                         className="flex-1"
                         disabled={isCreating}
                       >
-                        Cancel
+                        {t('common.cancel')}
                       </Button>
                       <Button
                         onClick={handleCreateTask}
@@ -430,12 +432,12 @@ export default function TasksPage() {
                         {isCreating ? (
                           <>
                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Creating...
+                            {t('common.loading')}
                           </>
                         ) : (
                           <>
                             <Plus className="w-4 h-4 mr-2" />
-                            Create Task
+                            {t('tasks.createTask')}
                           </>
                         )}
                       </Button>
@@ -449,10 +451,10 @@ export default function TasksPage() {
             <div className="flex gap-2">
               <Select value={selectedProject} onValueChange={setSelectedProject}>
                 <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="All Projects" />
+                  <SelectValue placeholder={t('tasks.allTasks')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Projects</SelectItem>
+                  <SelectItem value="all">{t('tasks.allTasks')}</SelectItem>
                   {projects.map((project) => (
                     <SelectItem key={project._id} value={project._id}>
                       {project.name}
@@ -463,13 +465,13 @@ export default function TasksPage() {
 
               <Select value={selectedStatus} onValueChange={setSelectedStatus}>
                 <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="All Status" />
+                  <SelectValue placeholder={t('status.pending')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="in-progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="all">{t('common.all')}</SelectItem>
+                  <SelectItem value="pending">{t('status.pending')}</SelectItem>
+                  <SelectItem value="in-progress">{t('status.inProgress')}</SelectItem>
+                  <SelectItem value="completed">{t('status.completed')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -484,7 +486,7 @@ export default function TasksPage() {
             <Card variant="gradient">
               <CardContent className="p-8 text-center">
                 <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p className="font-medium text-foreground">No tasks found</p>
+                <p className="font-medium text-foreground">{t('tasks.noTasks')}</p>
                 <p className="text-sm text-muted-foreground">
                   {canCreateTasks 
                     ? "Create your first task to get started" 
@@ -527,7 +529,7 @@ export default function TasksPage() {
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <UserIcon className="w-3 h-3" />
-                          <span>Assigned to: {getAssignedUserName(task.assignedTo)}</span>
+                          <span>{t('tasks.assignedToColon')} {getAssignedUserName(task.assignedTo)}</span>
                         </div>
                         {task.dueDate && (
                           <div className="flex items-center gap-2 text-muted-foreground">

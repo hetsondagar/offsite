@@ -25,15 +25,60 @@ import syncRoutes from './modules/sync/sync.routes';
 import eventRoutes from './modules/events/event.routes';
 import notificationRoutes from './modules/notifications/notification.routes';
 import aiRoutes from './modules/ai/ai.routes';
+import stockRoutes from './modules/stock/stock.routes';
+import ownerRoutes from './modules/owner/owner.routes';
 
 const app: Application = express();
 
 // Security middleware
 app.use(helmet());
+
+// CORS configuration - support multiple origins
+const getAllowedOrigins = (): string[] => {
+  const origins: string[] = [];
+  
+  // Parse CORS_ORIGIN - can be comma-separated list
+  if (env.CORS_ORIGIN) {
+    const corsOrigins = env.CORS_ORIGIN.split(',').map(origin => origin.trim()).filter(Boolean);
+    origins.push(...corsOrigins);
+  }
+  
+  // Add default development origin
+  if (env.NODE_ENV === 'development') {
+    origins.push('http://localhost:8080', 'http://localhost:5173', 'http://localhost:3000');
+  }
+  
+  // Add Capacitor origins for mobile apps
+  origins.push('capacitor://localhost', 'http://localhost');
+  
+  // Remove duplicates and normalize (remove trailing slashes)
+  const normalizedOrigins = origins.map(origin => origin.replace(/\/+$/, ''));
+  return [...new Set(normalizedOrigins)];
+};
+
 app.use(
   cors({
-    origin: env.CORS_ORIGIN,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, Postman, etc.)
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      const allowedOrigins = getAllowedOrigins();
+      const normalizedOrigin = origin.replace(/\/+$/, '');
+      
+      if (allowedOrigins.includes(normalizedOrigin)) {
+        callback(null, true);
+      } else {
+        // Log for debugging
+        console.warn(`CORS blocked origin: ${origin} (normalized: ${normalizedOrigin})`);
+        console.warn(`Allowed origins: ${allowedOrigins.join(', ')}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   })
 );
 
@@ -66,6 +111,23 @@ app.get('/health', (_req, res) => {
   });
 });
 
+// API health check (includes database status)
+app.get('/api/health', async (_req, res) => {
+  const mongoose = await import('mongoose');
+  const dbStatus = mongoose.default.connection.readyState === 1 ? 'connected' : 'disconnected';
+  
+  res.json({
+    success: true,
+    message: 'OffSite API Health Check',
+    data: {
+      status: 'ok',
+      database: dbStatus,
+      timestamp: new Date().toISOString(),
+      environment: env.NODE_ENV,
+    },
+  });
+});
+
 // Root
 app.get('/', (_req, res) => {
   res.json({
@@ -95,6 +157,8 @@ app.use('/api/sync', syncRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/stock', stockRoutes);
+app.use('/api/owner', ownerRoutes);
 
 // Serve frontend build (single-origin local/prod setup)
 // Build the frontend first: ../frontend/dist

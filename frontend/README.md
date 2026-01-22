@@ -40,18 +40,26 @@ npm run preview
 - Tailwind CSS for utility-first styling and theming (dark/light) ✅
 - Component primitives & accessibility using Radix UI and shadcn-style components ✅
 - Role-based access control (RBAC) with three roles: **Site Engineer**, **Project Manager**, **Owner / Admin** ✅
-- Authentication flow (phone → OTP → role selection) with persisted session (localStorage) ✅
+- Authentication flow (email/password) with persisted session (localStorage) ✅
+- **Multilingual Support**: Complete translation for English, Hindi, Marathi, and Tamil using react-i18next ✅
+- **Android Native App**: Capacitor integration for native Android app with camera, geolocation, network plugins ✅
 - PWA-ready: Service Worker registered in `src/main.tsx` + `public/sw.js` cache strategy ✅
 - Offline-first data handling:
   - IndexedDB stores for DPRs, Attendance, and Material Requests (`src/lib/indexeddb.ts`) ✅
   - Redux offline queue for pending items and synchronization UI (`offlineSlice`) ✅
   - Manual/automatic synchronization from `Sync` page with status and last sync timestamp ✅
-- DPR (Daily Progress Report) flow: photo upload (placeholder), AI-generated summary (simulated), offline save & sync ✅
-- Attendance flow: GPS location simulation, check in/out, offline save & sync ✅
-- Material requests: anomaly detection (threshold warning), request creation, history & approval flow ✅
+- DPR (Daily Progress Report) flow: photo upload (up to 6 photos), AI-generated summary, work stoppage tracking, offline save & sync ✅
+- Attendance flow: GPS-based check-in/out, location reverse geocoding, offline save & sync ✅
+- Material requests: Realistic Indian construction materials catalog with prices, anomaly detection, estimated cost calculation, approval workflow ✅
 - Approvals: Manager approval / rejection workflow with self-approval protection ✅
-- Insights & analytics: charts (Recharts), delay risk predictor, AI insights & recommendations (mock data) ✅
-- Invoicing: GST-aware invoices, downloads (mock) ✅
+- Insights & analytics: Charts (Recharts), delay risk predictor, AI insights & recommendations ✅
+- AI Command Center: Site risk assessment, anomaly detection, real-time updates ✅
+- Invoicing: GST-compliant invoices with CGST/SGST/IGST, PDF generation, payment tracking ✅
+- Projects: Project creation (owner), member management, invitations, project detail view ✅
+- Tasks: Task creation (managers/owners), status updates (engineers), filtering and search ✅
+- Events: Event creation and management (meetings, inspections, deliveries, safety, maintenance) ✅
+- All DPRs: View all DPRs across projects with filtering ✅
+- Profile: User profile management, language selection, settings ✅
 - Toasts & notifications: Sonner + in-app toaster ✅
 - React Query for async state management & future API integration ✅
 - Form handling & validation-ready (react-hook-form + zod available) ✅

@@ -40,25 +40,63 @@ export const getTasks = async (
 
     const { projectId, status } = req.query;
     const query: any = {};
-    
-    if (projectId) {
-      query.projectId = new mongoose.Types.ObjectId(projectId as string);
-    }
 
     if (status) {
       query.status = status;
     }
     
-    // If user is engineer, only show assigned tasks
+    // Role-based filtering
     if (req.user.role === 'engineer') {
+      // Engineers can only see tasks assigned to them
       query.assignedTo = new mongoose.Types.ObjectId(req.user.userId);
+      // If projectId is provided, verify engineer is a member
+      if (projectId) {
+        const project = await Project.findById(projectId);
+        if (project) {
+          const isMember = project.members.some(
+            (memberId) => memberId.toString() === req.user!.userId
+          );
+          if (!isMember) {
+            throw new AppError('Access denied. You are not a member of this project.', 403, 'FORBIDDEN');
+          }
+          query.projectId = new mongoose.Types.ObjectId(projectId as string);
+        }
+      }
     } else if (req.user.role === 'manager') {
       // Managers can only see tasks from projects they are members of
-      const projects = await Project.find({ members: req.user.userId }).select('_id');
+      const projects = await Project.find({ 
+        members: new mongoose.Types.ObjectId(req.user.userId) 
+      }).select('_id');
       const projectIds = projects.map(p => p._id);
-      query.projectId = { $in: projectIds };
+      
+      if (projectIds.length === 0) {
+        // No projects assigned, return empty result
+        const response: ApiResponse = {
+          success: true,
+          message: 'Tasks retrieved successfully',
+          data: [],
+        };
+        res.status(200).json(response);
+        return;
+      }
+      
+      // If projectId is provided, verify it's in the manager's projects
+      if (projectId) {
+        const requestedProjectId = new mongoose.Types.ObjectId(projectId as string);
+        const hasAccess = projectIds.some(id => id.toString() === requestedProjectId.toString());
+        if (!hasAccess) {
+          throw new AppError('Access denied. You are not a member of this project.', 403, 'FORBIDDEN');
+        }
+        query.projectId = requestedProjectId;
+      } else {
+        query.projectId = { $in: projectIds };
+      }
+    } else {
+      // Owners can see all tasks
+      if (projectId) {
+        query.projectId = new mongoose.Types.ObjectId(projectId as string);
+      }
     }
-    // Owners can see all tasks (no additional filter)
 
     const tasks = await Task.find(query)
       .populate('assignedTo', 'name phone offsiteId')
@@ -102,9 +140,9 @@ export const createTask = async (
     }
 
     // Verify user is a member of the project (for managers) or is owner
-    if (req.user.role === 'manager') {
+    if (req.user!.role === 'manager') {
       const isMember = project.members.some(
-        (memberId) => memberId.toString() === req.user.userId
+        (memberId) => memberId.toString() === req.user!.userId
       );
       if (!isMember) {
         throw new AppError('You are not a member of this project', 403, 'FORBIDDEN');
@@ -131,6 +169,10 @@ export const createTask = async (
       assignedUserId = data.assignedTo;
     }
 
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
     const task = new Task({
       projectId: new mongoose.Types.ObjectId(data.projectId),
       title: data.title,
@@ -145,7 +187,7 @@ export const createTask = async (
     await task.populate('assignedTo', 'name phone offsiteId');
     await task.populate('projectId', 'name location');
 
-    logger.info(`Task created: ${task._id} by ${req.user.role} ${req.user.userId} for project ${data.projectId}`);
+    logger.info(`Task created: ${task._id} by ${req.user!.role} ${req.user!.userId} for project ${data.projectId}`);
 
     const response: ApiResponse = {
       success: true,
@@ -178,13 +220,35 @@ export const updateTaskStatus = async (
       throw new AppError('Task not found', 404, 'TASK_NOT_FOUND');
     }
 
-    // Engineers can only update their own assigned tasks
+    // Verify task belongs to a project the user has access to
+    const project = await Project.findById(task.projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    // Role-based authorization for task updates
     if (req.user.role === 'engineer') {
+      // Engineers can only update their own assigned tasks
       if (task.assignedTo.toString() !== req.user.userId) {
         throw new AppError('You can only update tasks assigned to you', 403, 'FORBIDDEN');
       }
+      // Verify engineer is a member of the project
+      const isMember = project.members.some(
+        (memberId) => memberId.toString() === req.user!.userId
+      );
+      if (!isMember) {
+        throw new AppError('You are not a member of this project', 403, 'FORBIDDEN');
+      }
+    } else if (req.user.role === 'manager') {
+      // Managers can only update tasks from projects they are members of
+      const isMember = project.members.some(
+        (memberId) => memberId.toString() === req.user!.userId
+      );
+      if (!isMember) {
+        throw new AppError('You are not a member of this project', 403, 'FORBIDDEN');
+      }
     }
-    // Owners and managers can update any task
+    // Owners can update any task (no additional check needed)
 
     task.status = status;
     await task.save();

@@ -10,6 +10,9 @@ export interface IProject extends Document {
   members: mongoose.Types.ObjectId[];
   progress: number; // 0-100
   healthScore: number; // 0-100
+  siteLatitude?: number;
+  siteLongitude?: number;
+  siteRadiusMeters?: number; // Default: 100
   createdAt: Date;
   updatedAt: Date;
 }
@@ -56,6 +59,21 @@ const projectSchema = new Schema<IProject>(
       min: 0,
       max: 100,
     },
+    siteLatitude: {
+      type: Number,
+      min: -90,
+      max: 90,
+    },
+    siteLongitude: {
+      type: Number,
+      min: -180,
+      max: 180,
+    },
+    siteRadiusMeters: {
+      type: Number,
+      default: 100,
+      min: 1,
+    },
   },
   {
     timestamps: true,
@@ -65,5 +83,7 @@ const projectSchema = new Schema<IProject>(
 projectSchema.index({ status: 1 });
 projectSchema.index({ members: 1 });
 
-export const Project = mongoose.model<IProject>('Project', projectSchema);
+export const Project =
+  (mongoose.models.Project as mongoose.Model<IProject>) ||
+  mongoose.model<IProject>('Project', projectSchema);
 

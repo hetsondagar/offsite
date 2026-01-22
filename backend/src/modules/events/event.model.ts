@@ -82,5 +82,7 @@ eventSchema.index({ projectId: 1, startDate: 1 });
 eventSchema.index({ createdBy: 1 });
 eventSchema.index({ status: 1 });
 
-export const Event = mongoose.model<IEvent>('Event', eventSchema);
+export const Event =
+  (mongoose.models.Event as mongoose.Model<IEvent>) ||
+  mongoose.model<IEvent>('Event', eventSchema);
 

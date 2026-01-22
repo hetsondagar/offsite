@@ -926,6 +926,108 @@ Each invoice card shows:
 
 ---
 
+## Multilingual Support (i18n)
+
+### Implementation
+- **Library**: `react-i18next`
+- **Translation Files**: `src/i18n/locales/` (en.json, hi.json, mr.json, ta.json)
+- **Language Detection**: Automatic from device locale or saved preference
+- **Persistence**: Language preference saved in localStorage
+
+### Supported Languages
+1. **English** (en) - Default language
+2. **Hindi** (hi) - हिंदी
+3. **Marathi** (mr) - मराठी
+4. **Tamil** (ta) - தமிழ்
+
+### Language Toggle Component
+- Available in Profile/Settings page
+- Visual selector with native language names
+- Instant switching without page reload
+- Preference persists across sessions
+
+### Translated Content
+- All pages and components
+- Authentication flows
+- Dashboards and navigation
+- Forms and inputs
+- Error messages and toasts
+- Status labels and badges
+- Common UI elements
+
+---
+
+## Android Native App (Capacitor)
+
+### Platform Support
+- **Native Android** application via Capacitor
+- **App ID**: `com.offsite.app`
+- **App Name**: OffSite
+- **Web Directory**: `dist/` (Vite build output)
+
+### Capacitor Plugins
+- `@capacitor/geolocation` - GPS-based attendance
+- `@capacitor/camera` - DPR photo capture (camera + gallery)
+- `@capacitor/network` - Network status detection
+- `@capacitor/preferences` - Secure storage
+
+### Native Integration
+- **Platform Detection**: `isNative()` utility function
+- **Unified APIs**: Wrappers for web and native
+  - Camera: `pickImages()` - Works on web and native
+  - Geolocation: `getCurrentPosition()` - Works on web and native
+  - Network: `getNetworkStatusCapacitor()` - Works on web and native
+- **Build Process**: 
+  - `npm run build` → Build web app
+  - `npm run cap:sync` → Sync to Android
+  - `npm run cap:open:android` → Open in Android Studio
+
+### Features Preserved
+- All web features work in native app
+- Offline sync functionality
+- IndexedDB storage
+- Service Worker support
+- JWT authentication
+- Role-based access control
+- All UI components and pages
+
+### Android Studio
+- Project in `android/` directory
+- Gradle-based build
+- Supports Android 5.0+ (API 21+)
+- Can generate APK/AAB for distribution
+
+---
+
+## Material Catalog Features
+
+### Indian Construction Materials
+- **Pre-seeded Catalog**: 24+ realistic materials
+- **Categories**: 
+  - Cement & Aggregates
+  - Steel & Metals
+  - Bricks & Blocks
+  - Concrete & Chemicals
+  - Wood & Fixtures
+  - Electrical
+  - Plumbing
+
+### Material Information
+- **Name**: Material name
+- **Category**: Material category
+- **Unit**: Measurement unit (bag, kg, ton, nos, meter, sqm, cum, liter)
+- **Approximate Price**: Current Indian market price in INR
+- **Price Unit**: Unit for the price
+
+### Features
+- Materials grouped by category in API response
+- Quantity validation based on unit type
+- Estimated cost calculation (quantity × price)
+- Realistic Indian construction material prices
+- Configurable prices in database
+
+---
+
 ## Technical Stack
 
 ### Core Technologies

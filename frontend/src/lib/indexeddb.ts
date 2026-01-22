@@ -83,31 +83,32 @@ export async function getDB(): Promise<IDBPDatabase<OffSiteDB>> {
     return dbInstance;
   }
 
-  // Use version 2 to match existing database version
-  // If database already exists with version 2, this will open it without upgrade
-  // If it doesn't exist or is version 1, upgrade will run
-  dbInstance = await openDB<OffSiteDB>('offsite-db', 2, {
+  // Increment to version 3 to ensure apiCache store is created for existing databases
+  dbInstance = await openDB<OffSiteDB>('offsite-db', 3, {
     upgrade(db, oldVersion, newVersion, transaction) {
-      // Only create stores if they don't exist (for new databases or upgrades)
-      if (oldVersion < 1) {
-        if (!db.objectStoreNames.contains('dprs')) {
-          db.createObjectStore('dprs', { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains('attendance')) {
-          db.createObjectStore('attendance', { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains('materials')) {
-          db.createObjectStore('materials', { keyPath: 'id' });
-        }
+      // Create dprs store if it doesn't exist
+      if (!db.objectStoreNames.contains('dprs')) {
+        db.createObjectStore('dprs', { keyPath: 'id' });
+      }
+      
+      // Create attendance store if it doesn't exist
+      if (!db.objectStoreNames.contains('attendance')) {
+        db.createObjectStore('attendance', { keyPath: 'id' });
+      }
+      
+      // Create materials store if it doesn't exist
+      if (!db.objectStoreNames.contains('materials')) {
+        db.createObjectStore('materials', { keyPath: 'id' });
       }
       
       // Ensure aiCache store exists (added in version 2)
-      if (oldVersion < 2 && !db.objectStoreNames.contains('aiCache')) {
+      if (!db.objectStoreNames.contains('aiCache')) {
         const aiStore = db.createObjectStore('aiCache', { keyPath: 'id' });
         aiStore.createIndex('siteId', 'siteId');
         aiStore.createIndex('type', 'type');
       }
 
+      // Ensure apiCache store exists (added in version 3)
       if (!db.objectStoreNames.contains('apiCache')) {
         db.createObjectStore('apiCache', { keyPath: 'key' });
       }
@@ -238,20 +239,40 @@ export async function getAICache(
 
 // Generic API cache operations
 export async function setApiCache(key: string, response: any) {
-  const db = await getDB();
-  await db.put('apiCache', {
-    key,
-    response,
-    timestamp: Date.now(),
-  });
+  try {
+    const db = await getDB();
+    // Verify the store exists before using it
+    if (!db.objectStoreNames.contains('apiCache')) {
+      console.warn('apiCache store does not exist, skipping cache write');
+      return;
+    }
+    await db.put('apiCache', {
+      key,
+      response,
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    // Silently fail cache operations - they're not critical
+    console.warn('Failed to set API cache:', error);
+  }
 }
 
 export async function getApiCache<T = any>(
   key: string
 ): Promise<{ response: T; timestamp: number } | null> {
-  const db = await getDB();
-  const entry = await db.get('apiCache', key);
-  if (!entry) return null;
-  return { response: entry.response as T, timestamp: entry.timestamp };
+  try {
+    const db = await getDB();
+    // Verify the store exists before using it
+    if (!db.objectStoreNames.contains('apiCache')) {
+      return null;
+    }
+    const entry = await db.get('apiCache', key);
+    if (!entry) return null;
+    return { response: entry.response as T, timestamp: entry.timestamp };
+  } catch (error) {
+    // Silently fail cache operations - they're not critical
+    console.warn('Failed to get API cache:', error);
+    return null;
+  }
 }
 

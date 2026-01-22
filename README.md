@@ -17,10 +17,14 @@ Read service-level READMEs:
 ---
 
 ## What is done (high level)
-- Core backend modules are implemented: Auth, Users, Projects, Tasks, DPR, Attendance, Materials (approvals), Insights, Invoices, Sync (batch) ✅
-- Frontend pages & offline UX implemented: DPR, Attendance, Materials, Sync, Approvals, Insights, Dashboards ✅
-- Offline-first support with IndexedDB and sync UI is implemented on the frontend; backend has a batch sync endpoint but the sync contract needs formalization ✅
-- Mocked AI insights and sample data exist for quick UI testing ✅
+- Core backend modules are implemented: Auth, Users, Projects, Tasks, DPR, Attendance, Materials (approvals), Insights, Invoices, Sync (batch), Events, Stock, Owner, AI, Notifications ✅
+- Frontend pages & offline UX implemented: DPR, Attendance, Materials, Sync, Approvals, Insights, Dashboards, Projects, Tasks, Events, Invoicing, AI Command Center, All DPRs, Profile ✅
+- Offline-first support with IndexedDB and sync UI is implemented on the frontend; backend has a batch sync endpoint ✅
+- Multilingual support: Complete translation for English, Hindi, Marathi, and Tamil ✅
+- Android native app: Capacitor integration with camera, geolocation, and network plugins ✅
+- Material catalog: Pre-seeded with 24+ realistic Indian construction materials with prices ✅
+- AI-powered features: DPR summaries, health explanations, delay risk analysis, anomaly detection ✅
+- GST-compliant invoicing: Full invoice management with PDF generation ✅
 
 ---
 

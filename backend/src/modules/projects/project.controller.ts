@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import mongoose from 'mongoose';
 import { Project } from './project.model';
 import { ProjectInvitation } from './project-invitation.model';
 import { User } from '../users/user.model';
@@ -21,6 +22,9 @@ const createProjectSchema = z.object({
   endDate: z.string().transform((str) => new Date(str)).optional(),
   engineerOffsiteIds: z.array(z.string()).optional(), // Array of OffSite IDs for engineers
   managerOffsiteIds: z.array(z.string()).optional(), // Array of OffSite IDs for managers
+  siteLatitude: z.number().min(-90).max(90).optional(),
+  siteLongitude: z.number().min(-180).max(180).optional(),
+  siteRadiusMeters: z.number().min(1).optional(),
 });
 
 export const createProject = async (
@@ -45,6 +49,9 @@ export const createProject = async (
       status: 'active',
       progress: 0,
       healthScore: 0,
+      siteLatitude: data.siteLatitude,
+      siteLongitude: data.siteLongitude,
+      siteRadiusMeters: data.siteRadiusMeters || 100,
     });
 
     await project.save();
@@ -177,7 +184,7 @@ export const getProjects = async (
       // No filter needed
     } else {
       // Engineers and managers can only see projects they are members of
-      query.members = req.user.userId;
+      query.members = new mongoose.Types.ObjectId(req.user.userId);
     }
 
     const [projects, total] = await Promise.all([

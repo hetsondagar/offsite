@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Logo } from "@/components/common/Logo";
@@ -13,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 
 export default function AllDPRsPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { role } = useAppSelector((state) => state.auth);
   const [allDPRs, setAllDPRs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -138,7 +140,7 @@ export default function AllDPRsPage() {
                 </div>
               ))
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">No recent DPRs</p>
+              <p className="text-sm text-muted-foreground text-center py-4">{t('allDPRs.noRecentDPRs')}</p>
             )}
           </CardContent>
         </Card>

@@ -102,7 +102,8 @@ export const invoicesApi = {
   },
 
   downloadPDF: async (id: string): Promise<Blob> => {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}/api/invoices/${id}/pdf`, {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    const response = await fetch(`${apiUrl}/invoices/${id}/pdf`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
