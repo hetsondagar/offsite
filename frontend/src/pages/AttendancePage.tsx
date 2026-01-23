@@ -28,8 +28,9 @@ import { attendanceApi } from "@/services/api/attendance";
 import { projectsApi } from "@/services/api/projects";
 import { toast } from "sonner";
 import { getCurrentPosition, watchPosition, clearWatch } from "@/lib/capacitor-geolocation";
+import { getMapTilerKey } from "@/lib/config";
 
-const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || 'g51nNpCPKcQQstInYAW2';
+const MAPTILER_KEY = getMapTilerKey();
 
 interface LocationData {
   latitude: number;
@@ -77,15 +78,24 @@ export default function AttendancePage() {
     loadProjects();
   }, []);
 
-  // Check for existing check-in status on page load
+  // Check for existing check-in status on page load and periodically
   useEffect(() => {
     const checkExistingCheckIn = async () => {
       try {
         const todayStatus = await attendanceApi.getTodayCheckIn();
         if (todayStatus.isCheckedIn && todayStatus.checkIn) {
           setIsCheckedIn(true);
-          setCheckInTime(new Date(todayStatus.checkIn.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+          const checkInTimeStr = new Date(todayStatus.checkIn.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+          setCheckInTime(checkInTimeStr);
           setSelectedProject(todayStatus.checkIn.projectId);
+          
+          // Store in localStorage for persistence
+          localStorage.setItem('attendance_checkIn', JSON.stringify({
+            isCheckedIn: true,
+            checkInTime: checkInTimeStr,
+            projectId: todayStatus.checkIn.projectId,
+            timestamp: todayStatus.checkIn.timestamp,
+          }));
           
           // Set location from check-in data
           if (todayStatus.checkIn.latitude && todayStatus.checkIn.longitude) {
@@ -98,14 +108,44 @@ export default function AttendancePage() {
             // Start GPS watching for continuous tracking
             startLocationWatching();
           }
+        } else {
+          // Not checked in - clear localStorage
+          localStorage.removeItem('attendance_checkIn');
+          setIsCheckedIn(false);
+          setCheckInTime(null);
         }
       } catch (error: any) {
         console.error('Error checking existing check-in:', error);
-        // Don't show error to user, just continue
+        // Fallback to localStorage if API fails
+        try {
+          const stored = localStorage.getItem('attendance_checkIn');
+          if (stored) {
+            const checkInData = JSON.parse(stored);
+            // Check if it's from today
+            const storedDate = new Date(checkInData.timestamp);
+            const today = new Date();
+            if (storedDate.toDateString() === today.toDateString()) {
+              setIsCheckedIn(true);
+              setCheckInTime(checkInData.checkInTime);
+              setSelectedProject(checkInData.projectId);
+            } else {
+              // Old check-in, clear it
+              localStorage.removeItem('attendance_checkIn');
+            }
+          }
+        } catch (storageError) {
+          console.error('Error reading from localStorage:', storageError);
+        }
       }
     };
     
+    // Check immediately
     checkExistingCheckIn();
+    
+    // Set up periodic refresh every 30 seconds to keep status in sync
+    const intervalId = setInterval(checkExistingCheckIn, 30000);
+    
+    return () => clearInterval(intervalId);
   }, []);
 
   // Cleanup GPS watch on unmount
@@ -320,8 +360,17 @@ export default function AttendancePage() {
         location.longitude,
         location.address
       );
+      const checkInTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       setIsCheckedIn(true);
-      setCheckInTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+      setCheckInTime(checkInTimeStr);
+      
+      // Store in localStorage for persistence
+      localStorage.setItem('attendance_checkIn', JSON.stringify({
+        isCheckedIn: true,
+        checkInTime: checkInTimeStr,
+        projectId: selectedProject,
+        timestamp: new Date().toISOString(),
+      }));
       
       // Start GPS watching for continuous tracking
       startLocationWatching();
@@ -355,8 +404,17 @@ export default function AttendancePage() {
         },
       }));
       
+      const checkInTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       setIsCheckedIn(true);
-      setCheckInTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+      setCheckInTime(checkInTimeStr);
+      
+      // Store in localStorage for persistence
+      localStorage.setItem('attendance_checkIn', JSON.stringify({
+        isCheckedIn: true,
+        checkInTime: checkInTimeStr,
+        projectId: selectedProject,
+        timestamp: new Date().toISOString(),
+      }));
       
       // Start GPS watching for continuous tracking even in offline mode
       startLocationWatching();
@@ -415,6 +473,10 @@ export default function AttendancePage() {
       );
       setIsCheckedIn(false);
       setCheckInTime(null);
+      
+      // Clear localStorage
+      localStorage.removeItem('attendance_checkIn');
+      
       toast.success('Checked out successfully!');
     } catch (error: any) {
       // If API fails, save to IndexedDB for offline sync
@@ -446,6 +508,10 @@ export default function AttendancePage() {
       
       setIsCheckedIn(false);
       setCheckInTime(null);
+      
+      // Clear localStorage
+      localStorage.removeItem('attendance_checkIn');
+      
       toast.success('Checked out (offline mode)');
     } finally {
       setIsLoading(false);
@@ -610,6 +676,29 @@ export default function AttendancePage() {
             </CardContent>
           </Card>
 
+          {/* Status Card - Show when checked in */}
+          {isCheckedIn && (
+            <Card variant="glow" className="animate-bounce-in">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-success/20">
+                      <Check className="w-5 h-5 text-success" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">{t("attendance.checkIn")}</p>
+                      <p className="text-xs text-muted-foreground">{t("attendance.checkInTime")} {checkInTime}</p>
+                      {location && (
+                        <p className="text-xs text-muted-foreground mt-1">{location.address}</p>
+                      )}
+                    </div>
+                  </div>
+                  <StatusBadge status="success" label={t("status.active")} pulse />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Check In/Out Button */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -646,6 +735,7 @@ export default function AttendancePage() {
                 </Button>
               </motion.div>
             ) : (
+              /* Checkout Button - Always visible when checked in */
               <motion.div
                 initial={{ scale: 0.9 }}
                 animate={{ scale: 1 }}
@@ -672,29 +762,6 @@ export default function AttendancePage() {
               </motion.div>
             )}
           </motion.div>
-
-          {/* Status Card */}
-          {isCheckedIn && (
-            <Card variant="glow" className="animate-bounce-in">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-success/20">
-                      <Check className="w-5 h-5 text-success" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">{t("attendance.checkIn")}</p>
-                      <p className="text-xs text-muted-foreground">{t("attendance.checkInTime")} {checkInTime}</p>
-                      {location && (
-                        <p className="text-xs text-muted-foreground mt-1">{location.address}</p>
-                      )}
-                    </div>
-                  </div>
-                  <StatusBadge status="success" label={t("status.active")} pulse />
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Offline Notice */}
           <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 text-muted-foreground animate-fade-up stagger-3">

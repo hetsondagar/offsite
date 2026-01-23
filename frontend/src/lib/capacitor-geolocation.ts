@@ -17,6 +17,32 @@ export interface LocationData {
 }
 
 /**
+ * Request location permissions (Android/iOS)
+ * Returns true if permission is granted, false otherwise
+ */
+async function requestLocationPermissions(): Promise<boolean> {
+  if (!isNative()) {
+    return true; // Browser handles permissions automatically
+  }
+
+  try {
+    // Check current permission status
+    const permissionStatus = await Geolocation.checkPermissions();
+    
+    if (permissionStatus.location === 'granted') {
+      return true;
+    }
+
+    // Request permission if not granted
+    const requestResult = await Geolocation.requestPermissions();
+    return requestResult.location === 'granted';
+  } catch (error) {
+    console.error('Error requesting location permissions:', error);
+    return false;
+  }
+}
+
+/**
  * Get current position
  * Uses Capacitor Geolocation on native, falls back to browser API on web
  */
@@ -24,6 +50,12 @@ export async function getCurrentPosition(
   options?: PositionOptions
 ): Promise<LocationData> {
   if (isNative()) {
+    // Request permissions first on native platforms
+    const hasPermission = await requestLocationPermissions();
+    if (!hasPermission) {
+      throw new Error('Location permission denied. Please enable location permissions in app settings.');
+    }
+
     // Use Capacitor Geolocation on native
     const position = await Geolocation.getCurrentPosition({
       enableHighAccuracy: options?.enableHighAccuracy ?? true,
@@ -77,6 +109,15 @@ export async function watchPosition(
   options?: PositionOptions
 ): Promise<number | string> {
   if (isNative()) {
+    // Request permissions first on native platforms
+    const hasPermission = await requestLocationPermissions();
+    if (!hasPermission) {
+      const error = new Error('Location permission denied. Please enable location permissions in app settings.') as any;
+      error.code = 1; // PERMISSION_DENIED
+      errorCallback?.(error as GeolocationPositionError);
+      return '';
+    }
+
     // Use Capacitor Geolocation on native
     // Capacitor's watchPosition returns a Promise<CallbackID>
     try {

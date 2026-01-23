@@ -65,12 +65,20 @@ export default function MaterialsPage() {
         // Load materials catalog from API
         try {
           const catalog = await materialsApi.getCatalog();
-          setMaterials(catalog.map((mat: any) => ({
-            id: mat._id,
-            name: mat.name,
-            unit: mat.unit,
-            anomalyThreshold: mat.defaultAnomalyThreshold || 1.3,
-          })));
+          
+          // Ensure catalog is an array
+          if (Array.isArray(catalog)) {
+            const mappedMaterials = catalog.map((mat: any) => ({
+              id: mat._id || mat.id,
+              name: mat.name,
+              unit: mat.unit,
+              anomalyThreshold: mat.defaultAnomalyThreshold || 1.3,
+            }));
+            setMaterials(mappedMaterials);
+          } else {
+            console.warn('Materials catalog is not an array:', catalog);
+            setMaterials([]);
+          }
         } catch (catalogError) {
           console.error('Error loading materials catalog:', catalogError);
           setMaterials([]);
@@ -421,19 +429,25 @@ export default function MaterialsPage() {
                 </button>
                 
                 {showDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-20 animate-scale-in">
-                    {materials.map((material) => (
-                      <button
-                        key={material.id}
-                        className="w-full p-4 text-left text-sm hover:bg-muted/50 transition-colors border-b border-border/30 last:border-0"
-                        onClick={() => {
-                          setSelectedMaterial(material.id);
-                          setShowDropdown(false);
-                        }}
-                      >
-                        {material.name}
-                      </button>
-                    ))}
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-20 animate-scale-in max-h-60 overflow-y-auto">
+                    {materials.length === 0 ? (
+                      <div className="p-4 text-sm text-muted-foreground text-center">
+                        No materials available
+                      </div>
+                    ) : (
+                      materials.map((material) => (
+                        <button
+                          key={material.id}
+                          className="w-full p-4 text-left text-sm hover:bg-muted/50 transition-colors border-b border-border/30 last:border-0"
+                          onClick={() => {
+                            setSelectedMaterial(material.id);
+                            setShowDropdown(false);
+                          }}
+                        >
+                          {material.name}
+                        </button>
+                      ))
+                    )}
                   </div>
                 )}
               </div>
