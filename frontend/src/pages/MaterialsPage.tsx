@@ -349,188 +349,189 @@ export default function MaterialsPage() {
                 <CardContent className="space-y-4">
                   {/* Project Selection */}
                   <div className="space-y-2.5">
-                <Label htmlFor="project-select" className="text-sm font-medium text-foreground">
-                  Project <span className="text-destructive">*</span>
-                </Label>
-                <div className="relative" ref={projectDropdownRef}>
-                  <button
-                    id="project-select"
-                    onClick={() => setShowProjectDropdown(!showProjectDropdown)}
-                    className="w-full h-12 px-4 rounded-xl bg-background border border-border flex items-center justify-between text-left transition-colors hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  >
-                    <span className={cn(
-                      "text-sm",
-                      selectedProject ? "text-foreground" : "text-muted-foreground"
-                    )}>
-                      {selectedProject 
-                        ? projects.find(p => p._id === selectedProject)?.name || "Select Project"
-                        : "Select Project"}
-                    </span>
-                    <ChevronDown className={cn(
-                      "w-5 h-5 text-muted-foreground transition-transform",
-                      showProjectDropdown && "rotate-180"
-                    )} />
-                  </button>
-                  
-                  {showProjectDropdown && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-40 animate-scale-in max-h-60 overflow-y-auto">
-                      {projects.length === 0 ? (
-                        <div className="p-4 text-sm text-muted-foreground text-center">
-                          No projects available
-                        </div>
-                      ) : (
-                        projects.map((project) => (
-                          <button
-                            key={project._id}
-                            className="w-full p-4 text-left text-sm hover:bg-muted/50 transition-colors border-b border-border/30 last:border-0"
-                            onClick={() => {
-                              setSelectedProject(project._id);
-                              setShowProjectDropdown(false);
-                            }}
-                          >
-                            <div>
-                              <p className="font-medium">{project.name}</p>
-                              <p className="text-xs text-muted-foreground">{project.location}</p>
+                    <Label htmlFor="project-select" className="text-sm font-medium text-foreground">
+                      Project <span className="text-destructive">*</span>
+                    </Label>
+                    <div className="relative" ref={projectDropdownRef}>
+                      <button
+                        id="project-select"
+                        onClick={() => setShowProjectDropdown(!showProjectDropdown)}
+                        className="w-full h-12 px-4 rounded-xl bg-background border border-border flex items-center justify-between text-left transition-colors hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      >
+                        <span className={cn(
+                          "text-sm",
+                          selectedProject ? "text-foreground" : "text-muted-foreground"
+                        )}>
+                          {selectedProject 
+                            ? projects.find(p => p._id === selectedProject)?.name || "Select Project"
+                            : "Select Project"}
+                        </span>
+                        <ChevronDown className={cn(
+                          "w-5 h-5 text-muted-foreground transition-transform",
+                          showProjectDropdown && "rotate-180"
+                        )} />
+                      </button>
+                      
+                      {showProjectDropdown && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-40 animate-scale-in max-h-60 overflow-y-auto">
+                          {projects.length === 0 ? (
+                            <div className="p-4 text-sm text-muted-foreground text-center">
+                              No projects available
                             </div>
-                          </button>
-                        ))
+                          ) : (
+                            projects.map((project) => (
+                              <button
+                                key={project._id}
+                                className="w-full p-4 text-left text-sm hover:bg-muted/50 transition-colors border-b border-border/30 last:border-0"
+                                onClick={() => {
+                                  setSelectedProject(project._id);
+                                  setShowProjectDropdown(false);
+                                }}
+                              >
+                                <div>
+                                  <p className="font-medium">{project.name}</p>
+                                  <p className="text-xs text-muted-foreground">{project.location}</p>
+                                </div>
+                              </button>
+                            ))
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                  </div>
                   </div>
 
                   {/* Material Dropdown */}
                   <div className="space-y-2.5">
-                <Label htmlFor="material-select" className="text-sm font-medium text-foreground">
-                  Material <span className="text-destructive">*</span>
-                </Label>
-                <div className="relative" ref={materialDropdownRef}>
-                  <button
-                    id="material-select"
-                    onClick={() => setShowDropdown(!showDropdown)}
-                    className="w-full h-12 px-4 rounded-xl bg-background border border-border flex items-center justify-between text-left transition-colors hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  >
-                  <span className={cn(
-                    "text-sm",
-                    selectedMaterial ? "text-foreground" : "text-muted-foreground"
-                  )}>
-                    {selectedMaterialData?.name || "Select Material"}
-                  </span>
-                  <ChevronDown className={cn(
-                    "w-5 h-5 text-muted-foreground transition-transform",
-                    showDropdown && "rotate-180"
-                  )} />
-                </button>
-                
-                {showDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-20 animate-scale-in max-h-60 overflow-y-auto">
-                    {materials.length === 0 ? (
-                      <div className="p-4 text-sm text-muted-foreground text-center">
-                        No materials available
-                      </div>
-                    ) : (
-                      materials.map((material) => (
-                        <button
-                          key={material.id}
-                          className="w-full p-4 text-left text-sm hover:bg-muted/50 transition-colors border-b border-border/30 last:border-0"
-                          onClick={() => {
-                            setSelectedMaterial(material.id);
-                            setShowDropdown(false);
-                          }}
-                        >
-                          {material.name}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
+                    <Label htmlFor="material-select" className="text-sm font-medium text-foreground">
+                      Material <span className="text-destructive">*</span>
+                    </Label>
+                    <div className="relative" ref={materialDropdownRef}>
+                      <button
+                        id="material-select"
+                        onClick={() => setShowDropdown(!showDropdown)}
+                        className="w-full h-12 px-4 rounded-xl bg-background border border-border flex items-center justify-between text-left transition-colors hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      >
+                        <span className={cn(
+                          "text-sm",
+                          selectedMaterial ? "text-foreground" : "text-muted-foreground"
+                        )}>
+                          {selectedMaterialData?.name || "Select Material"}
+                        </span>
+                        <ChevronDown className={cn(
+                          "w-5 h-5 text-muted-foreground transition-transform",
+                          showDropdown && "rotate-180"
+                        )} />
+                      </button>
+                      
+                      {showDropdown && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-20 animate-scale-in max-h-60 overflow-y-auto">
+                          {materials.length === 0 ? (
+                            <div className="p-4 text-sm text-muted-foreground text-center">
+                              No materials available
+                            </div>
+                          ) : (
+                            materials.map((material) => (
+                              <button
+                                key={material.id}
+                                className="w-full p-4 text-left text-sm hover:bg-muted/50 transition-colors border-b border-border/30 last:border-0"
+                                onClick={() => {
+                                  setSelectedMaterial(material.id);
+                                  setShowDropdown(false);
+                                }}
+                              >
+                                {material.name}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Quantity Selector */}
                   <div className="space-y-2.5">
-                <Label htmlFor="quantity-input" className="text-sm font-medium text-foreground">
-                  Quantity <span className="text-destructive">*</span>
-                </Label>
-                <div className="flex items-center gap-4">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setQuantity(Math.max(0, quantity - 10))}
-                  >
-                    <Minus className="w-4 h-4" />
-                  </Button>
-                  <Input
-                    id="quantity-input"
-                    type="number"
-                    value={quantity}
-                    onChange={(e) => setQuantity(Number(e.target.value))}
-                    className="text-center text-2xl font-display font-bold h-14"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setQuantity(quantity + 10)}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-                {selectedMaterialData && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    {selectedMaterialData.unit}
-                  </p>
-                )}
+                    <Label htmlFor="quantity-input" className="text-sm font-medium text-foreground">
+                      Quantity <span className="text-destructive">*</span>
+                    </Label>
+                    <div className="flex items-center gap-4">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setQuantity(Math.max(0, quantity - 10))}
+                      >
+                        <Minus className="w-4 h-4" />
+                      </Button>
+                      <Input
+                        id="quantity-input"
+                        type="number"
+                        value={quantity}
+                        onChange={(e) => setQuantity(Number(e.target.value))}
+                        className="text-center text-2xl font-display font-bold h-14"
+                      />
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setQuantity(quantity + 10)}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    {selectedMaterialData && (
+                      <p className="text-xs text-muted-foreground text-center">
+                        {selectedMaterialData.unit}
+                      </p>
+                    )}
                   </div>
 
                   {/* Anomaly Warning */}
-              <AnimatePresence>
-                {isAnomaly && (
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    className="flex items-start gap-3 p-3 rounded-xl bg-destructive/10 border border-destructive/30"
-                  >
-                    <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-destructive">Unusual Quantity</p>
-                      <p className="text-xs text-muted-foreground">
-                        This exceeds typical usage. Please provide a reason.
-                      </p>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  <AnimatePresence>
+                    {isAnomaly && (
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        className="flex items-start gap-3 p-3 rounded-xl bg-destructive/10 border border-destructive/30"
+                      >
+                        <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-destructive">Unusual Quantity</p>
+                          <p className="text-xs text-muted-foreground">
+                            This exceeds typical usage. Please provide a reason.
+                          </p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   {/* Reason */}
                   <div className="space-y-2.5">
-                <Label htmlFor="reason-input" className="text-sm font-medium text-foreground">
-                  Reason {isAnomaly && <span className="text-destructive">*</span>}
-                </Label>
-                <Input
-                  id="reason-input"
-                  placeholder="Enter reason for request..."
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                />
+                    <Label htmlFor="reason-input" className="text-sm font-medium text-foreground">
+                      Reason {isAnomaly && <span className="text-destructive">*</span>}
+                    </Label>
+                    <Input
+                      id="reason-input"
+                      placeholder="Enter reason for request..."
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                    />
                   </div>
 
                   {/* Submit */}
                   <Button
-                className="w-full"
-                size="lg"
-                onClick={handleSubmit}
-                disabled={!selectedMaterial || !selectedProject || quantity === 0 || (isAnomaly && !reason) || isSubmitting}
-              >
-                {isSubmitting ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    <Send className="w-5 h-5" />
-                    Submit Request
-                  </>
-                )}
-              </Button>
+                    className="w-full"
+                    size="lg"
+                    onClick={handleSubmit}
+                    disabled={!selectedMaterial || !selectedProject || quantity === 0 || (isAnomaly && !reason) || isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <Send className="w-5 h-5" />
+                        Submit Request
+                      </>
+                    )}
+                  </Button>
                 </CardContent>
               </Card>
 
