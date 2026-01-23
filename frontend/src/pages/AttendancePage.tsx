@@ -21,9 +21,8 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { saveAttendance } from "@/lib/indexeddb";
-import { useAppDispatch } from "@/store/hooks";
-import { addPendingItem } from "@/store/slices/offlineSlice";
+import { saveAttendance, getCheckInStateFromIndexedDB } from "@/lib/indexeddb";
+import { isOnline as checkOnline } from "@/lib/network";
 import { attendanceApi } from "@/services/api/attendance";
 import { projectsApi } from "@/services/api/projects";
 import { toast } from "sonner";
@@ -42,7 +41,6 @@ interface LocationData {
 
 export default function AttendancePage() {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const { t } = useTranslation();
   const { hasPermission } = usePermissions();
   const userId = useAppSelector((state) => state.auth.userId);
@@ -80,92 +78,54 @@ export default function AttendancePage() {
     loadProjects();
   }, []);
 
-  // Check for existing check-in status on page load and periodically
+  // Restore check-in state from API (when online) or IndexedDB (offline). No localStorage.
   useEffect(() => {
-    const checkExistingCheckIn = async () => {
+    const restoreCheckInState = async () => {
+      const online = await checkOnline();
       try {
-        const todayStatus = await attendanceApi.getTodayCheckIn();
-        if (todayStatus.isCheckedIn && todayStatus.checkIn) {
-          setIsCheckedIn(true);
-          const checkInTimeStr = new Date(todayStatus.checkIn.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-          setCheckInTime(checkInTimeStr);
-          setSelectedProject(todayStatus.checkIn.projectId);
-          
-          // Store in localStorage for persistence with full timestamp
-          localStorage.setItem('attendance_checkIn', JSON.stringify({
-            isCheckedIn: true,
-            checkInTime: checkInTimeStr,
-            projectId: todayStatus.checkIn.projectId,
-            timestamp: todayStatus.checkIn.timestamp,
-            checkInId: todayStatus.checkIn._id,
-          }));
-          
-          // Set location from check-in data
-          if (todayStatus.checkIn.latitude && todayStatus.checkIn.longitude) {
-            setLocation({
-              latitude: todayStatus.checkIn.latitude,
-              longitude: todayStatus.checkIn.longitude,
-              address: todayStatus.checkIn.location,
-            });
-            
-            // Start GPS watching for continuous tracking
-            startLocationWatching();
-          }
-        } else {
-          // Not checked in or already checked out - clear localStorage
-          localStorage.removeItem('attendance_checkIn');
-          setIsCheckedIn(false);
-          setCheckInTime(null);
-          // Stop GPS watching if not checked in
-          if (watchIdRef.current !== null) {
-            clearWatch(watchIdRef.current);
-            watchIdRef.current = null;
+        if (online) {
+          const todayStatus = await attendanceApi.getTodayCheckIn();
+          if (todayStatus.isCheckedIn && todayStatus.checkIn) {
+            setIsCheckedIn(true);
+            const checkInTimeStr = new Date(todayStatus.checkIn.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            setCheckInTime(checkInTimeStr);
+            setSelectedProject(todayStatus.checkIn.projectId);
+            if (todayStatus.checkIn.latitude != null && todayStatus.checkIn.longitude != null) {
+              setLocation({
+                latitude: todayStatus.checkIn.latitude,
+                longitude: todayStatus.checkIn.longitude,
+                address: todayStatus.checkIn.location || '',
+              });
+              startLocationWatching();
+            }
+            return;
           }
         }
-      } catch (error: any) {
-        console.error('Error checking existing check-in:', error);
-        // Fallback to localStorage if API fails
-        try {
-          const stored = localStorage.getItem('attendance_checkIn');
-          if (stored) {
-            const checkInData = JSON.parse(stored);
-            // Check if it's from today
-            const storedDate = new Date(checkInData.timestamp);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            storedDate.setHours(0, 0, 0, 0);
-            
-            if (storedDate.getTime() === today.getTime()) {
-              // Still valid for today
-              setIsCheckedIn(true);
-              setCheckInTime(checkInData.checkInTime);
-              setSelectedProject(checkInData.projectId);
-              
-              // Try to get location if not set
-              if (!location) {
-                handleGetLocation().catch(() => {
-                  // Silent fail - user can manually get location
-                });
-              }
-            } else {
-              // Old check-in from previous day, clear it
-              localStorage.removeItem('attendance_checkIn');
-              setIsCheckedIn(false);
-              setCheckInTime(null);
-            }
-          }
-        } catch (storageError) {
-          console.error('Error reading from localStorage:', storageError);
+      } catch (e) {
+        console.error('Error checking existing check-in:', e);
+      }
+      const idbState = await getCheckInStateFromIndexedDB();
+      if (idbState.isCheckedIn && idbState.projectId) {
+        setIsCheckedIn(true);
+        setCheckInTime(idbState.checkInTime ?? null);
+        setSelectedProject(idbState.projectId);
+        if (idbState.location) {
+          setLocation(idbState.location);
+          startLocationWatching();
+        } else {
+          handleGetLocation().catch(() => {});
+        }
+      } else {
+        setIsCheckedIn(false);
+        setCheckInTime(null);
+        if (watchIdRef.current != null) {
+          clearWatch(watchIdRef.current);
+          watchIdRef.current = null;
         }
       }
     };
-    
-    // Check immediately
-    checkExistingCheckIn();
-    
-    // Set up periodic refresh every 30 seconds to keep status in sync
-    const intervalId = setInterval(checkExistingCheckIn, 30000);
-    
+    restoreCheckInState();
+    const intervalId = setInterval(restoreCheckInState, 30000);
     return () => clearInterval(intervalId);
   }, []);
 
@@ -380,42 +340,38 @@ export default function AttendancePage() {
       toast.error("Please select a project first");
       return;
     }
-    
     if (!location) {
-      toast.error(t('attendance.pleaseGetLocation'));
+      toast.error(t("attendance.pleaseGetLocation"));
       return;
     }
-
     setIsLoading(true);
-    
+    const checkInTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     try {
-      // Try to submit to API first
-      const result = await attendanceApi.checkIn(
-        selectedProject, 
-        location.latitude, 
-        location.longitude,
-        location.address
-      );
-      const checkInTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      const online = await checkOnline();
+      if (!online) {
+        await saveAttendance({
+          projectId: selectedProject,
+          type: 'checkin',
+          location: location.address,
+          latitude: location.latitude,
+          longitude: location.longitude,
+          timestamp: Date.now(),
+          userId: userId || "unknown",
+          markedAt: new Date().toISOString(),
+        });
+        toast.success(t('attendance.savedOffline') || 'Saved offline. Will sync automatically.');
+        setIsCheckedIn(true);
+        setCheckInTime(checkInTimeStr);
+        startLocationWatching();
+        return;
+      }
+      await attendanceApi.checkIn(selectedProject, location.latitude, location.longitude, location.address);
+      toast.success('Checked in successfully!');
       setIsCheckedIn(true);
       setCheckInTime(checkInTimeStr);
-      
-      // Store in localStorage for persistence with full timestamp
-      localStorage.setItem('attendance_checkIn', JSON.stringify({
-        isCheckedIn: true,
-        checkInTime: checkInTimeStr,
-        projectId: selectedProject,
-        timestamp: new Date().toISOString(),
-        checkInId: result?._id || null,
-      }));
-      
-      // Start GPS watching for continuous tracking
       startLocationWatching();
-      
-      toast.success('Checked in successfully!');
-    } catch (error: any) {
-      // If API fails, save to IndexedDB for offline sync
-      const attId = await saveAttendance({
+    } catch (err: any) {
+      await saveAttendance({
         projectId: selectedProject,
         type: 'checkin',
         location: location.address,
@@ -425,39 +381,10 @@ export default function AttendancePage() {
         userId: userId || "unknown",
         markedAt: new Date().toISOString(),
       });
-      
-      // Add to Redux offline store
-      dispatch(addPendingItem({
-        type: 'attendance',
-        data: {
-          id: attId,
-          type: 'checkin',
-          location: location.address,
-          latitude: location.latitude,
-          longitude: location.longitude,
-          userId: userId,
-          projectId: selectedProject,
-          timestamp: new Date().toISOString(),
-        },
-      }));
-      
-      const checkInTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      toast.warning(t('attendance.savedOfflineWarning') || 'Saved offline. Will sync when connection is restored.');
       setIsCheckedIn(true);
       setCheckInTime(checkInTimeStr);
-      
-      // Store in localStorage for persistence with full timestamp
-      localStorage.setItem('attendance_checkIn', JSON.stringify({
-        isCheckedIn: true,
-        checkInTime: checkInTimeStr,
-        projectId: selectedProject,
-        timestamp: new Date().toISOString(),
-        checkInId: attId || null,
-      }));
-      
-      // Start GPS watching for continuous tracking even in offline mode
       startLocationWatching();
-      
-      toast.success(t('attendance.checkedInOffline'));
     } finally {
       setIsLoading(false);
     }
@@ -468,89 +395,64 @@ export default function AttendancePage() {
       toast.error("Please select a project first");
       return;
     }
-    
     setIsLoading(true);
-    
-    // Stop GPS watching
     if (watchIdRef.current !== null) {
       clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
-    
-    // Declare checkoutLocation outside try block so it's accessible in catch block
     let checkoutLocation: LocationData | null = location;
-    
     try {
-      // Use current location if available, otherwise use check-in location
-      checkoutLocation = location;
-      
-      // Try to get fresh location for checkout
-      try {
-        const locationData = await getCurrentPosition({
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 60000,
-        });
-        
-        await updateLocationFromCoordinates(locationData.latitude, locationData.longitude);
+      const loc = await getCurrentPosition({ enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }).catch(() => null);
+      if (loc) {
+        await updateLocationFromCoordinates(loc.latitude, loc.longitude);
         checkoutLocation = {
-          latitude: locationData.latitude,
-          longitude: locationData.longitude,
-          address: location?.address || `Coordinates: ${locationData.latitude.toFixed(6)}, ${locationData.longitude.toFixed(6)}`,
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          address: location?.address || `Coordinates: ${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}`,
         };
-      } catch (error) {
-        // Location not available, will use existing location
-        console.warn('Checkout location not available, using current location:', error);
       }
-
-      // Try to submit to API first
-      await attendanceApi.checkOut(
-        selectedProject,
-        checkoutLocation?.latitude,
-        checkoutLocation?.longitude
-      );
+    } catch (e) {
+      console.warn('Checkout location not available, using current:', e);
+    }
+    const addr = checkoutLocation?.address || location?.address || 'Unknown';
+    const lat = checkoutLocation?.latitude ?? location?.latitude;
+    const lng = checkoutLocation?.longitude ?? location?.longitude;
+    try {
+      const online = await checkOnline();
+      if (!online) {
+        await saveAttendance({
+          projectId: selectedProject,
+          type: 'checkout',
+          location: addr,
+          latitude: lat,
+          longitude: lng,
+          timestamp: Date.now(),
+          userId: userId || "unknown",
+          markedAt: new Date().toISOString(),
+        });
+        toast.success(t('attendance.savedOffline') || 'Saved offline. Will sync automatically.');
+        setIsCheckedIn(false);
+        setCheckInTime(null);
+        return;
+      }
+      await attendanceApi.checkOut(selectedProject, lat, lng);
+      toast.success('Checked out successfully!');
       setIsCheckedIn(false);
       setCheckInTime(null);
-      
-      // Clear localStorage
-      localStorage.removeItem('attendance_checkIn');
-      
-      toast.success('Checked out successfully!');
-    } catch (error: any) {
-      // If API fails, save to IndexedDB for offline sync
-      const attId = await saveAttendance({
+    } catch (err: any) {
+      await saveAttendance({
         projectId: selectedProject,
         type: 'checkout',
-        location: checkoutLocation?.address || location?.address || 'Unknown',
-        latitude: checkoutLocation?.latitude || location?.latitude,
-        longitude: checkoutLocation?.longitude || location?.longitude,
+        location: addr,
+        latitude: lat,
+        longitude: lng,
         timestamp: Date.now(),
         userId: userId || "unknown",
         markedAt: new Date().toISOString(),
       });
-      
-      // Add to Redux offline store
-      dispatch(addPendingItem({
-        type: 'attendance',
-        data: {
-          id: attId,
-          type: 'checkout',
-          location: checkoutLocation?.address || location?.address || 'Unknown',
-          latitude: checkoutLocation?.latitude || location?.latitude,
-          longitude: checkoutLocation?.longitude || location?.longitude,
-          userId: userId,
-          projectId: selectedProject,
-          timestamp: new Date().toISOString(),
-        },
-      }));
-      
+      toast.warning(t('attendance.savedOfflineWarning') || 'Saved offline. Will sync when connection is restored.');
       setIsCheckedIn(false);
       setCheckInTime(null);
-      
-      // Clear localStorage
-      localStorage.removeItem('attendance_checkIn');
-      
-      toast.success(t('attendance.checkedOutOffline'));
     } finally {
       setIsLoading(false);
     }

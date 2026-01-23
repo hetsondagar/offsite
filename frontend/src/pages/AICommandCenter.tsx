@@ -88,7 +88,6 @@ export default function AICommandCenter() {
       setIsLoadingRisk(true);
       setIsUsingCache(false);
 
-      // Try cache first if offline
       if (!isOnline) {
         const cached = await getAICache('risk', selectedProjectId);
         if (cached) {
@@ -97,6 +96,8 @@ export default function AICommandCenter() {
           setIsLoadingRisk(false);
           return;
         }
+        setIsLoadingRisk(false);
+        return;
       }
 
       const assessment = await aiApi.getSiteRisk(selectedProjectId);
@@ -186,15 +187,16 @@ export default function AICommandCenter() {
       setIsLoadingAnomalies(true);
       setIsUsingCache(false);
 
-      // Try cache first if offline
       if (!isOnline) {
         const cached = await getAICache('anomalies', selectedProjectId);
         if (cached) {
-          setAnomalies(cached.anomalies || []);
+          setAnomalies(Array.isArray(cached.anomalies) ? cached.anomalies : []);
           setIsUsingCache(true);
           setIsLoadingAnomalies(false);
           return;
         }
+        setIsLoadingAnomalies(false);
+        return;
       }
 
       const data = await aiApi.getAnomalies(selectedProjectId);
@@ -289,13 +291,12 @@ export default function AICommandCenter() {
           </CardContent>
         </Card>
 
-        {/* Offline/Cache Warning */}
         {isUsingCache && (
           <Card className="border-yellow-500/20 bg-yellow-500/5">
             <CardContent className="pt-6">
               <div className="flex items-center gap-2 text-yellow-600">
                 <WifiOff className="w-4 h-4" />
-                <p className="text-sm">{t('aiCommand.showingCachedData')}</p>
+                <p className="text-sm">{t('aiCommand.cachedInsightOffline') || 'Cached insight (offline)'}</p>
               </div>
             </CardContent>
           </Card>

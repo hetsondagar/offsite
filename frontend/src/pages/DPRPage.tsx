@@ -24,9 +24,10 @@ import {
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { saveDPR } from "@/lib/indexeddb";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { addPendingItem } from "@/store/slices/offlineSlice";
+import { isOnline as checkOnline } from "@/lib/network";
+import { useAppSelector } from "@/store/hooks";
 import { usePermissions } from "@/hooks/usePermissions";
+import { toast } from "sonner";
 import { projectsApi } from "@/services/api/projects";
 import { tasksApi } from "@/services/api/tasks";
 import { dprApi } from "@/services/api/dpr";
@@ -39,7 +40,6 @@ type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 export default function DPRPage() {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const { t } = useTranslation();
   const { hasPermission } = usePermissions();
   const userId = useAppSelector((state) => state.auth.userId);
@@ -190,95 +190,99 @@ export default function DPRPage() {
 
   const handleSubmit = async () => {
     if (!selectedProject || !selectedTask) return;
-    
-    // Validate work stoppage if occurred
     if (workStoppageOccurred && (!workStoppageReason || workStoppageDuration <= 0)) {
       alert('Please provide reason and duration for work stoppage');
       return;
     }
-    
+
+    const workStoppage = workStoppageOccurred
+      ? {
+          occurred: true,
+          reason: workStoppageReason as any,
+          durationHours: workStoppageDuration,
+          remarks: workStoppageRemarks || undefined,
+          evidencePhotos: [] as string[],
+        }
+      : { occurred: false };
+
+    const photoBase64: string[] = [];
+    for (const photo of photos) {
+      const base64 = await new Promise<string>((resolve) => {
+        const r = new FileReader();
+        r.onload = (e: any) => resolve(e.target.result);
+        r.readAsDataURL(photo);
+      });
+      photoBase64.push(base64);
+    }
+    const stoppageEvidenceBase64: string[] = [];
+    for (const photo of workStoppageEvidencePhotos) {
+      const base64 = await new Promise<string>((resolve) => {
+        const r = new FileReader();
+        r.onload = (e: any) => resolve(e.target.result);
+        r.readAsDataURL(photo);
+      });
+      stoppageEvidenceBase64.push(base64);
+    }
+    const workStoppageData = workStoppageOccurred
+      ? {
+          occurred: true,
+          reason: workStoppageReason,
+          durationHours: workStoppageDuration,
+          remarks: workStoppageRemarks || undefined,
+          evidencePhotos: stoppageEvidenceBase64,
+        }
+      : { occurred: false };
+
     setIsSubmitting(true);
-    
     try {
-      // Prepare work stoppage data
-      const workStoppage = workStoppageOccurred ? {
-        occurred: true,
-        reason: workStoppageReason as any,
-        durationHours: workStoppageDuration,
-        remarks: workStoppageRemarks || undefined,
-        evidencePhotos: [], // Will be populated after upload
-      } : {
-        occurred: false,
-      };
+      const online = await checkOnline();
 
-      // Submit to API with actual photo files
-      const response = await dprApi.create({
-        projectId: selectedProject,
-        taskId: selectedTask,
-        notes: notes,
-        generateAISummary: true, // Always generate AI summary
-        workStoppage: workStoppage as any,
-      }, photos.length > 0 ? photos : undefined, workStoppageEvidencePhotos.length > 0 ? workStoppageEvidencePhotos : undefined);
+      if (!online) {
+        await saveDPR({
+          projectId: selectedProject,
+          taskId: selectedTask,
+          photos: photoBase64,
+          notes: notes,
+          aiSummary: aiSummary,
+          workStoppage: workStoppageData as any,
+          timestamp: Date.now(),
+          createdBy: userId || "unknown",
+        });
+        toast.success(t('dpr.savedOffline') || 'Saved offline. Will sync automatically.');
+        setShowSuccess(true);
+        setTimeout(() => navigate("/"), 2000);
+        return;
+      }
 
-      // Store the created DPR
+      const response = await dprApi.create(
+        {
+          projectId: selectedProject,
+          taskId: selectedTask,
+          notes,
+          generateAISummary: true,
+          workStoppage: workStoppage as any,
+        },
+        photos.length > 0 ? photos : undefined,
+        workStoppageEvidencePhotos.length > 0 ? workStoppageEvidencePhotos : undefined
+      );
+
       if (response?._id) {
         setSubmittedDPRId(response._id);
-        setSubmittedDPR(response); // Store the full DPR object
-        // Load AI summary if available
-        if (response.aiSummary) {
-          setDprAISummary(response.aiSummary);
-        } else {
-          // Fetch AI summary from insights API
+        setSubmittedDPR(response);
+        if (response.aiSummary) setDprAISummary(response.aiSummary);
+        else {
           try {
             const aiSummaryData = await insightsApi.getDPRSummary(selectedProject, response._id);
-            if (aiSummaryData?.summary) {
-              setDprAISummary(aiSummaryData.summary);
-            }
-          } catch (error) {
-            console.error('Error loading AI summary:', error);
+            if (aiSummaryData?.summary) setDprAISummary(aiSummaryData.summary);
+          } catch (e) {
+            console.error('Error loading AI summary:', e);
           }
         }
-        // Load old DPRs for this project
         await loadOldDPRs(selectedProject);
       }
-
       setShowSuccess(true);
-      // Don't navigate away immediately - let user see the success and view old DPRs
-    } catch (error) {
-      // If API fails, save to IndexedDB for offline sync
-      // Convert File objects to base64 for storage
-      const photoBase64: string[] = [];
-      for (const photo of photos) {
-        const reader = new FileReader();
-        const base64 = await new Promise<string>((resolve) => {
-          reader.onload = (e: any) => resolve(e.target.result);
-          reader.readAsDataURL(photo);
-        });
-        photoBase64.push(base64);
-      }
-      
-      // Convert work stoppage evidence photos to base64
-      const stoppageEvidenceBase64: string[] = [];
-      for (const photo of workStoppageEvidencePhotos) {
-        const reader = new FileReader();
-        const base64 = await new Promise<string>((resolve) => {
-          reader.onload = (e: any) => resolve(e.target.result);
-          reader.readAsDataURL(photo);
-        });
-        stoppageEvidenceBase64.push(base64);
-      }
-
-      const workStoppageData = workStoppageOccurred ? {
-        occurred: true,
-        reason: workStoppageReason,
-        durationHours: workStoppageDuration,
-        remarks: workStoppageRemarks || undefined,
-        evidencePhotos: stoppageEvidenceBase64,
-      } : {
-        occurred: false,
-      };
-      
-      const dprId = await saveDPR({
+    } catch (err) {
+      await saveDPR({
         projectId: selectedProject,
         taskId: selectedTask,
         photos: photoBase64,
@@ -287,25 +291,8 @@ export default function DPRPage() {
         workStoppage: workStoppageData as any,
         timestamp: Date.now(),
         createdBy: userId || "unknown",
-        createdAt: new Date().toISOString(),
       });
-      
-      // Add to Redux offline store
-      dispatch(addPendingItem({
-        type: 'dpr',
-        data: {
-          id: dprId,
-          projectId: selectedProject,
-          taskId: selectedTask,
-          photos: photoBase64,
-          notes: notes,
-          aiSummary: aiSummary,
-          workStoppage: workStoppageData,
-          createdBy: userId,
-          createdAt: new Date().toISOString(),
-        },
-      }));
-      
+      toast.warning(t('dpr.savedOfflineWarning') || 'Saved offline. Will sync when connection is restored.');
       setShowSuccess(true);
       setTimeout(() => navigate("/"), 2000);
     } finally {

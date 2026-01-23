@@ -10,8 +10,9 @@ import { store } from "./store/store";
 import { useAppDispatch } from "./store/hooks";
 import { initializeAuth } from "./store/slices/authSlice";
 import { setOnlineStatus } from "./store/slices/offlineSlice";
-import { syncOfflineStores } from "@/lib/offlineSync";
-import { getNetworkStatus, addNetworkListener } from "@/lib/capacitor-network";
+import { getNetworkStatus, addNetworkListener } from "@/lib/network";
+import { scheduleSync } from "@/lib/syncEngine";
+import { initAppLifecycle } from "@/lib/appLifecycle";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -109,123 +110,31 @@ function AppContent() {
   const dispatch = useAppDispatch();
 
   useEffect(() => {
-    // Initialize auth from localStorage
     dispatch(initializeAuth());
-    
-    // Function to check actual connectivity by pinging the API
-    const checkConnectivity = async (): Promise<boolean> => {
-      try {
-        // Create an AbortController for timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout (increased)
-        
-        // Use health check endpoint that doesn't require authentication
-        const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-        // Remove /api suffix for health check endpoint
-        const apiUrl = apiBaseUrl.replace('/api', '');
-        const response = await fetch(`${apiUrl}/health`, {
-          method: 'GET',
-          signal: controller.signal,
-          cache: 'no-cache', // Don't use cached responses
-        });
-        
-        clearTimeout(timeoutId);
-        
-        // If we get any response (even error), server is reachable
-        if (response.ok || response.status < 500) {
-          dispatch(setOnlineStatus(true));
-          return true;
-        } else {
-          // Server error but server is reachable
-          dispatch(setOnlineStatus(true));
-          return true;
-        }
-      } catch (error: unknown) {
-        const err = error as { name?: string; message?: string };
 
-        // Check network status before assuming offline
-        const networkStatus = await getNetworkStatus();
-        
-        // If network says connected, trust it even if API call failed
-        if (networkStatus.connected) {
-          dispatch(setOnlineStatus(true));
-          return true;
-        }
-        
-        // Only mark offline if network status also says offline
-        if (err?.name === 'AbortError') {
-          // Timeout - trust network status
-          dispatch(setOnlineStatus(networkStatus.connected));
-          return networkStatus.connected;
-        } else {
-          // Network errors - trust network status
-          const message = err?.message || '';
-          if (message.includes('Failed to fetch') || message.includes('NetworkError') || err?.name === 'TypeError') {
-            dispatch(setOnlineStatus(networkStatus.connected));
-            return networkStatus.connected;
-          } else {
-            // Other errors - assume online if network says connected
-            dispatch(setOnlineStatus(networkStatus.connected));
-            return networkStatus.connected;
-          }
-        }
-      }
+    const applyOnline = (online: boolean) => {
+      dispatch(setOnlineStatus(online));
     };
 
-    // Set initial online status - start with optimistic online status
     const initialCheck = async () => {
-      // Start with navigator.onLine as initial status (optimistic)
-      if (typeof navigator !== 'undefined' && navigator.onLine) {
-        dispatch(setOnlineStatus(true));
-      }
-      
-      const networkStatus = await getNetworkStatus();
-      if (networkStatus.connected) {
-        // If network says online, verify with actual API call
-        await checkConnectivity();
-      } else {
-        // If network says offline, trust it
-        dispatch(setOnlineStatus(false));
-      }
+      const status = await getNetworkStatus();
+      applyOnline(status.online);
     };
-    
+
     initialCheck();
 
-    // Listen for network status changes using Capacitor
-    const removeNetworkListener = addNetworkListener(async (status) => {
-      if (status.connected) {
-        // When network comes back online, set optimistic status first
-        dispatch(setOnlineStatus(true));
-        // Then verify with API call (but don't override if network says connected)
-        checkConnectivity().catch(async () => {
-          // If connectivity check fails but network says connected, keep online
-          const networkStatus = await getNetworkStatus();
-          if (networkStatus.connected) {
-            dispatch(setOnlineStatus(true));
-          }
-        });
-        // Fire-and-forget: if user is authenticated, sync offline data.
-        // This keeps all pages consistent without requiring manual Sync button.
-        syncOfflineStores().catch((error) => {
-          console.error('Auto-sync failed:', error);
-        });
-      } else {
-        // Network says offline - trust it
-        dispatch(setOnlineStatus(false));
-      }
+    const removeNetworkListener = addNetworkListener((online) => {
+      applyOnline(online);
+      if (online) scheduleSync();
     });
 
-    // Periodically check connectivity (every 30 seconds)
-    const connectivityInterval = setInterval(async () => {
-      const networkStatus = await getNetworkStatus();
-      if (networkStatus.connected) {
-        checkConnectivity();
-      }
-    }, 30000);
+    const interval = setInterval(initialCheck, 30000);
+    const cleanupLifecycle = initAppLifecycle();
 
     return () => {
       removeNetworkListener();
-      clearInterval(connectivityInterval);
+      clearInterval(interval);
+      cleanupLifecycle();
     };
   }, [dispatch]);
 

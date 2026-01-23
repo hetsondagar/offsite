@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,9 +22,10 @@ import {
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { saveMaterialRequest } from "@/lib/indexeddb";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { addPendingItem } from "@/store/slices/offlineSlice";
+import { isOnline as checkOnline } from "@/lib/network";
+import { useAppSelector } from "@/store/hooks";
 import { usePermissions } from "@/hooks/usePermissions";
+import { toast } from "sonner";
 import { materialsApi } from "@/services/api/materials";
 import { projectsApi } from "@/services/api/projects";
 import { usersApi } from "@/services/api/users";
@@ -33,7 +34,6 @@ import { Label } from "@/components/ui/label";
 
 export default function MaterialsPage() {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const { t } = useTranslation();
   const { hasPermission } = usePermissions();
   const userId = useAppSelector((state) => state.auth.userId);
@@ -50,6 +50,28 @@ export default function MaterialsPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const projectDropdownRef = useRef<HTMLDivElement>(null);
+  const materialDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (projectDropdownRef.current && !projectDropdownRef.current.contains(event.target as Node)) {
+        setShowProjectDropdown(false);
+      }
+      if (materialDropdownRef.current && !materialDropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+
+    if (showProjectDropdown || showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProjectDropdown, showDropdown]);
 
   // Check permission
   useEffect(() => {
@@ -162,114 +184,84 @@ export default function MaterialsPage() {
 
   const handleSubmit = async () => {
     if (!selectedMaterial || !selectedMaterialData) return;
-    
-    // Validate project selection
     if (!selectedProject) {
-      alert("Please select a project for this material request.");
+      toast.error("Please select a project for this material request.");
       return;
     }
-    
     setIsSubmitting(true);
-    
+    const resetForm = () => {
+      setTimeout(() => {
+        setShowSuccess(false);
+        setSelectedMaterial(null);
+        setSelectedProject(null);
+        setQuantity(0);
+        setReason("");
+      }, 2000);
+    };
+    const reloadPending = async () => {
+      try {
+        const data = await materialsApi.getPending(1, 100);
+        const requests = data?.requests || [];
+        const userReqs = requests
+          .filter((r: any) => (typeof r.requestedBy === 'object' ? r.requestedBy._id : r.requestedBy) === userId)
+          .map((r: any) => ({
+            id: r._id,
+            material: r.materialName,
+            quantity: `${r.quantity} ${r.unit}`,
+            date: new Date(r.createdAt).toLocaleDateString(),
+            status: r.status,
+          }));
+        setPendingRequests(userReqs);
+      } catch (e) {
+        console.error('Error reloading requests:', e);
+      }
+    };
     try {
-      // Try to submit to API first
+      const online = await checkOnline();
+      if (!online) {
+        await saveMaterialRequest({
+          projectId: selectedProject,
+          materialId: selectedMaterial,
+          materialName: selectedMaterialData.name,
+          quantity,
+          unit: selectedMaterialData.unit,
+          reason,
+          timestamp: Date.now(),
+          requestedBy: userId || "unknown",
+          requestedAt: new Date().toISOString(),
+        });
+        toast.success(t('materials.savedOffline') || 'Saved offline. Will sync automatically.');
+        setShowSuccess(true);
+        resetForm();
+        return;
+      }
       await materialsApi.createRequest({
         projectId: selectedProject,
         materialId: selectedMaterial,
         materialName: selectedMaterialData.name,
-        quantity: quantity,
+        quantity,
         unit: selectedMaterialData.unit,
-        reason: reason,
+        reason,
       });
-
       setShowSuccess(true);
-      
-      // Reload pending requests
-      try {
-        const requestsData = await materialsApi.getPending(1, 100);
-        const requests = requestsData?.requests || [];
-        const userRequests = requests
-          .filter((r: any) => {
-            const requestedBy = typeof r.requestedBy === 'object' ? r.requestedBy._id : r.requestedBy;
-            return requestedBy === userId;
-          })
-          .map((r: any) => ({
-            id: r._id,
-            material: r.materialName,
-            quantity: `${r.quantity} ${r.unit}`,
-            date: new Date(r.createdAt).toLocaleDateString(),
-            status: r.status,
-          }));
-        setPendingRequests(userRequests);
-      } catch (error) {
-        console.error('Error reloading requests:', error);
-      }
-      
-      setTimeout(() => {
-        setShowSuccess(false);
-        setSelectedMaterial(null);
-        setSelectedProject(null);
-        setQuantity(0);
-        setReason("");
-      }, 2000);
-    } catch (error) {
-      // If API fails, save to IndexedDB for offline sync
-      const matId = await saveMaterialRequest({
-      projectId: selectedProject,
+      await reloadPending();
+      resetForm();
+    } catch (err) {
+      await saveMaterialRequest({
+        projectId: selectedProject,
         materialId: selectedMaterial,
         materialName: selectedMaterialData.name,
-        quantity: quantity,
+        quantity,
         unit: selectedMaterialData.unit,
-        reason: reason,
+        reason,
         timestamp: Date.now(),
-      requestedBy: userId || "unknown",
-      requestedAt: new Date().toISOString(),
+        requestedBy: userId || "unknown",
+        requestedAt: new Date().toISOString(),
       });
-      
-      // Add to Redux offline store
-      dispatch(addPendingItem({
-        type: 'material',
-        data: {
-          id: matId,
-          projectId: selectedProject,
-          materialId: selectedMaterial,
-          quantity: quantity,
-          reason: reason,
-          requestedBy: userId,
-          requestedAt: new Date().toISOString(),
-        },
-      }));
-      
+      toast.warning(t('materials.savedOfflineWarning') || 'Saved offline. Will sync when connection is restored.');
       setShowSuccess(true);
-      
-      // Reload pending requests
-      try {
-        const requestsData = await materialsApi.getPending(1, 100);
-        const requests = requestsData?.requests || [];
-        const userRequests = requests
-          .filter((r: any) => {
-            const requestedBy = typeof r.requestedBy === 'object' ? r.requestedBy._id : r.requestedBy;
-            return requestedBy === userId;
-          })
-          .map((r: any) => ({
-            id: r._id,
-            material: r.materialName,
-            quantity: `${r.quantity} ${r.unit}`,
-            date: new Date(r.createdAt).toLocaleDateString(),
-            status: r.status,
-          }));
-        setPendingRequests(userRequests);
-      } catch (error) {
-        console.error('Error reloading requests:', error);
-      }
-      
-      setTimeout(() => {
-        setShowSuccess(false);
-        setSelectedMaterial(null);
-        setSelectedProject(null);
-        setQuantity(0);
-        setReason("");
-      }, 2000);
+      await reloadPending();
+      resetForm();
     } finally {
       setIsSubmitting(false);
     }
@@ -348,19 +340,19 @@ export default function MaterialsPage() {
             <>
               {/* New Request */}
               <Card variant="gradient" className="animate-fade-up">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Package className="w-4 h-4 text-primary" />
-                New Material Request
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Project Selection */}
-              <div className="space-y-2.5">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Package className="w-4 h-4 text-primary" />
+                    New Material Request
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Project Selection */}
+                  <div className="space-y-2.5">
                 <Label htmlFor="project-select" className="text-sm font-medium text-foreground">
                   Project <span className="text-destructive">*</span>
                 </Label>
-                <div className="relative">
+                <div className="relative" ref={projectDropdownRef}>
                   <button
                     id="project-select"
                     onClick={() => setShowProjectDropdown(!showProjectDropdown)}
@@ -405,15 +397,15 @@ export default function MaterialsPage() {
                       )}
                     </div>
                   )}
-                </div>
-              </div>
+                  </div>
+                  </div>
 
-              {/* Material Dropdown */}
-              <div className="space-y-2.5">
+                  {/* Material Dropdown */}
+                  <div className="space-y-2.5">
                 <Label htmlFor="material-select" className="text-sm font-medium text-foreground">
                   Material <span className="text-destructive">*</span>
                 </Label>
-                <div className="relative">
+                <div className="relative" ref={materialDropdownRef}>
                   <button
                     id="material-select"
                     onClick={() => setShowDropdown(!showDropdown)}
@@ -453,10 +445,10 @@ export default function MaterialsPage() {
                     )}
                   </div>
                 )}
-              </div>
+                  </div>
 
-              {/* Quantity Selector */}
-              <div className="space-y-2.5">
+                  {/* Quantity Selector */}
+                  <div className="space-y-2.5">
                 <Label htmlFor="quantity-input" className="text-sm font-medium text-foreground">
                   Quantity <span className="text-destructive">*</span>
                 </Label>
@@ -488,9 +480,9 @@ export default function MaterialsPage() {
                     {selectedMaterialData.unit}
                   </p>
                 )}
-              </div>
+                  </div>
 
-              {/* Anomaly Warning */}
+                  {/* Anomaly Warning */}
               <AnimatePresence>
                 {isAnomaly && (
                   <motion.div
@@ -510,8 +502,8 @@ export default function MaterialsPage() {
                 )}
               </AnimatePresence>
 
-              {/* Reason */}
-              <div className="space-y-2.5">
+                  {/* Reason */}
+                  <div className="space-y-2.5">
                 <Label htmlFor="reason-input" className="text-sm font-medium text-foreground">
                   Reason {isAnomaly && <span className="text-destructive">*</span>}
                 </Label>
@@ -521,10 +513,10 @@ export default function MaterialsPage() {
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                 />
-              </div>
+                  </div>
 
-              {/* Submit */}
-              <Button
+                  {/* Submit */}
+                  <Button
                 className="w-full"
                 size="lg"
                 onClick={handleSubmit}
@@ -539,37 +531,37 @@ export default function MaterialsPage() {
                   </>
                 )}
               </Button>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
 
-          {/* Pending Requests */}
-          <Card variant="gradient" className="animate-fade-up stagger-1">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Your Requests</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {pendingRequests.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">{t('materials.noPendingRequests')}</p>
-                ) : (
-                  pendingRequests.map((request) => (
-                    <div key={request.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
-                      <div>
-                        <p className="font-medium text-sm text-foreground">{request.material}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {request.quantity} · {request.date}
-                        </p>
-                      </div>
-                      <StatusBadge 
-                        status={request.status === "approved" ? "success" : request.status === "rejected" ? "error" : "pending"}
-                        label={request.status}
-                      />
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
+              {/* Pending Requests */}
+              <Card variant="gradient" className="animate-fade-up stagger-1">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Your Requests</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {pendingRequests.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">{t('materials.noPendingRequests')}</p>
+                    ) : (
+                      pendingRequests.map((request) => (
+                        <div key={request.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
+                          <div>
+                            <p className="font-medium text-sm text-foreground">{request.material}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {request.quantity} · {request.date}
+                            </p>
+                          </div>
+                          <StatusBadge 
+                            status={request.status === "approved" ? "success" : request.status === "rejected" ? "error" : "pending"}
+                            label={request.status}
+                          />
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </>
           )}
         </div>

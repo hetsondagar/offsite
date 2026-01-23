@@ -156,52 +156,6 @@ export default function AttendanceDetailPage() {
     return acc;
   }, {});
 
-  // Calculate hours worked for each user per day
-  const calculateHoursWorked = (records: any[]) => {
-    const userSessions: Record<string, { checkIn: any; checkOut: any | null }> = {};
-    
-    // Sort records by timestamp
-    const sortedRecords = [...records].sort((a, b) => 
-      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
-    
-    sortedRecords.forEach((record: any) => {
-      const userId = typeof record.userId === 'object' ? record.userId._id : record.userId;
-      const userIdStr = userId.toString();
-      
-      if (record.type === 'checkin') {
-        if (!userSessions[userIdStr] || userSessions[userIdStr].checkOut) {
-          // New session or previous session completed
-          userSessions[userIdStr] = { checkIn: record, checkOut: null };
-        }
-      } else if (record.type === 'checkout') {
-        if (userSessions[userIdStr] && !userSessions[userIdStr].checkOut) {
-          // Complete the session
-          userSessions[userIdStr].checkOut = record;
-        }
-      }
-    });
-    
-    // Calculate hours for each session
-    const hoursByUser: Record<string, number> = {};
-    Object.entries(userSessions).forEach(([userId, session]) => {
-      if (session.checkIn && session.checkOut) {
-        const checkInTime = new Date(session.checkIn.timestamp).getTime();
-        const checkOutTime = new Date(session.checkOut.timestamp).getTime();
-        const hours = (checkOutTime - checkInTime) / (1000 * 60 * 60); // Convert to hours
-        hoursByUser[userId] = (hoursByUser[userId] || 0) + hours;
-      } else if (session.checkIn) {
-        // Checked in but not checked out - calculate hours until now
-        const checkInTime = new Date(session.checkIn.timestamp).getTime();
-        const now = new Date().getTime();
-        const hours = (now - checkInTime) / (1000 * 60 * 60);
-        hoursByUser[userId] = (hoursByUser[userId] || 0) + hours;
-      }
-    });
-    
-    return hoursByUser;
-  };
-
   const sortedDates = Object.keys(groupedAttendance).sort((a, b) => 
     new Date(b).getTime() - new Date(a).getTime()
   );

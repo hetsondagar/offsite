@@ -1,10 +1,56 @@
 /**
  * API utility functions for making authenticated requests
+ * Includes network request debouncing to prevent excessive API calls on Android
  */
 
 import { getApiCache, setApiCache } from "@/lib/indexeddb";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
+// Network request debouncing: prevent rapid-fire requests
+const REQUEST_DEBOUNCE_MS = 300; // 300ms debounce for same endpoint
+const pendingRequests = new Map<string, Promise<any>>();
+const requestTimestamps = new Map<string, number>();
+
+/**
+ * Generate a request key for debouncing (endpoint + method + body hash)
+ */
+function getRequestKey(endpoint: string, method: string, body?: string): string {
+  const bodyHash = body ? btoa(body).slice(0, 20) : '';
+  return `${method}:${endpoint}:${bodyHash}`;
+}
+
+/**
+ * Debounce network requests to prevent excessive API calls
+ * Returns existing promise if same request is made within debounce window
+ */
+async function debouncedRequest<T>(
+  key: string,
+  requestFn: () => Promise<T>
+): Promise<T> {
+  const now = Date.now();
+  const lastRequest = requestTimestamps.get(key);
+  
+  // If same request was made recently, return the pending promise
+  if (lastRequest && (now - lastRequest) < REQUEST_DEBOUNCE_MS) {
+    const pending = pendingRequests.get(key);
+    if (pending) {
+      return pending as Promise<T>;
+    }
+  }
+
+  // Create new request
+  const promise = requestFn().finally(() => {
+    // Clean up after request completes
+    pendingRequests.delete(key);
+    requestTimestamps.delete(key);
+  });
+
+  pendingRequests.set(key, promise);
+  requestTimestamps.set(key, now);
+
+  return promise;
+}
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -27,7 +73,7 @@ const getCacheKey = (endpoint: string): string => {
 };
 
 /**
- * Make an authenticated API request
+ * Make an authenticated API request with debouncing
  */
 export const apiRequest = async <T = unknown>(
   endpoint: string,
@@ -37,6 +83,7 @@ export const apiRequest = async <T = unknown>(
   const method = (options.method || 'GET').toUpperCase();
   const isGet = method === 'GET';
   const cacheKey = isGet ? getCacheKey(endpoint) : null;
+  const requestKey = getRequestKey(endpoint, method, options.body as string);
   
   // Build headers object
   const headers: Record<string, string> = {
@@ -84,32 +131,42 @@ export const apiRequest = async <T = unknown>(
     throw new Error('Offline and no cached data available');
   }
 
-  try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
+  // Debounce the request (except for POST/PUT/PATCH which should not be debounced)
+  const makeRequest = async (): Promise<ApiResponse<T>> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        headers,
+      });
 
-    const data = (await response.json()) as ApiResponse<T>;
+      const data = (await response.json()) as ApiResponse<T>;
 
-    if (!response.ok) {
-      throw new Error(data?.message || 'Request failed');
+      if (!response.ok) {
+        throw new Error(data?.message || 'Request failed');
+      }
+
+      if (isGet && cacheKey) {
+        // Best-effort cache update
+        await setApiCache(cacheKey, data);
+      }
+
+      return data;
+    } catch (error) {
+      // If request fails, fall back to cached GET response (if present)
+      if (isGet && cacheKey) {
+        const cached = await getApiCache<ApiResponse<T>>(cacheKey);
+        if (cached) return cached.response;
+      }
+      throw error;
     }
+  };
 
-    if (isGet && cacheKey) {
-      // Best-effort cache update
-      await setApiCache(cacheKey, data);
-    }
-
-    return data;
-  } catch (error) {
-    // If request fails, fall back to cached GET response (if present)
-    if (isGet && cacheKey) {
-      const cached = await getApiCache<ApiResponse<T>>(cacheKey);
-      if (cached) return cached.response;
-    }
-    throw error;
+  // Only debounce GET requests to prevent duplicate fetches
+  if (isGet) {
+    return debouncedRequest(requestKey, makeRequest);
   }
+
+  return makeRequest();
 };
 
 /**

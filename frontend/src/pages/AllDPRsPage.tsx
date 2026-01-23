@@ -135,7 +135,8 @@ export default function AllDPRsPage() {
                     </div>
                   </div>
                 </div>
-              ))
+              );
+              })
             ) : (
               <p className="text-sm text-muted-foreground text-center py-4">{t('allDPRs.noRecentDPRs')}</p>
             )}
