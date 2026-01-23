@@ -203,7 +203,7 @@ export default function ProfilePage() {
                   </div>
                 ) : assignedProjects.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">
-                    {role === 'owner' ? 'No projects' : 'No assigned projects'}
+                    {role === 'owner' ? t('profile.noProjects') : t('profile.noAssignedProjects')}
                   </p>
                 ) : (
                   assignedProjects.map((project) => (

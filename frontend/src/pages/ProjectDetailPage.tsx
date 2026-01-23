@@ -125,14 +125,14 @@ export default function ProjectDetailPage() {
       const isManagerSelected = selectedManagers.some(m => m.offsiteId.toUpperCase() === user.offsiteId.toUpperCase());
       
       if (isEngineerSelected || isManagerSelected) {
-        toast.error('This user is already added');
+        toast.error(t('projects.userAlreadyAdded'));
         setSearchResults([]);
         return;
       }
 
       // Check if already a member
       if (projectData?.project?.members?.some((m: any) => m.offsiteId?.toUpperCase() === user.offsiteId.toUpperCase())) {
-        toast.error('This user is already a member of this project');
+        toast.error(t('projects.userAlreadyMember'));
         setSearchResults([]);
         return;
       }
@@ -192,7 +192,7 @@ export default function ProjectDetailPage() {
         managerOffsiteIds: selectedManagers.map(m => m.offsiteId),
       });
       
-      toast.success('Invitations sent successfully!');
+      toast.success(t('projects.invitationsSentSuccess'));
       setIsAddMemberDialogOpen(false);
       setSelectedEngineers([]);
       setSelectedManagers([]);
@@ -833,7 +833,7 @@ export default function ProjectDetailPage() {
                           {material.quantity} {material.unit}
                         </p>
                         <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                          <span>By: {material.requestedBy?.name || 'Unknown'}</span>
+                          <span>By: {material.requestedBy?.name || t('materials.unknown')}</span>
                           <span>{formatDate(material.createdAt)}</span>
                         </div>
                       </div>
@@ -863,7 +863,7 @@ export default function ProjectDetailPage() {
                   <div key={attendance._id} className="p-3 rounded-lg border">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium">{attendance.userId?.name || 'Unknown'}</p>
+                        <p className="font-medium">{attendance.userId?.name || t('materials.unknown')}</p>
                         <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                           <span className={cn(
                             "px-1.5 py-0.5 rounded",
@@ -899,12 +899,12 @@ export default function ProjectDetailPage() {
               <div className="space-y-4">
                 <div className="p-3 rounded-xl bg-muted/50">
                   <span className="text-xs text-muted-foreground">Task</span>
-                  <p className="font-medium text-foreground">{selectedDPR.taskId?.title || 'Unknown Task'}</p>
+                  <p className="font-medium text-foreground">{selectedDPR.taskId?.title || t('materials.unknown') + ' ' + t('dpr.task')}</p>
                 </div>
 
                 <div className="p-3 rounded-xl bg-muted/50">
-                  <span className="text-xs text-muted-foreground">Created By</span>
-                  <p className="font-medium text-foreground">{selectedDPR.createdBy?.name || 'Unknown'}</p>
+                  <span className="text-xs text-muted-foreground">{t('dpr.createdBy')}</span>
+                  <p className="font-medium text-foreground">{selectedDPR.createdBy?.name || t('materials.unknown')}</p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {formatDate(selectedDPR.createdAt)}
                   </p>

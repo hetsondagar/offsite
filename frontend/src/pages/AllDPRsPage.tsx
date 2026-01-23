@@ -112,7 +112,7 @@ export default function AllDPRsPage() {
                         {dpr.projectName || 'Project'}
                       </p>
                       <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                        <span>By: {dpr.createdBy?.name || 'Unknown'}</span>
+                        <span>By: {dpr.createdBy?.name || t('materials.unknown')}</span>
                         <span>{new Date(dpr.createdAt).toLocaleDateString('en-US', { 
                           month: 'short', 
                           day: 'numeric',

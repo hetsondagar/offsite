@@ -5,6 +5,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { login } from "@/store/slices/authSlice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Logo } from "@/components/common/Logo";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
@@ -120,29 +121,35 @@ export default function Login() {
             )}
 
             {/* Email Field */}
-            <div className="space-y-2">
-              <label className="text-xs sm:text-sm font-medium text-foreground">{t("auth.email")}</label>
+            <div className="space-y-2.5">
+              <Label htmlFor="email-input" className="text-sm font-medium text-foreground">
+                {t("auth.email")}
+              </Label>
               <div className="relative">
                 <Input
+                  id="email-input"
                   type="email"
                   placeholder="john.doe@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pr-4 h-12 sm:h-14 text-base sm:text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="pr-4 h-12 text-base bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors"
                 />
               </div>
             </div>
 
             {/* Password Field */}
-            <div className="space-y-2">
-              <label className="text-xs sm:text-sm font-medium text-foreground">{t("auth.password")}</label>
+            <div className="space-y-2.5">
+              <Label htmlFor="password-input" className="text-sm font-medium text-foreground">
+                {t("auth.password")}
+              </Label>
               <div className="relative">
                 <Input
+                  id="password-input"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pr-12 h-12 sm:h-14 text-base sm:text-lg bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="pr-12 h-12 text-base bg-transparent border-0 border-b-2 border-border/50 rounded-none px-0 focus:border-primary focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors"
                 />
                 <button
                   type="button"

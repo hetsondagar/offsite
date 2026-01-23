@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { invoicesApi } from '@/services/api/invoices';
 import { useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
+import { useTranslation } from 'react-i18next';
 
 interface InvoiceCardProps {
   invoice: Invoice;
@@ -46,7 +47,7 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
   };
 
   const projectName =
-    typeof invoice.projectId === 'object' ? invoice.projectId.name : 'Unknown Project';
+    typeof invoice.projectId === 'object' ? invoice.projectId.name : t('materials.unknown') + ' ' + t('dpr.project');
   const projectLocation =
     typeof invoice.projectId === 'object' ? invoice.projectId.location : '';
   const projectId =
@@ -108,19 +109,19 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
       doc.text(title, 14, 16);
 
       doc.setFontSize(10);
-      doc.text(`Project: ${projectName}`, 14, 26);
+      doc.text(`${t('dpr.project')}: ${projectName}`, 14, 26);
       if (projectLocation) {
-        doc.text(`Location: ${projectLocation}`, 14, 32);
+        doc.text(`${t('projects.location')}: ${projectLocation}`, 14, 32);
       }
-      doc.text(`Billing: ${formatDate(invoice.billingPeriod.from)} - ${formatDate(invoice.billingPeriod.to)}`, 14, 38);
-      doc.text(`GST Type: ${invoice.gstType}`, 14, 44);
+      doc.text(`${t('invoices.billingPeriod')}: ${formatDate(invoice.billingPeriod.from)} - ${formatDate(invoice.billingPeriod.to)}`, 14, 38);
+      doc.text(`${t('invoices.gst')} ${t('common.details')}: ${invoice.gstType}`, 14, 44);
 
       const startY = 54;
-      doc.text('Amounts (INR)', 14, startY);
+      doc.text(t('invoices.totalAmount') + ' (INR)', 14, startY);
       const amounts = [
-        [`Taxable`, formatCurrency(invoice.taxableAmount)],
+        [t('invoices.taxableAmount'), formatCurrency(invoice.taxableAmount)],
         [invoice.gstType === 'CGST_SGST' ? 'CGST+SGST' : 'IGST', formatCurrency(invoice.gstType === 'CGST_SGST' ? invoice.cgstAmount + invoice.sgstAmount : invoice.igstAmount)],
-        [`Total`, formatCurrency(invoice.totalAmount)],
+        [t('invoices.totalAmount'), formatCurrency(invoice.totalAmount)],
       ];
       amounts.forEach((row, idx) => {
         const y = startY + 8 + idx * 6;
@@ -129,9 +130,9 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
       });
 
       doc.save(`${invoice.invoiceNumber || invoice._id}.pdf`);
-      toast.success('GST Invoice PDF downloaded');
+      toast.success(t('invoices.gstInvoicePDFDownloaded'));
     } catch (error) {
-      toast.error('Failed to generate PDF');
+      toast.error(t('invoices.failedToGeneratePDF'));
     } finally {
       setIsDownloadingPdf(false);
     }
@@ -207,7 +208,7 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
                 </span>
               </div>
               <p className="text-xs mt-1">
-                Taxable: {formatCurrency(invoice.taxableAmount)}
+                {t('invoices.taxableAmount')}: {formatCurrency(invoice.taxableAmount)}
               </p>
             </div>
             <div className="text-right">
@@ -243,7 +244,7 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
                   <p className="text-xs text-muted-foreground">State: {invoice.supplier.state}</p>
                 </div>
                 <div className="p-3 rounded-xl bg-muted/50">
-                  <h4 className="text-xs font-medium text-muted-foreground mb-2">Client</h4>
+                  <h4 className="text-xs font-medium text-muted-foreground mb-2">{t('invoices.client')}</h4>
                   <p className="text-sm font-medium text-foreground">{invoice.client.name}</p>
                   <p className="text-xs text-muted-foreground">{invoice.client.address}</p>
                   {invoice.client.gstin && (
@@ -258,7 +259,7 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
                 <h4 className="text-sm font-medium text-foreground mb-2">GST Breakdown</h4>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Taxable Amount</span>
+                    <span className="text-muted-foreground">{t('invoices.taxableAmount')}</span>
                     <span className="font-medium text-foreground">
                       {formatCurrency(invoice.taxableAmount)}
                     </span>
@@ -287,7 +288,7 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
                     </div>
                   )}
                   <div className="flex justify-between pt-2 border-t border-border/30">
-                    <span className="font-semibold text-foreground">Total Amount</span>
+                    <span className="font-semibold text-foreground">{t('invoices.totalAmount')}</span>
                     <span className="font-display font-bold text-lg text-foreground">
                       {formatCurrency(invoice.totalAmount)}
                     </span>
@@ -329,7 +330,7 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
                       className="flex-1 min-w-0 sm:min-w-[120px]"
                     >
                       <Edit2 className="w-4 h-4 mr-2" />
-                      Edit
+                      {t('common.edit')}
                     </Button>
                   )}
                   {onFinalize && (
@@ -366,7 +367,7 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
                       ) : (
                         <>
                           <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
+                          {t('common.delete')}
                         </>
                       )}
                     </Button>
@@ -390,7 +391,7 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
                     ) : (
                       <>
                         <Download className="w-4 h-4 mr-2" />
-                        Download GST Invoice (PDF)
+                        {t('invoices.downloadGSTInvoicePDF')}
                       </>
                     )}
                   </Button>
@@ -421,7 +422,7 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
               }}
               disabled={isDeleting}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button
               variant="destructive"
@@ -434,10 +435,10 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
               {isDeleting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Deleting...
+                  {t('invoices.deleting')}
                 </>
               ) : (
-                'Delete Invoice'
+                t('invoices.deleteInvoice')
               )}
             </Button>
           </DialogFooter>

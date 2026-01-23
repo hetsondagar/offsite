@@ -29,6 +29,8 @@ import { projectsApi } from "@/services/api/projects";
 import { toast } from "sonner";
 import { getCurrentPosition, watchPosition, clearWatch } from "@/lib/capacitor-geolocation";
 import { getMapTilerKey } from "@/lib/config";
+import { PageHeader } from "@/components/common/PageHeader";
+import { Label } from "@/components/ui/label";
 
 const MAPTILER_KEY = getMapTilerKey();
 
@@ -89,12 +91,13 @@ export default function AttendancePage() {
           setCheckInTime(checkInTimeStr);
           setSelectedProject(todayStatus.checkIn.projectId);
           
-          // Store in localStorage for persistence
+          // Store in localStorage for persistence with full timestamp
           localStorage.setItem('attendance_checkIn', JSON.stringify({
             isCheckedIn: true,
             checkInTime: checkInTimeStr,
             projectId: todayStatus.checkIn.projectId,
             timestamp: todayStatus.checkIn.timestamp,
+            checkInId: todayStatus.checkIn._id,
           }));
           
           // Set location from check-in data
@@ -109,10 +112,15 @@ export default function AttendancePage() {
             startLocationWatching();
           }
         } else {
-          // Not checked in - clear localStorage
+          // Not checked in or already checked out - clear localStorage
           localStorage.removeItem('attendance_checkIn');
           setIsCheckedIn(false);
           setCheckInTime(null);
+          // Stop GPS watching if not checked in
+          if (watchIdRef.current !== null) {
+            clearWatch(watchIdRef.current);
+            watchIdRef.current = null;
+          }
         }
       } catch (error: any) {
         console.error('Error checking existing check-in:', error);
@@ -124,13 +132,26 @@ export default function AttendancePage() {
             // Check if it's from today
             const storedDate = new Date(checkInData.timestamp);
             const today = new Date();
-            if (storedDate.toDateString() === today.toDateString()) {
+            today.setHours(0, 0, 0, 0);
+            storedDate.setHours(0, 0, 0, 0);
+            
+            if (storedDate.getTime() === today.getTime()) {
+              // Still valid for today
               setIsCheckedIn(true);
               setCheckInTime(checkInData.checkInTime);
               setSelectedProject(checkInData.projectId);
+              
+              // Try to get location if not set
+              if (!location) {
+                handleGetLocation().catch(() => {
+                  // Silent fail - user can manually get location
+                });
+              }
             } else {
-              // Old check-in, clear it
+              // Old check-in from previous day, clear it
               localStorage.removeItem('attendance_checkIn');
+              setIsCheckedIn(false);
+              setCheckInTime(null);
             }
           }
         } catch (storageError) {
@@ -220,7 +241,7 @@ export default function AttendancePage() {
       };
       script.onerror = () => {
         console.error('Failed to load MapTiler SDK');
-        toast.error('Failed to load map library');
+        toast.error(t('attendance.failedToLoadMapLibrary'));
       };
       document.head.appendChild(script);
 
@@ -329,24 +350,22 @@ export default function AttendancePage() {
 
       const { latitude, longitude } = locationData;
       await updateLocationFromCoordinates(latitude, longitude);
-      toast.success('Location captured successfully');
+      toast.success(t('attendance.locationCapturedSuccess'));
     } catch (error: any) {
       console.error('Location error:', error);
       
       // Provide user-friendly error messages based on error code
-      let errorMessage = 'Failed to get location. ';
+      let errorMessage = t('attendance.failedToGetLocation');
       
       // Handle different error types
       if (error.message?.includes('permission denied') || error.code === 1 || error.message?.includes('Permission denied')) {
-        errorMessage = 'Location permission denied. Please enable location permissions in your device settings and try again.';
+        errorMessage = t('attendance.locationPermissionDenied');
       } else if (error.message?.includes('position unavailable') || error.code === 2 || error.message?.includes('Position unavailable')) {
-        errorMessage = 'Location unavailable. Please check your GPS settings and ensure you are in an area with good GPS signal.';
+        errorMessage = t('attendance.locationUnavailable');
       } else if (error.message?.includes('timeout') || error.code === 3 || error.message?.includes('Timeout')) {
-        errorMessage = 'Location request timed out. Please try again. Make sure you are in an area with good GPS signal.';
+        errorMessage = t('attendance.locationTimeout');
       } else if (error.message?.includes('not supported') || error.message?.includes('Geolocation not supported')) {
-        errorMessage = 'Geolocation is not supported on this device.';
-      } else {
-        errorMessage += error.message || 'Please enable location permissions and ensure GPS is enabled.';
+        errorMessage = t('attendance.geolocationNotSupported');
       }
       
       setLocationError(errorMessage);
@@ -363,7 +382,7 @@ export default function AttendancePage() {
     }
     
     if (!location) {
-      toast.error("Please get your location first");
+      toast.error(t('attendance.pleaseGetLocation'));
       return;
     }
 
@@ -381,12 +400,13 @@ export default function AttendancePage() {
       setIsCheckedIn(true);
       setCheckInTime(checkInTimeStr);
       
-      // Store in localStorage for persistence
+      // Store in localStorage for persistence with full timestamp
       localStorage.setItem('attendance_checkIn', JSON.stringify({
         isCheckedIn: true,
         checkInTime: checkInTimeStr,
         projectId: selectedProject,
         timestamp: new Date().toISOString(),
+        checkInId: result?._id || null,
       }));
       
       // Start GPS watching for continuous tracking
@@ -425,18 +445,19 @@ export default function AttendancePage() {
       setIsCheckedIn(true);
       setCheckInTime(checkInTimeStr);
       
-      // Store in localStorage for persistence
+      // Store in localStorage for persistence with full timestamp
       localStorage.setItem('attendance_checkIn', JSON.stringify({
         isCheckedIn: true,
         checkInTime: checkInTimeStr,
         projectId: selectedProject,
         timestamp: new Date().toISOString(),
+        checkInId: attId || null,
       }));
       
       // Start GPS watching for continuous tracking even in offline mode
       startLocationWatching();
       
-      toast.success('Checked in (offline mode)');
+      toast.success(t('attendance.checkedInOffline'));
     } finally {
       setIsLoading(false);
     }
@@ -529,7 +550,7 @@ export default function AttendancePage() {
       // Clear localStorage
       localStorage.removeItem('attendance_checkIn');
       
-      toast.success('Checked out (offline mode)');
+      toast.success(t('attendance.checkedOutOffline'));
     } finally {
       setIsLoading(false);
     }
@@ -565,18 +586,11 @@ export default function AttendancePage() {
   return (
     <MobileLayout role="engineer">
       <div className="min-h-screen bg-background w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top">
-          <div className="flex items-center gap-0 relative">
-            <div className="absolute left-0 mt-2 sm:mt-3">
-              <Logo size="md" showText={false} />
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="font-display font-semibold text-base sm:text-lg">{t("attendance.title")}</h1>
-              <p className="text-xs text-muted-foreground">{t("attendance.checkIn")} / {t("attendance.checkOut")}</p>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title={t("attendance.title")}
+          subtitle={`${t("attendance.checkIn")} / ${t("attendance.checkOut")}`}
+          showBack={true}
+        />
 
         {/* Content */}
         <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 max-w-2xl mx-auto w-full">
@@ -596,10 +610,14 @@ export default function AttendancePage() {
                 <CardTitle className="text-base">{t("attendance.selectProject")}</CardTitle>
               </CardHeader>
               <CardContent>
+                <Label htmlFor="project-select-attendance" className="sr-only">
+                  {t("attendance.selectProject")}
+                </Label>
                 <select
+                  id="project-select-attendance"
                   value={selectedProject || ''}
                   onChange={(e) => setSelectedProject(e.target.value)}
-                  className="w-full p-2 rounded-lg bg-background border border-border text-foreground"
+                  className="w-full h-12 px-4 rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
                 >
                   {projects.map((project) => (
                     <option key={project._id} value={project._id}>
@@ -617,7 +635,7 @@ export default function AttendancePage() {
               <CardTitle className="flex items-center justify-between text-base">
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-primary" />
-                  Your Location
+                  {t('attendance.yourLocation')}
                 </div>
                 <Button
                   variant="ghost"

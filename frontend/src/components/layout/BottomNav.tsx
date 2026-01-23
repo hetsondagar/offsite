@@ -65,8 +65,8 @@ export function BottomNav({ role }: BottomNavProps) {
   }
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-t border-border/50 safe-area-bottom w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw', overflowX: 'hidden' }}>
-      <div className="flex items-center justify-around px-1 sm:px-2 py-1.5 sm:py-2 max-w-2xl mx-auto w-full overflow-x-hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/98 backdrop-blur-xl border-t border-border/50 safe-area-bottom shadow-[0_-2px_8px_rgba(0,0,0,0.04)] w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw', overflowX: 'hidden' }}>
+      <div className="flex items-center justify-around px-2 py-2 max-w-2xl mx-auto w-full overflow-x-hidden">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
           const Icon = item.icon;
@@ -76,26 +76,26 @@ export function BottomNav({ role }: BottomNavProps) {
               key={item.path}
               to={item.path}
               className={cn(
-                "flex flex-col items-center justify-center min-w-[50px] sm:min-w-[60px] py-1.5 sm:py-2 px-1.5 sm:px-2 rounded-xl transition-all duration-300 tap-target",
+                "flex flex-col items-center justify-center min-w-[64px] py-2 px-3 rounded-xl transition-all duration-200 active:scale-95 touch-manipulation",
                 isActive 
-                  ? "text-primary bg-primary/10" 
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "text-primary" 
+                  : "text-muted-foreground active:text-foreground"
               )}
             >
               <div className={cn(
-                "relative p-1.5 sm:p-2 rounded-xl transition-all duration-300",
-                isActive && "bg-primary/20"
+                "relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200",
+                isActive && "bg-primary/10"
               )}>
                 <Icon className={cn(
-                  "w-5 h-5 sm:w-6 sm:h-6 transition-all duration-300",
-                  isActive && "scale-110"
+                  "w-6 h-6 transition-all duration-200",
+                  isActive && "scale-105"
                 )} />
                 {isActive && (
-                  <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-primary rounded-full animate-bounce-in" />
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full" />
                 )}
               </div>
               <span className={cn(
-                "text-[10px] sm:text-[11px] font-medium mt-0.5 sm:mt-1 transition-all duration-300",
+                "text-[11px] font-medium mt-1 transition-all duration-200 leading-tight",
                 isActive && "text-primary font-semibold"
               )}>
                 {t(item.labelKey)}

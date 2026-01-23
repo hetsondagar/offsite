@@ -28,6 +28,8 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { materialsApi } from "@/services/api/materials";
 import { projectsApi } from "@/services/api/projects";
 import { usersApi } from "@/services/api/users";
+import { PageHeader } from "@/components/common/PageHeader";
+import { Label } from "@/components/ui/label";
 
 export default function MaterialsPage() {
   const navigate = useNavigate();
@@ -300,18 +302,11 @@ export default function MaterialsPage() {
   return (
     <MobileLayout role="engineer">
       <div className="min-h-screen bg-background w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top">
-          <div className="flex items-center gap-0 relative">
-            <div className="absolute left-0 mt-2 sm:mt-3">
-              <Logo size="md" showText={false} />
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="font-display font-semibold text-base sm:text-lg">Materials</h1>
-              <p className="text-xs text-muted-foreground">Request & track materials</p>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title={t('materials.title')}
+          subtitle={t('materials.requestAndTrack')}
+          showBack={true}
+        />
 
         {/* Success Overlay */}
         <AnimatePresence>
@@ -361,12 +356,15 @@ export default function MaterialsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Project Selection */}
-              <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">Project *</label>
+              <div className="space-y-2.5">
+                <Label htmlFor="project-select" className="text-sm font-medium text-foreground">
+                  Project <span className="text-destructive">*</span>
+                </Label>
                 <div className="relative">
                   <button
+                    id="project-select"
                     onClick={() => setShowProjectDropdown(!showProjectDropdown)}
-                    className="w-full p-4 rounded-xl bg-muted/50 border border-border/50 flex items-center justify-between text-left"
+                    className="w-full h-12 px-4 rounded-xl bg-background border border-border flex items-center justify-between text-left transition-colors hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/50"
                   >
                     <span className={cn(
                       "text-sm",
@@ -411,11 +409,16 @@ export default function MaterialsPage() {
               </div>
 
               {/* Material Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowDropdown(!showDropdown)}
-                  className="w-full p-4 rounded-xl bg-muted/50 border border-border/50 flex items-center justify-between text-left"
-                >
+              <div className="space-y-2.5">
+                <Label htmlFor="material-select" className="text-sm font-medium text-foreground">
+                  Material <span className="text-destructive">*</span>
+                </Label>
+                <div className="relative">
+                  <button
+                    id="material-select"
+                    onClick={() => setShowDropdown(!showDropdown)}
+                    className="w-full h-12 px-4 rounded-xl bg-background border border-border flex items-center justify-between text-left transition-colors hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  >
                   <span className={cn(
                     "text-sm",
                     selectedMaterial ? "text-foreground" : "text-muted-foreground"
@@ -453,8 +456,10 @@ export default function MaterialsPage() {
               </div>
 
               {/* Quantity Selector */}
-              <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">Quantity</label>
+              <div className="space-y-2.5">
+                <Label htmlFor="quantity-input" className="text-sm font-medium text-foreground">
+                  Quantity <span className="text-destructive">*</span>
+                </Label>
                 <div className="flex items-center gap-4">
                   <Button
                     variant="outline"
@@ -464,10 +469,11 @@ export default function MaterialsPage() {
                     <Minus className="w-4 h-4" />
                   </Button>
                   <Input
+                    id="quantity-input"
                     type="number"
                     value={quantity}
                     onChange={(e) => setQuantity(Number(e.target.value))}
-                    className="text-center text-2xl font-display font-bold h-14 bg-muted/50"
+                    className="text-center text-2xl font-display font-bold h-14"
                   />
                   <Button
                     variant="outline"
@@ -505,15 +511,15 @@ export default function MaterialsPage() {
               </AnimatePresence>
 
               {/* Reason */}
-              <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">
+              <div className="space-y-2.5">
+                <Label htmlFor="reason-input" className="text-sm font-medium text-foreground">
                   Reason {isAnomaly && <span className="text-destructive">*</span>}
-                </label>
+                </Label>
                 <Input
+                  id="reason-input"
                   placeholder="Enter reason for request..."
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  className="bg-muted/50 border-border/50"
                 />
               </div>
 

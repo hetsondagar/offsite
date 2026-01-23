@@ -9,9 +9,12 @@ import { ArrowLeft, Package, Loader2, Check, X, AlertTriangle } from "lucide-rea
 import { materialsApi } from "@/services/api/materials";
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
+import { PageHeader } from "@/components/common/PageHeader";
+import { useTranslation } from "react-i18next";
 
 export default function PendingApprovalsDetailPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { hasPermission } = usePermissions();
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,7 +32,7 @@ export default function PendingApprovalsDetailPage() {
       setPendingRequests(pending);
     } catch (error: any) {
       console.error('Error loading pending approvals:', error);
-      toast.error('Failed to load pending approvals');
+      toast.error(t('materials.failedToLoadPendingApprovals'));
       setPendingRequests([]);
     } finally {
       setIsLoading(false);
@@ -38,18 +41,18 @@ export default function PendingApprovalsDetailPage() {
 
   const handleApprove = async (id: string) => {
     if (!hasPermission('canApproveMaterialRequests')) {
-      toast.error('You do not have permission to approve requests');
+      toast.error(t('materials.noPermissionToApprove'));
       return;
     }
 
     setProcessingId(id);
     try {
       await materialsApi.approve(id);
-      toast.success('Request approved successfully');
+      toast.success(t('materials.requestApprovedSuccess'));
       loadPendingApprovals();
     } catch (error: any) {
       console.error('Error approving request:', error);
-      toast.error(error.message || 'Failed to approve request');
+      toast.error(error.message || t('materials.failedToApprove'));
     } finally {
       setProcessingId(null);
     }
@@ -62,18 +65,18 @@ export default function PendingApprovalsDetailPage() {
     }
 
     if (!reason.trim()) {
-      toast.error('Please provide a rejection reason');
+      toast.error(t('materials.pleaseProvideRejectionReason'));
       return;
     }
 
     setProcessingId(id);
     try {
       await materialsApi.reject(id, reason);
-      toast.success('Request rejected');
+      toast.success(t('materials.requestRejected'));
       loadPendingApprovals();
     } catch (error: any) {
       console.error('Error rejecting request:', error);
-      toast.error(error.message || 'Failed to reject request');
+      toast.error(error.message || t('materials.failedToReject'));
     } finally {
       setProcessingId(null);
     }
@@ -82,23 +85,11 @@ export default function PendingApprovalsDetailPage() {
   return (
     <MobileLayout role="manager">
       <div className="min-h-screen bg-background w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate(-1)}
-              className="shrink-0"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div className="flex-1 flex flex-col">
-              <h1 className="font-display font-semibold text-base sm:text-lg">Pending Approvals</h1>
-              <p className="text-xs text-muted-foreground">{pendingRequests.length} requests pending</p>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title={t('materials.pendingApprovals')}
+          subtitle={`${pendingRequests.length} ${pendingRequests.length !== 1 ? t('materials.pendingRequests') : t('materials.requestMaterial')} ${t('attendance.pending')}`}
+          showBack={true}
+        />
 
         {/* Content */}
         <div className="p-3 sm:p-4 md:p-6 space-y-4 max-w-4xl mx-auto w-full">
@@ -110,7 +101,7 @@ export default function PendingApprovalsDetailPage() {
             <Card>
               <CardContent className="p-8 text-center">
                 <Package className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-sm text-muted-foreground">No pending approvals</p>
+                <p className="text-sm text-muted-foreground">{t('materials.noPendingApprovals')}</p>
               </CardContent>
             </Card>
           ) : (
@@ -124,16 +115,16 @@ export default function PendingApprovalsDetailPage() {
                         {request.materialName}
                       </CardTitle>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Project: {typeof request.projectId === 'object' ? request.projectId.name : 'Unknown'}
+                        {t('materials.project')}: {typeof request.projectId === 'object' ? request.projectId.name : t('materials.unknown')}
                       </p>
                     </div>
-                    <StatusBadge status="pending" label="Pending" />
+                    <StatusBadge status="pending" label={t('status.pending')} />
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs text-muted-foreground">Quantity</p>
+                      <p className="text-xs text-muted-foreground">{t('materials.quantity')}</p>
                       <p className="font-medium text-foreground">{request.quantity} {request.unit}</p>
                     </div>
                     <div>
@@ -143,14 +134,14 @@ export default function PendingApprovalsDetailPage() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Date</p>
+                      <p className="text-xs text-muted-foreground">{t('materials.date')}</p>
                       <p className="font-medium text-foreground">
                         {new Date(request.createdAt).toLocaleDateString()}
                       </p>
                     </div>
                     {request.estimatedCost && (
                       <div>
-                        <p className="text-xs text-muted-foreground">Estimated Cost</p>
+                        <p className="text-xs text-muted-foreground">{t('materials.estimatedCost')}</p>
                         <p className="font-medium text-foreground">₹{request.estimatedCost.toLocaleString()}</p>
                       </div>
                     )}
@@ -158,7 +149,7 @@ export default function PendingApprovalsDetailPage() {
 
                   {request.reason && (
                     <div>
-                      <p className="text-xs text-muted-foreground mb-1">Reason</p>
+                      <p className="text-xs text-muted-foreground mb-1">{t('materials.reason')}</p>
                       <p className="text-sm text-foreground bg-muted/50 p-2 rounded-lg">{request.reason}</p>
                     </div>
                   )}
@@ -168,7 +159,7 @@ export default function PendingApprovalsDetailPage() {
                       <div className="flex items-start gap-2">
                         <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
                         <div>
-                          <p className="text-xs font-medium text-destructive">Anomaly Detected</p>
+                          <p className="text-xs font-medium text-destructive">{t('materials.anomalyDetected')}</p>
                           <p className="text-xs text-muted-foreground mt-1">{request.anomalyReason}</p>
                         </div>
                       </div>
@@ -189,7 +180,7 @@ export default function PendingApprovalsDetailPage() {
                         ) : (
                           <>
                             <Check className="w-4 h-4 mr-2" />
-                            Approve
+                            {t('materials.approve')}
                           </>
                         )}
                       </Button>
@@ -198,7 +189,7 @@ export default function PendingApprovalsDetailPage() {
                         size="sm"
                         className="flex-1"
                         onClick={() => {
-                          const reason = prompt('Please provide a rejection reason:');
+                          const reason = prompt(t('materials.pleaseProvideRejectionReason') + ':');
                           if (reason) {
                             handleReject(request._id, reason);
                           }
@@ -206,7 +197,7 @@ export default function PendingApprovalsDetailPage() {
                         disabled={processingId === request._id}
                       >
                         <X className="w-4 h-4 mr-2" />
-                        Reject
+                        {t('materials.reject')}
                       </Button>
                     </div>
                   )}

@@ -45,7 +45,7 @@ export default function InvoicingPage() {
   const handleFinalize = async (invoiceId: string) => {
     try {
       const updated = await invoicesApi.finalize(invoiceId);
-      toast.success('Invoice finalized successfully');
+      toast.success(t('invoices.invoiceFinalizedSuccess'));
       setInvoices((prev) =>
         prev.map((inv) => (inv._id === invoiceId ? updated : inv))
       );
@@ -58,7 +58,7 @@ export default function InvoicingPage() {
   const handleDelete = async (invoiceId: string) => {
     try {
       await invoicesApi.delete(invoiceId);
-      toast.success('Invoice deleted successfully');
+      toast.success(t('invoices.invoiceDeletedSuccess'));
       setInvoices((prev) => prev.filter((inv) => inv._id !== invoiceId));
       setSelectedInvoice(null);
     } catch (error: any) {
@@ -78,7 +78,7 @@ export default function InvoicingPage() {
       prev.map((inv) => (inv._id === updated._id ? updated : inv))
     );
     setEditingInvoice(null);
-    toast.success('Invoice updated successfully');
+    toast.success(t('invoices.invoiceUpdatedSuccess'));
   };
 
   const handleDownload = async (invoiceId: string) => {
@@ -98,7 +98,7 @@ export default function InvoicingPage() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      toast.success("Invoice downloaded successfully");
+      toast.success(t('invoices.invoiceDownloadedSuccess'));
     } catch (error: any) {
       toast.error(error?.message || "Failed to download invoice");
     } finally {
@@ -169,7 +169,7 @@ export default function InvoicingPage() {
                   setInvoices((prev) => [invoice, ...prev]);
                   setShowCreateForm(false);
                   setSelectedInvoice(null);
-                  toast.success("Invoice created successfully");
+                  toast.success(t('invoices.invoiceCreatedSuccess'));
                 }}
                 onCancel={() => setShowCreateForm(false)}
               />

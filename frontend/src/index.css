@@ -150,6 +150,33 @@
   h1, h2, h3, h4 {
     font-family: 'Space Grotesk', sans-serif;
   }
+  
+  /* Typography hierarchy - Android-native feel */
+  h1 {
+    @apply text-2xl font-semibold leading-tight;
+  }
+  
+  h2 {
+    @apply text-xl font-semibold leading-tight;
+  }
+  
+  h3 {
+    @apply text-lg font-semibold leading-tight;
+  }
+  
+  h4 {
+    @apply text-base font-semibold leading-tight;
+  }
+  
+  /* Consistent body text */
+  p, span, div {
+    @apply text-sm leading-relaxed;
+  }
+  
+  /* Small text for helper/secondary info */
+  .text-helper {
+    @apply text-xs text-muted-foreground;
+  }
 
   /* Prevent horizontal overflow from images and media */
   img, video, iframe, embed, object {
@@ -545,5 +572,23 @@
   /* Touch-friendly tap targets */
   .tap-target {
     @apply min-h-[44px] min-w-[44px];
+  }
+  
+  /* Android-native touch improvements */
+  .touch-manipulation {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Improved focus states for Android */
+  *:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+  }
+  
+  /* Better scroll behavior */
+  * {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
   }
 }

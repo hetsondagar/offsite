@@ -29,6 +29,7 @@ import { usersApi } from "@/services/api/users";
 import { notificationsApi, ProjectInvitation } from "@/services/api/notifications";
 import { toast } from "sonner";
 import { Search, X, UserPlus } from "lucide-react";
+import { PageHeader } from "@/components/common/PageHeader";
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
@@ -75,7 +76,7 @@ export default function ProjectsPage() {
       setProjects(data?.projects || []);
     } catch (error) {
       console.error('Error loading projects:', error);
-      toast.error('Failed to load projects');
+      toast.error(t('projects.failedToLoadProjects'));
     } finally {
       setIsLoading(false);
     }
@@ -97,7 +98,7 @@ export default function ProjectsPage() {
   const handleAcceptInvitation = async (invitationId: string) => {
     try {
       await notificationsApi.acceptInvitation(invitationId);
-      toast.success('Invitation accepted. You have been added to the project.');
+      toast.success(t('projects.invitationAcceptedAdded'));
       await Promise.all([loadInvitations(), loadProjects()]);
     } catch (error: any) {
       console.error('Error accepting invitation:', error);
@@ -157,7 +158,7 @@ export default function ProjectsPage() {
       const isManagerSelected = selectedManagers.some(m => m.offsiteId.toUpperCase() === user.offsiteId.toUpperCase());
       
       if (isEngineerSelected || isManagerSelected) {
-        toast.error('This user is already added');
+        toast.error(t('projects.userAlreadyAdded'));
         setSearchResults([]);
         return;
       }
@@ -225,7 +226,7 @@ export default function ProjectsPage() {
 
       await projectsApi.create(projectData);
       
-      toast.success('Project created successfully! Invitations sent to selected members.');
+      toast.success(t('projects.projectCreatedSuccess'));
       setIsCreateDialogOpen(false);
       setNewProject({
         name: "",
@@ -251,20 +252,23 @@ export default function ProjectsPage() {
   return (
     <MobileLayout role={role || "manager"}>
       <div className="bg-background w-full overflow-x-hidden min-h-screen max-w-full" style={{ maxWidth: '100vw' }}>
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top w-full">
-          <div className="flex items-center gap-0 relative">
-            <div className="absolute left-0 mt-3">
-              <Logo size="md" showText={false} />
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="font-display font-semibold text-lg">Projects</h1>
-              <p className="text-xs text-muted-foreground">
-                {isLoading ? "Loading..." : `${projects.length} active projects`}
-              </p>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title={t('projects.title')}
+          subtitle={isLoading ? t('common.loading') : `${projects.length} ${projects.length !== 1 ? t('projects.activeProjectsPlural') : t('projects.activeProjects')}`}
+          showBack={false}
+          rightAction={
+            (role === 'owner' || role === 'manager') && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setIsCreateDialogOpen(true)}
+                className="h-10 w-10"
+              >
+                <Plus className="w-5 h-5" />
+              </Button>
+            )
+          }
+        />
 
         {/* Content */}
         <div className="p-4 space-y-4 pb-6">
@@ -444,13 +448,15 @@ export default function ProjectsPage() {
                 <Plus className="w-6 h-6" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] bg-card text-foreground max-h-[90vh] flex flex-col overflow-hidden">
+            <DialogContent className="sm:max-w-[425px] bg-card text-foreground max-h-[90vh] flex flex-col overflow-hidden rounded-2xl">
               <DialogHeader className="flex-shrink-0">
-                <DialogTitle className="text-foreground">Create New Project</DialogTitle>
+                <DialogTitle className="text-foreground">{t('projects.createProject')}</DialogTitle>
               </DialogHeader>
-              <div className="grid gap-4 py-4 overflow-y-auto flex-1 min-h-0 pr-2 -mr-2">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Project Name *</Label>
+              <div className="grid gap-5 py-4 overflow-y-auto flex-1 min-h-0 pr-2 -mr-2">
+                <div className="space-y-2.5">
+                  <Label htmlFor="name" className="text-sm font-medium text-foreground">
+                    {t('projects.projectName')} <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="name"
                     placeholder="e.g., Riverside Apartments"
@@ -459,8 +465,10 @@ export default function ProjectsPage() {
                     className="bg-background text-foreground"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="location">Location *</Label>
+                <div className="space-y-2.5">
+                  <Label htmlFor="location" className="text-sm font-medium text-foreground">
+                    Location <span className="text-destructive">*</span>
+                  </Label>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
@@ -472,8 +480,10 @@ export default function ProjectsPage() {
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="startDate">Start Date *</Label>
+                <div className="space-y-2.5">
+                  <Label htmlFor="startDate" className="text-sm font-medium text-foreground">
+                    {t('projects.startDate')} <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="startDate"
                     type="date"
@@ -482,8 +492,10 @@ export default function ProjectsPage() {
                     className="bg-background text-foreground"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="endDate">End Date (Optional)</Label>
+                <div className="space-y-2.5">
+                  <Label htmlFor="endDate" className="text-sm font-medium text-foreground">
+                    End Date <span className="text-muted-foreground text-xs font-normal">(Optional)</span>
+                  </Label>
                   <Input
                     id="endDate"
                     type="date"
@@ -495,8 +507,10 @@ export default function ProjectsPage() {
                 </div>
 
                 {/* Site Engineers Section */}
-                <div className="space-y-2">
-                  <Label>Site Engineers (Optional)</Label>
+                <div className="space-y-2.5">
+                  <Label className="text-sm font-medium text-foreground">
+                    {t('projects.siteEngineers')} <span className="text-muted-foreground text-xs font-normal">({t('projects.optional')})</span>
+                  </Label>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -600,8 +614,10 @@ export default function ProjectsPage() {
                 </div>
 
                 {/* Project Managers Section */}
-                <div className="space-y-2">
-                  <Label>Project Managers (Optional)</Label>
+                <div className="space-y-2.5">
+                  <Label className="text-sm font-medium text-foreground">
+                    {t('projects.projectManagers')} <span className="text-muted-foreground text-xs font-normal">({t('projects.optional')})</span>
+                  </Label>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

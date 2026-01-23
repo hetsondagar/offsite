@@ -167,7 +167,7 @@ export default function AICommandCenter() {
         if (cached) {
           setRiskAssessment(cached);
           setIsUsingCache(true);
-          toast.warning('Using cached data - offline or API error');
+          toast.warning(t('aiCommand.offlineWillUseCache'));
         } else {
           toast.error(error.message || t('aiCommand.noRiskAssessment'));
         }

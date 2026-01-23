@@ -9,9 +9,12 @@ import { dprApi } from "@/services/api/dpr";
 import { toast } from "sonner";
 import { useAppSelector } from "@/store/hooks";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { PageHeader } from "@/components/common/PageHeader";
+import { useTranslation } from "react-i18next";
 
 export default function DPRDetailPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const { role } = useAppSelector((state) => state.auth);
   const [dpr, setDpr] = useState<any | null>(null);
@@ -36,7 +39,7 @@ export default function DPRDetailPage() {
       // TODO: Add getById endpoint to dprApi
     } catch (error: any) {
       console.error('Error loading DPR:', error);
-      toast.error('Failed to load DPR details');
+      toast.error(t('dpr.failedToLoadDPRDetails'));
     } finally {
       setIsLoading(false);
     }
@@ -82,25 +85,11 @@ export default function DPRDetailPage() {
   return (
     <MobileLayout role={role || "engineer"}>
       <div className="min-h-screen bg-background w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate(-1)}
-              className="shrink-0"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div className="flex-1 flex flex-col">
-              <h1 className="font-display font-semibold text-base sm:text-lg">DPR Details</h1>
-              <p className="text-xs text-muted-foreground">
-                {typeof dpr.projectId === 'object' ? dpr.projectId.name : 'Project'}
-              </p>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title={t('dpr.dprDetails')}
+          subtitle={typeof dpr.projectId === 'object' ? dpr.projectId.name : t('dpr.project')}
+          showBack={true}
+        />
 
         {/* Content */}
         <div className="p-3 sm:p-4 md:p-6 space-y-4 max-w-4xl mx-auto w-full">
@@ -114,15 +103,15 @@ export default function DPRDetailPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
-                <p className="text-xs text-muted-foreground">Project</p>
+                <p className="text-xs text-muted-foreground">{t('dpr.project')}</p>
                 <p className="font-medium text-foreground">
-                  {typeof dpr.projectId === 'object' ? dpr.projectId.name : 'Unknown Project'}
+                  {typeof dpr.projectId === 'object' ? dpr.projectId.name : t('materials.unknown') + ' ' + t('dpr.project')}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Task</p>
+                <p className="text-xs text-muted-foreground">{t('dpr.task')}</p>
                 <p className="font-medium text-foreground">
-                  {typeof dpr.taskId === 'object' ? dpr.taskId.title : dpr.taskId || 'Unknown Task'}
+                  {typeof dpr.taskId === 'object' ? dpr.taskId.title : dpr.taskId || t('materials.unknown') + ' ' + t('dpr.task')}
                 </p>
               </div>
             </CardContent>
@@ -133,20 +122,20 @@ export default function DPRDetailPage() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <User className="w-4 h-4 text-primary" />
-                Details
+                {t('common.details')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
-                <p className="text-xs text-muted-foreground">Created By</p>
+                <p className="text-xs text-muted-foreground">{t('dpr.createdBy')}</p>
                 <p className="font-medium text-foreground">
-                  {typeof dpr.createdBy === 'object' ? dpr.createdBy.name : 'Unknown'}
+                  {typeof dpr.createdBy === 'object' ? dpr.createdBy.name : t('materials.unknown')}
                 </p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
-                  Date & Time
+                  {t('dpr.date')}
                 </p>
                 <p className="font-medium text-foreground">
                   {new Date(dpr.createdAt).toLocaleString('en-US', {
@@ -179,7 +168,7 @@ export default function DPRDetailPage() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <ImageIcon className="w-4 h-4 text-primary" />
-                  Photos ({dpr.photos.length})
+                  {t('dpr.addPhotos')} ({dpr.photos.length})
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -218,30 +207,30 @@ export default function DPRDetailPage() {
           {dpr.workStoppage?.occurred && (
             <Card className="border-destructive/20 bg-destructive/5">
               <CardHeader>
-                <CardTitle className="text-base text-destructive">Work Stoppage</CardTitle>
+                <CardTitle className="text-base text-destructive">{t('dpr.workStoppage')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
-                  <p className="text-xs text-muted-foreground">Reason</p>
+                  <p className="text-xs text-muted-foreground">{t('dpr.stoppageReason')}</p>
                   <p className="text-sm font-medium text-foreground">
-                    {dpr.workStoppage.reason?.replace('_', ' ') || 'Not specified'}
+                    {dpr.workStoppage.reason?.replace('_', ' ') || t('dpr.notSpecified')}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Duration</p>
+                  <p className="text-xs text-muted-foreground">{t('dpr.stoppageDuration')}</p>
                   <p className="text-sm font-medium text-foreground">
-                    {dpr.workStoppage.durationHours} hours
+                    {dpr.workStoppage.durationHours} {t('dpr.hours')}
                   </p>
                 </div>
                 {dpr.workStoppage.remarks && (
                   <div>
-                    <p className="text-xs text-muted-foreground">Remarks</p>
+                    <p className="text-xs text-muted-foreground">{t('dpr.stoppageRemarks')}</p>
                     <p className="text-sm text-foreground">{dpr.workStoppage.remarks}</p>
                   </div>
                 )}
                 {dpr.workStoppage.evidencePhotos && dpr.workStoppage.evidencePhotos.length > 0 && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-2">Evidence Photos</p>
+                    <p className="text-xs text-muted-foreground mb-2">{t('dpr.evidencePhotos')}</p>
                     <div className="grid grid-cols-2 gap-2">
                       {dpr.workStoppage.evidencePhotos.map((photo: string, index: number) => (
                         <div
@@ -270,7 +259,7 @@ export default function DPRDetailPage() {
             {selectedPhoto && (
               <img
                 src={selectedPhoto}
-                alt="Full size"
+                alt={t('dpr.fullSize')}
                 className="w-full h-auto max-h-[90vh] object-contain"
               />
             )}

@@ -100,7 +100,7 @@ export default function TasksPage() {
       }
     } catch (error) {
       console.error('Error loading projects:', error);
-      toast.error('Failed to load projects');
+      toast.error(t('tasks.failedToLoadProjects'));
     }
   };
 
@@ -131,7 +131,7 @@ export default function TasksPage() {
         setSearchResults([]);
         setNewTask(prev => ({ ...prev, assignedTo: "" }));
         if (showErrorToast) {
-          toast.error('User not found or is not an engineer');
+          toast.error(t('tasks.userNotFoundOrNotEngineer'));
         }
       }
     } catch (error: any) {
@@ -166,7 +166,7 @@ export default function TasksPage() {
       };
 
       await tasksApi.create(taskData);
-      toast.success('Task created successfully!');
+      toast.success(t('tasks.taskCreated'));
       setIsCreateDialogOpen(false);
       resetNewTask();
       loadTasks();
@@ -236,7 +236,7 @@ export default function TasksPage() {
   const getProjectName = (projectId: Task['projectId']): string => {
     if (typeof projectId === 'string') {
       const project = projects.find(p => p._id === projectId);
-      return project?.name || 'Unknown Project';
+      return project?.name || t('materials.unknown') + ' ' + t('dpr.project');
     }
     return projectId?.name || 'Unknown Project';
   };
@@ -245,7 +245,7 @@ export default function TasksPage() {
     if (typeof assignedTo === 'string') {
       return 'Unknown User';
     }
-    return assignedTo?.name || 'Unknown User';
+    return assignedTo?.name || t('materials.unknown') + ' ' + t('common.details');
   };
 
   // Permission check

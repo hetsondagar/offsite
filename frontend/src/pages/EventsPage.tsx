@@ -136,7 +136,7 @@ export default function EventsPage() {
 
   const getProjectName = (projectId: string) => {
     const project = projects.find(p => p._id === projectId);
-    return project?.name || "Unknown Project";
+    return project?.name || t('materials.unknown') + ' ' + t('dpr.project');
   };
 
   return (
