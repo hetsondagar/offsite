@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { invoicesApi } from '@/services/api/invoices';
 import { useNavigate } from 'react-router-dom';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import { useTranslation } from 'react-i18next';
 
 interface InvoiceCardProps {

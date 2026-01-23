@@ -1,5 +1,5 @@
 declare module 'jspdf' {
-  export default class jsPDF {
+  export class jsPDF {
     constructor(...args: any[]);
     text(text: string, x: number, y: number, options?: any): void;
     setFontSize(size: number): void;
