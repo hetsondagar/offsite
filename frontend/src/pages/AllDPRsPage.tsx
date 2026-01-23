@@ -10,7 +10,6 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { projectsApi } from "@/services/api/projects";
 import { dprApi } from "@/services/api/dpr";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function AllDPRsPage() {
   const navigate = useNavigate();
@@ -18,8 +17,6 @@ export default function AllDPRsPage() {
   const { role } = useAppSelector((state) => state.auth);
   const [allDPRs, setAllDPRs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedDPR, setSelectedDPR] = useState<any | null>(null);
-  const [isDPRModalOpen, setIsDPRModalOpen] = useState(false);
   const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   useEffect(() => {
@@ -97,13 +94,13 @@ export default function AllDPRsPage() {
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
               </div>
             ) : allDPRs.length > 0 ? (
-              allDPRs.map((dpr: any) => (
+              allDPRs.map((dpr: any) => {
+                return (
                 <div 
                   key={dpr._id} 
                   className="p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
                   onClick={() => {
-                    setSelectedDPR(dpr);
-                    setIsDPRModalOpen(true);
+                    navigate(`/dpr/${dpr._id}`, { state: { dpr } });
                   }}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -145,99 +142,6 @@ export default function AllDPRsPage() {
           </CardContent>
         </Card>
 
-        {/* DPR Detail Modal */}
-        <Dialog open={isDPRModalOpen} onOpenChange={setIsDPRModalOpen}>
-          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>DPR Details</DialogTitle>
-            </DialogHeader>
-            {selectedDPR && (
-              <div className="space-y-4">
-                <div className="p-3 rounded-xl bg-muted/50">
-                  <span className="text-xs text-muted-foreground">Project</span>
-                  <p className="font-medium text-foreground">{selectedDPR.projectName || 'Unknown Project'}</p>
-                </div>
-                
-                <div className="p-3 rounded-xl bg-muted/50">
-                  <span className="text-xs text-muted-foreground">Task</span>
-                  <p className="font-medium text-foreground">{selectedDPR.taskId?.title || 'Unknown Task'}</p>
-                </div>
-
-                <div className="p-3 rounded-xl bg-muted/50">
-                  <span className="text-xs text-muted-foreground">Created By</span>
-                  <p className="font-medium text-foreground">{selectedDPR.createdBy?.name || 'Unknown'}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {new Date(selectedDPR.createdAt).toLocaleString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </p>
-                </div>
-
-                {selectedDPR.notes && (
-                  <div className="p-3 rounded-xl bg-muted/50">
-                    <span className="text-xs text-muted-foreground">Notes</span>
-                    <p className="text-sm text-foreground mt-1">{selectedDPR.notes}</p>
-                  </div>
-                )}
-
-                {selectedDPR.photos && selectedDPR.photos.length > 0 && (
-                  <div className="p-3 rounded-xl bg-muted/50">
-                    <span className="text-xs text-muted-foreground mb-2 block">Photos ({selectedDPR.photos.length})</span>
-                    <div className="grid grid-cols-2 gap-2">
-                      {selectedDPR.photos.map((photo: string, index: number) => (
-                        <img
-                          key={index}
-                          src={photo}
-                          alt={`DPR photo ${index + 1}`}
-                          className="w-full h-32 object-cover rounded-lg"
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {selectedDPR.aiSummary && (
-                  <div className="p-3 rounded-xl bg-primary/5 border border-primary/20">
-                    <span className="text-xs font-medium text-primary mb-1 block">AI Summary</span>
-                    <p className="text-sm text-foreground">{selectedDPR.aiSummary}</p>
-                  </div>
-                )}
-
-                {selectedDPR.workStoppage?.occurred && (
-                  <div className="p-3 rounded-xl bg-destructive/5 border border-destructive/20">
-                    <span className="text-xs font-medium text-destructive mb-2 block">Work Stoppage</span>
-                    <div className="space-y-1 text-sm">
-                      <p><span className="text-muted-foreground">Reason:</span> {selectedDPR.workStoppage.reason?.replace('_', ' ')}</p>
-                      <p><span className="text-muted-foreground">Duration:</span> {selectedDPR.workStoppage.durationHours} hours</p>
-                      {selectedDPR.workStoppage.remarks && (
-                        <p><span className="text-muted-foreground">Remarks:</span> {selectedDPR.workStoppage.remarks}</p>
-                      )}
-                      {selectedDPR.workStoppage.evidencePhotos && selectedDPR.workStoppage.evidencePhotos.length > 0 && (
-                        <div className="mt-2">
-                          <span className="text-xs text-muted-foreground">Evidence Photos:</span>
-                          <div className="grid grid-cols-2 gap-2 mt-1">
-                            {selectedDPR.workStoppage.evidencePhotos.map((photo: string, index: number) => (
-                              <img
-                                key={index}
-                                src={photo}
-                                alt={`Evidence ${index + 1}`}
-                                className="w-full h-24 object-cover rounded-lg"
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
       </div>
     </MobileLayout>
   );

@@ -280,17 +280,23 @@ export default function AttendancePage() {
     // Clear any existing watch
     if (watchIdRef.current !== null) {
       clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
     }
 
     // Start watching position
     try {
       watchIdRef.current = await watchPosition(
         (locationData) => {
-          updateLocationFromCoordinates(locationData.latitude, locationData.longitude);
+          if (locationData && locationData.latitude && locationData.longitude) {
+            updateLocationFromCoordinates(locationData.latitude, locationData.longitude);
+          }
         },
         (error) => {
           console.error('Location watch error:', error);
-          // Don't show error to user for watch errors, just log
+          // If watch fails, try to get location once manually
+          handleGetLocation().catch(() => {
+            // Silent fail - user can manually retry
+          });
         },
         {
           enableHighAccuracy: true,
@@ -298,8 +304,10 @@ export default function AttendancePage() {
           maximumAge: 10000, // Update every 10 seconds
         }
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to start location watching:', error);
+      // If watching fails, location can still be obtained manually
+      // Don't show error to user - they can use "Get Location" button
     }
   };
 
@@ -308,11 +316,16 @@ export default function AttendancePage() {
     setLocationError(null);
 
     try {
+      // Request permissions first (especially important for Android)
       const locationData = await getCurrentPosition({
         enableHighAccuracy: true,
-        timeout: 30000, // Increased to 30 seconds
+        timeout: 30000, // 30 seconds timeout
         maximumAge: 60000, // Accept cached position up to 1 minute old
       });
+
+      if (!locationData || !locationData.latitude || !locationData.longitude) {
+        throw new Error('Invalid location data received');
+      }
 
       const { latitude, longitude } = locationData;
       await updateLocationFromCoordinates(latitude, longitude);
@@ -322,14 +335,18 @@ export default function AttendancePage() {
       
       // Provide user-friendly error messages based on error code
       let errorMessage = 'Failed to get location. ';
-      if (error.code === 1) {
-        errorMessage += 'Please enable location permissions in your browser settings.';
-      } else if (error.code === 2) {
-        errorMessage += 'Location unavailable. Please check your GPS settings.';
-      } else if (error.code === 3) {
-        errorMessage += 'Location request timed out. Please try again or check your GPS signal.';
+      
+      // Handle different error types
+      if (error.message?.includes('permission denied') || error.code === 1 || error.message?.includes('Permission denied')) {
+        errorMessage = 'Location permission denied. Please enable location permissions in your device settings and try again.';
+      } else if (error.message?.includes('position unavailable') || error.code === 2 || error.message?.includes('Position unavailable')) {
+        errorMessage = 'Location unavailable. Please check your GPS settings and ensure you are in an area with good GPS signal.';
+      } else if (error.message?.includes('timeout') || error.code === 3 || error.message?.includes('Timeout')) {
+        errorMessage = 'Location request timed out. Please try again. Make sure you are in an area with good GPS signal.';
+      } else if (error.message?.includes('not supported') || error.message?.includes('Geolocation not supported')) {
+        errorMessage = 'Geolocation is not supported on this device.';
       } else {
-        errorMessage += error.message || 'Please enable location permissions.';
+        errorMessage += error.message || 'Please enable location permissions and ensure GPS is enabled.';
       }
       
       setLocationError(errorMessage);
@@ -763,11 +780,6 @@ export default function AttendancePage() {
             )}
           </motion.div>
 
-          {/* Offline Notice */}
-          <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 text-muted-foreground animate-fade-up stagger-3">
-            <WifiOff className="w-4 h-4" />
-            <span className="text-xs">{t("common.offline")}</span>
-          </div>
         </div>
       </div>
     </MobileLayout>

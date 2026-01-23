@@ -31,6 +31,9 @@ import EventsPage from "./pages/EventsPage";
 import AICommandCenter from "./pages/AICommandCenter";
 import TasksPage from "./pages/TasksPage";
 import AllDPRsPage from "./pages/AllDPRsPage";
+import PendingApprovalsDetailPage from "./pages/PendingApprovalsDetailPage";
+import AttendanceDetailPage from "./pages/AttendanceDetailPage";
+import DPRDetailPage from "./pages/DPRDetailPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -110,11 +113,11 @@ function AppContent() {
     dispatch(initializeAuth());
     
     // Function to check actual connectivity by pinging the API
-    const checkConnectivity = async () => {
+    const checkConnectivity = async (): Promise<boolean> => {
       try {
         // Create an AbortController for timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout (increased)
         
         // Use health check endpoint that doesn't require authentication
         const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
@@ -123,39 +126,59 @@ function AppContent() {
         const response = await fetch(`${apiUrl}/health`, {
           method: 'GET',
           signal: controller.signal,
+          cache: 'no-cache', // Don't use cached responses
         });
         
         clearTimeout(timeoutId);
         
-        // If we get a successful response, we're online
-        if (response.ok) {
+        // If we get any response (even error), server is reachable
+        if (response.ok || response.status < 500) {
           dispatch(setOnlineStatus(true));
+          return true;
         } else {
-          // Even if not 200, if we got a response, server is reachable
+          // Server error but server is reachable
           dispatch(setOnlineStatus(true));
+          return true;
         }
       } catch (error: unknown) {
         const err = error as { name?: string; message?: string };
 
-        // If fetch fails or times out, we're offline
+        // Check network status before assuming offline
+        const networkStatus = await getNetworkStatus();
+        
+        // If network says connected, trust it even if API call failed
+        if (networkStatus.connected) {
+          dispatch(setOnlineStatus(true));
+          return true;
+        }
+        
+        // Only mark offline if network status also says offline
         if (err?.name === 'AbortError') {
-          // Timeout - assume offline
-          dispatch(setOnlineStatus(false));
+          // Timeout - trust network status
+          dispatch(setOnlineStatus(networkStatus.connected));
+          return networkStatus.connected;
         } else {
-          // Network errors mean we're offline
+          // Network errors - trust network status
           const message = err?.message || '';
           if (message.includes('Failed to fetch') || message.includes('NetworkError') || err?.name === 'TypeError') {
-            dispatch(setOnlineStatus(false));
+            dispatch(setOnlineStatus(networkStatus.connected));
+            return networkStatus.connected;
           } else {
-            // Other errors might still mean we're online
-            dispatch(setOnlineStatus(true));
+            // Other errors - assume online if network says connected
+            dispatch(setOnlineStatus(networkStatus.connected));
+            return networkStatus.connected;
           }
         }
       }
     };
 
-    // Set initial online status
+    // Set initial online status - start with optimistic online status
     const initialCheck = async () => {
+      // Start with navigator.onLine as initial status (optimistic)
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        dispatch(setOnlineStatus(true));
+      }
+      
       const networkStatus = await getNetworkStatus();
       if (networkStatus.connected) {
         // If network says online, verify with actual API call
@@ -169,15 +192,25 @@ function AppContent() {
     initialCheck();
 
     // Listen for network status changes using Capacitor
-    const removeNetworkListener = addNetworkListener((status) => {
+    const removeNetworkListener = addNetworkListener(async (status) => {
       if (status.connected) {
+        // When network comes back online, set optimistic status first
         dispatch(setOnlineStatus(true));
+        // Then verify with API call (but don't override if network says connected)
+        checkConnectivity().catch(async () => {
+          // If connectivity check fails but network says connected, keep online
+          const networkStatus = await getNetworkStatus();
+          if (networkStatus.connected) {
+            dispatch(setOnlineStatus(true));
+          }
+        });
         // Fire-and-forget: if user is authenticated, sync offline data.
         // This keeps all pages consistent without requiring manual Sync button.
         syncOfflineStores().catch((error) => {
           console.error('Auto-sync failed:', error);
         });
       } else {
+        // Network says offline - trust it
         dispatch(setOnlineStatus(false));
       }
     });
@@ -224,6 +257,9 @@ function AppContent() {
             <Route path="/ai-command" element={<AICommandCenter />} />
             <Route path="/tasks" element={<TasksPage />} />
             <Route path="/all-dprs" element={<AllDPRsPage />} />
+            <Route path="/pending-approvals" element={<PendingApprovalsDetailPage />} />
+            <Route path="/attendance-details" element={<AttendanceDetailPage />} />
+            <Route path="/dpr/:id" element={<DPRDetailPage />} />
             <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

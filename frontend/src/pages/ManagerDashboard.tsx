@@ -466,6 +466,7 @@ export default function ManagerDashboard() {
             trend="up"
             trendValue="+1 this month"
             delay={100}
+            onClick={() => navigate("/projects")}
           />
           <KPICard
             title="Today's Attendance"
@@ -479,6 +480,7 @@ export default function ManagerDashboard() {
               : "Same as avg"
             }
             delay={200}
+            onClick={() => navigate("/attendance-details")}
           />
           <KPICard
             title="Pending Approvals"
@@ -486,6 +488,7 @@ export default function ManagerDashboard() {
             icon={Clock}
             variant="warning"
             delay={300}
+            onClick={() => navigate("/pending-approvals")}
           />
           <KPICard
             title="Delay Risks"
@@ -493,6 +496,7 @@ export default function ManagerDashboard() {
             icon={AlertTriangle}
             variant="destructive"
             delay={400}
+            onClick={() => navigate("/insights")}
           />
         </div>
 
@@ -562,8 +566,7 @@ export default function ManagerDashboard() {
                   key={dpr._id} 
                   className="p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
                   onClick={() => {
-                    setSelectedDPR(dpr);
-                    setIsDPRModalOpen(true);
+                    navigate(`/dpr/${dpr._id}`, { state: { dpr } });
                   }}
                 >
                   <div className="flex items-start justify-between gap-2">

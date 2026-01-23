@@ -16,6 +16,7 @@ interface OfflineState {
 }
 
 const initialState: OfflineState = {
+  // Start with optimistic online status - will be verified by App.tsx
   isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
   pendingItems: [],
   lastSyncTime: null,

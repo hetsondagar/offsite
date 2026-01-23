@@ -18,7 +18,7 @@ import { tasksApi } from "@/services/api/tasks";
 import { notificationsApi } from "@/services/api/notifications";
 import { useAppSelector } from "@/store/hooks";
 import { Button } from "@/components/ui/button";
-import { Loader2, UserPlus, X } from "lucide-react";
+import { Loader2, UserPlus, X, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationBell } from "@/components/common/NotificationBell";
 
@@ -194,10 +194,25 @@ export default function EngineerDashboard() {
           </div>
         </div>
 
-        {/* Offline Banner - only show when actually offline or has pending items */}
-        {(!isOnline || pendingItems.length > 0) && (
+        {/* Offline Banner - only show when actually offline */}
+        {!isOnline && (
           <div className="opacity-0 animate-fade-up stagger-1">
             <OfflineBanner pendingItems={pendingItems.length} />
+          </div>
+        )}
+        
+        {/* Pending Items Banner - show when online but has pending items */}
+        {isOnline && pendingItems.length > 0 && (
+          <div className="opacity-0 animate-fade-up stagger-1 bg-primary/10 border border-primary/30 rounded-xl p-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/20">
+                <RefreshCw className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Online - {pendingItems.length} item{pendingItems !== 1 ? 's' : ''} pending sync</p>
+                <p className="text-xs text-muted-foreground">Data will sync automatically</p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -268,7 +283,10 @@ export default function EngineerDashboard() {
               <>
                 {/* Attendance Status */}
                 {todayAttendance ? (
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
+                  <div 
+                    className="flex items-center justify-between p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
+                    onClick={() => navigate("/attendance-details")}
+                  >
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-lg bg-success/10">
                         <CheckCircle className="w-4 h-4 text-success" />
@@ -283,7 +301,10 @@ export default function EngineerDashboard() {
                     <StatusBadge status="success" label={t("status.active")} pulse />
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
+                  <div 
+                    className="flex items-center justify-between p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
+                    onClick={() => navigate("/attendance")}
+                  >
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-lg bg-muted">
                         <MapPin className="w-4 h-4 text-muted-foreground" />
@@ -293,7 +314,7 @@ export default function EngineerDashboard() {
                         <p className="text-xs text-muted-foreground">{t("dashboard.markAttendance")}</p>
                       </div>
                     </div>
-                    <StatusBadge status="offline" label={t("common.offline")} />
+                    <StatusBadge status="info" label={t("dashboard.notCheckedIn")} />
                   </div>
                 )}
 
@@ -329,7 +350,10 @@ export default function EngineerDashboard() {
 
                 {/* Pending Requests */}
                 {pendingRequests.length > 0 ? (
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
+                  <div 
+                    className="flex items-center justify-between p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
+                    onClick={() => navigate("/materials")}
+                  >
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-lg bg-warning/10">
                         <AlertTriangle className="w-4 h-4 text-warning" />
