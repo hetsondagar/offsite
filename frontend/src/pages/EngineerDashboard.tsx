@@ -7,7 +7,7 @@ import { Logo } from "@/components/common/Logo";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useTranslation } from "react-i18next";
-import { FileText, MapPin, Package, ClipboardList, Clock, AlertTriangle, CheckCircle, Wrench, FileCheck } from "lucide-react";
+import { FileText, MapPin, Package, ClipboardList, Clock, AlertTriangle, CheckCircle, Wrench, FileCheck, Receipt } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { dprApi } from "@/services/api/dpr";
@@ -472,6 +472,18 @@ export default function EngineerDashboard() {
                   sublabel="Manage permits"
                   variant="outline"
                   onClick={() => navigate("/permits")}
+                />
+              </div>
+            )}
+
+            {hasPermission("canSubmitPettyCash") && (
+              <div className="opacity-0 animate-fade-up stagger-8">
+                <ActionButton
+                  icon={Receipt}
+                  label="Reimbursements"
+                  sublabel="Submit expenses"
+                  variant="outline"
+                  onClick={() => navigate("/petty-cash")}
                 />
               </div>
             )}

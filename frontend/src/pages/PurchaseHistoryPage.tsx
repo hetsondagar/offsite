@@ -11,6 +11,21 @@ import { useAppSelector } from "@/store/hooks";
 import { takePhoto } from "@/lib/capacitor-camera";
 import { getCurrentPosition, reverseGeocode } from "@/lib/capacitor-geolocation";
 
+const formatLatLng = (coords?: { latitude: number; longitude: number }) => {
+  if (!coords) return undefined;
+  return `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}`;
+};
+
+const getManagerLabel = (item: PurchaseHistory) => {
+  if (item.status === 'RECEIVED') return 'APPROVAL PENDING';
+  return 'WAITING FOR RECEIPT';
+};
+
+const getManagerBadgeStatus = (item: PurchaseHistory) => {
+  if (item.status === 'RECEIVED') return 'warning' as const;
+  return 'info' as const;
+};
+
 export default function PurchaseHistoryPage() {
   const { role } = useAppSelector((state) => state.auth);
   const [history, setHistory] = useState<PurchaseHistory[]>([]);
@@ -148,10 +163,17 @@ export default function PurchaseHistoryPage() {
                           {item.qty} {item.unit}
                         </p>
                       </div>
-                      <StatusBadge 
-                        status={item.status === 'RECEIVED' ? 'success' : 'info'} 
-                        label={item.status} 
-                      />
+                      {role === 'manager' ? (
+                        <StatusBadge
+                          status={getManagerBadgeStatus(item) as any}
+                          label={getManagerLabel(item)}
+                        />
+                      ) : (
+                        <StatusBadge 
+                          status={item.status === 'RECEIVED' ? 'success' : 'info'} 
+                          label={item.status} 
+                        />
+                      )}
                     </div>
 
                     <div className="space-y-1 text-sm text-muted-foreground mb-3">
@@ -165,7 +187,31 @@ export default function PurchaseHistoryPage() {
                       {item.geoLocation && (
                         <p>📍 Location: {item.geoLocation}</p>
                       )}
+                      {!item.geoLocation && item.coordinates && (
+                        <p>📍 Location: {formatLatLng(item.coordinates)}</p>
+                      )}
                     </div>
+
+                    {role !== 'engineer' && item.proofPhotoUrl && (
+                      <div className="mb-3">
+                        <a
+                          href={item.proofPhotoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-primary underline"
+                        >
+                          View receipt/photo proof
+                        </a>
+                        <div className="mt-2">
+                          <img
+                            src={item.proofPhotoUrl}
+                            alt="Proof"
+                            className="w-full max-w-md rounded-md border object-cover"
+                            loading="lazy"
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {role === 'engineer' && item.status === 'SENT' && (
                       <Button

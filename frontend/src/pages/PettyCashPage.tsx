@@ -17,6 +17,8 @@ import { motion } from "framer-motion";
 import { useAppSelector } from "@/store/hooks";
 import { takePhoto } from "@/lib/capacitor-camera";
 import { getCurrentPosition, reverseGeocode } from "@/lib/capacitor-geolocation";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useNavigate } from "react-router-dom";
 
 const EXPENSE_CATEGORIES = [
   "Transportation",
@@ -29,6 +31,13 @@ const EXPENSE_CATEGORIES = [
 
 export default function PettyCashPage() {
   const { role } = useAppSelector((state) => state.auth);
+  const { hasPermission } = usePermissions();
+  const navigate = useNavigate();
+
+  const canSubmit = hasPermission("canSubmitPettyCash");
+  const canApprove = hasPermission("canApprovePettyCash");
+  const canViewDashboard = hasPermission("canViewPettyCashDashboard");
+
   const [expenses, setExpenses] = useState<PettyCash[]>([]);
   const [pendingExpenses, setPendingExpenses] = useState<PettyCash[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -46,8 +55,13 @@ export default function PettyCashPage() {
   const [location, setLocation] = useState<{ latitude: number; longitude: number; address: string } | null>(null);
 
   useEffect(() => {
+    if (!canSubmit && !canApprove && !canViewDashboard) {
+      toast.error("You don't have permission to access reimbursements");
+      navigate("/", { replace: true });
+      return;
+    }
     loadData();
-  }, [role]);
+  }, [role, canSubmit, canApprove, canViewDashboard]);
 
   const loadData = async () => {
     try {
@@ -55,19 +69,22 @@ export default function PettyCashPage() {
       const projectsData = await projectsApi.getAll(1, 50);
       setProjects(projectsData?.projects || []);
 
-      if (role === 'manager') {
-        const [myExpenses, pending] = await Promise.all([
-          pettyCashApi.getMyExpenses(),
-          pettyCashApi.getPendingExpenses(),
-        ]);
-        setExpenses(myExpenses || []);
-        setPendingExpenses(pending || []);
-      } else if (role === 'owner') {
+      if (canViewDashboard) {
         const data = await pettyCashApi.getAllExpenses();
         setExpenses(data?.expenses || []);
         setSummary(data?.summary || null);
+      } else if (canSubmit) {
+        const myExpenses = await pettyCashApi.getMyExpenses();
+        setExpenses(myExpenses || []);
+      } else {
+        setExpenses([]);
+      }
+
+      if (canApprove) {
         const pending = await pettyCashApi.getPendingExpenses();
         setPendingExpenses(pending || []);
+      } else {
+        setPendingExpenses([]);
       }
     } catch (error: any) {
       toast.error(error.message || "Failed to load data");
@@ -176,7 +193,7 @@ export default function PettyCashPage() {
   };
 
   return (
-    <MobileLayout role={role as any || 'manager'}>
+    <MobileLayout role={role as any || 'engineer'}>
       <div className="p-4 space-y-6 safe-area-top">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -184,10 +201,10 @@ export default function PettyCashPage() {
           className="flex justify-between items-center"
         >
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Petty Cash</h1>
-            <p className="text-sm text-muted-foreground">Track site expenses</p>
+            <h1 className="text-2xl font-bold text-foreground">{role === 'engineer' ? 'Reimbursements' : 'Petty Cash'}</h1>
+            <p className="text-sm text-muted-foreground">Submit and track site expenses</p>
           </div>
-          {role === 'manager' && (
+          {canSubmit && (
             <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
               <DialogTrigger asChild>
                 <Button>
@@ -272,7 +289,7 @@ export default function PettyCashPage() {
         </motion.div>
 
         {/* Summary for Owner */}
-        {role === 'owner' && summary && (
+        {canViewDashboard && summary && (
           <div className="grid grid-cols-2 gap-3">
             <KPICard
               title="Total Approved"
@@ -292,7 +309,7 @@ export default function PettyCashPage() {
         )}
 
         {/* Pending Approvals */}
-        {pendingExpenses.length > 0 && (
+        {canApprove && pendingExpenses.length > 0 && (
           <Card className="border-warning">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-warning">
@@ -319,6 +336,32 @@ export default function PettyCashPage() {
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground mb-3">{expense.description}</p>
+
+                  {expense.geoLocation && (
+                    <p className="text-xs text-muted-foreground mb-2">📍 {expense.geoLocation}</p>
+                  )}
+
+                  {expense.receiptPhotoUrl && (
+                    <div className="mb-3">
+                      <a
+                        href={expense.receiptPhotoUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-primary underline"
+                      >
+                        View receipt photo
+                      </a>
+                      <div className="mt-2">
+                        <img
+                          src={expense.receiptPhotoUrl}
+                          alt="Receipt"
+                          className="w-full max-w-sm rounded-md border object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
                     <Button 
                       size="sm" 
@@ -347,7 +390,7 @@ export default function PettyCashPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Wallet className="w-5 h-5" />
-              {role === 'owner' ? 'All Expenses' : 'My Expenses'} ({expenses.length})
+              {canViewDashboard ? 'All Expenses' : 'My Expenses'} ({expenses.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -383,6 +426,18 @@ export default function PettyCashPage() {
                     <p className="text-sm text-muted-foreground">{expense.description}</p>
                     {expense.geoLocation && (
                       <p className="text-xs text-muted-foreground mt-1">📍 {expense.geoLocation}</p>
+                    )}
+                    {expense.receiptPhotoUrl && (
+                      <div className="mt-2">
+                        <a
+                          href={expense.receiptPhotoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-primary underline"
+                        >
+                          View receipt photo
+                        </a>
+                      </div>
                     )}
                   </motion.div>
                 ))}
