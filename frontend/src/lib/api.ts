@@ -67,6 +67,35 @@ export class UnauthorizedError extends Error {
   }
 }
 
+/** Keys to clear on 401; keep in sync with authSlice logout. */
+const AUTH_STORAGE_KEYS = [
+  'offsiteAuth',
+  'userRole',
+  'userName',
+  'userEmail',
+  'userPhone',
+  'userId',
+  'accessToken',
+  'loginTimestamp',
+] as const;
+
+/** Clear all auth-related localStorage so initializeAuth sees logged-out state. */
+export function clearAuthStorage(): void {
+  AUTH_STORAGE_KEYS.forEach((k) => localStorage.removeItem(k));
+}
+
+let _redirectingToLogin = false;
+
+/** Redirect to login once, avoid infinite loop from multiple 401s. Exported for raw-fetch 401 handlers (e.g. invoice PDF). */
+export function redirectToLogin(): void {
+  if (_redirectingToLogin) return;
+  const path = typeof window !== 'undefined' ? window.location.pathname : '';
+  if (path === '/login' || path === '/signup' || path === '/forgot-password') return;
+  _redirectingToLogin = true;
+  clearAuthStorage();
+  window.location.replace('/login');
+}
+
 /**
  * Get access token from localStorage
  */
@@ -155,8 +184,7 @@ export const apiRequest = async <T = unknown>(
       }
 
       if (response.status === 401) {
-        localStorage.removeItem('accessToken');
-        window.location.href = '/';
+        redirectToLogin();
         throw new UnauthorizedError(data?.message || 'Session expired. Please log in again.');
       }
 
