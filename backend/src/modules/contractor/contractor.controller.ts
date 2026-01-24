@@ -793,19 +793,25 @@ export const getMyInvoices = async (
       throw new AppError('Only contractors can view their invoices', 403, 'FORBIDDEN');
     }
 
+    // Ensure contractor profile exists (may create if missing)
     const contractor = await ensureContractorProfileForUser(req.user.userId);
 
-    const invoices = await ContractorInvoice.find({ contractorId: contractor._id })
-      .populate('projectId', 'name location')
-      .sort({ createdAt: -1 });
+    try {
+      const invoices = await ContractorInvoice.find({ contractorId: contractor._id })
+        .populate('projectId', 'name location')
+        .sort({ createdAt: -1 });
 
-    const response: ApiResponse = {
-      success: true,
-      message: 'Invoices retrieved successfully',
-      data: invoices,
-    };
+      const response: ApiResponse = {
+        success: true,
+        message: 'Invoices retrieved successfully',
+        data: invoices,
+      };
 
-    res.status(200).json(response);
+      return res.status(200).json(response);
+    } catch (innerErr) {
+      logger.error('Failed to fetch contractor invoices', { err: (innerErr as Error).message, user: req.user?.userId, contractorId: contractor?._id });
+      return next(new AppError('Failed to load invoices. Please try again later.', 500, 'INVOICE_LOAD_ERROR'));
+    }
   } catch (error) {
     next(error);
   }
