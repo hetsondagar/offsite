@@ -9,6 +9,7 @@ import { DPR } from '../dpr/dpr.model';
 import { MaterialRequest } from '../materials/material.model';
 import { Attendance } from '../attendance/attendance.model';
 import { Event } from '../events/event.model';
+import { Contractor } from '../contractor/contractor.model';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 import { calculateProjectHealthScore } from '../../utils/siteHealth';
@@ -22,6 +23,8 @@ const createProjectSchema = z.object({
   endDate: z.string().transform((str) => new Date(str)).optional(),
   engineerOffsiteIds: z.array(z.string()).optional(),
   managerOffsiteIds: z.array(z.string()).optional(),
+  contractorOffsiteId: z.string().min(1, 'Contractor OS ID is required'),
+  purchaseManagerOffsiteId: z.string().min(1, 'Purchase Manager OS ID is required'),
   // New geo-fence structure (mandatory for new projects)
   geoFence: z.object({
     enabled: z.boolean().default(true),
@@ -104,6 +107,84 @@ export const createProject = async (
     });
 
     await project.save();
+
+    // Find and assign Contractor
+    const contractorUser = await User.findOne({
+      offsiteId: { $regex: new RegExp(`^${data.contractorOffsiteId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      role: 'contractor'
+    }).select('_id offsiteId name');
+
+    if (!contractorUser) {
+      throw new AppError(`Contractor with OS ID "${data.contractorOffsiteId}" not found`, 404, 'NOT_FOUND');
+    }
+
+    // Assign contractor to project
+    let contractor = await Contractor.findOne({ userId: contractorUser._id });
+    if (!contractor) {
+      contractor = new Contractor({
+        userId: contractorUser._id,
+        assignedProjects: [project._id],
+        contracts: [],
+      });
+      await contractor.save();
+    } else {
+      if (!contractor.assignedProjects.includes(project._id)) {
+        contractor.assignedProjects.push(project._id);
+        await contractor.save();
+      }
+    }
+
+    // Find and assign Purchase Manager
+    const purchaseManagerUser = await User.findOne({
+      offsiteId: { $regex: new RegExp(`^${data.purchaseManagerOffsiteId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      role: 'purchase_manager'
+    }).select('_id offsiteId name');
+
+    if (!purchaseManagerUser) {
+      throw new AppError(`Purchase Manager with OS ID "${data.purchaseManagerOffsiteId}" not found`, 404, 'NOT_FOUND');
+    }
+
+    // Add purchase manager to project members
+    if (!project.members.includes(purchaseManagerUser._id)) {
+      project.members.push(purchaseManagerUser._id);
+      await project.save();
+    }
+
+    // Send notification to Purchase Manager
+    try {
+      await createNotification({
+        userId: purchaseManagerUser._id.toString(),
+        offsiteId: purchaseManagerUser.offsiteId,
+        type: 'project_update',
+        title: 'Project Assignment',
+        message: `You have been assigned to the project "${data.name}" as Purchase Manager.`,
+        data: {
+          projectId: project._id.toString(),
+          projectName: data.name,
+          role: 'purchase_manager',
+        },
+      });
+    } catch (notifError: any) {
+      logger.warn('Failed to send purchase manager notification:', notifError.message);
+    }
+
+    // Send notification to Contractor
+    try {
+      await createNotification({
+        userId: contractorUser._id.toString(),
+        offsiteId: contractorUser.offsiteId,
+        type: 'project_update',
+        title: 'Project Assignment',
+        message: `You have been assigned to the project "${data.name}" as Contractor.`,
+        data: {
+          projectId: project._id.toString(),
+          projectName: data.name,
+          role: 'contractor',
+        },
+      });
+    } catch (notifError: any) {
+      logger.warn('Failed to send contractor notification:', notifError.message);
+    }
 
     // Find users by OffSite IDs and create invitations
     const invitations: any[] = [];

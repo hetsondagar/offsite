@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IContractor extends Document {
   userId: mongoose.Types.ObjectId; // Reference to User with role 'contractor'
   assignedProjects: mongoose.Types.ObjectId[];
+  rating: number; // Rating out of 5 (default: 0, can be updated by owner)
   contracts: {
     projectId: mongoose.Types.ObjectId;
     labourCountPerDay: number;
@@ -28,6 +29,12 @@ const contractorSchema = new Schema<IContractor>(
       type: Schema.Types.ObjectId,
       ref: 'Project',
     }],
+    rating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
     contracts: [{
       projectId: {
         type: Schema.Types.ObjectId,

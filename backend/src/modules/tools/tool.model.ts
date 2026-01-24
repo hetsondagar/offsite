@@ -3,8 +3,9 @@ import { ToolStatus } from '../../types';
 
 export interface IToolHistory {
   action: 'ISSUED' | 'RETURNED';
-  workerId: mongoose.Types.ObjectId;
+  workerId?: mongoose.Types.ObjectId; // Optional - for engineers/managers
   workerName: string;
+  labourName?: string; // For labour assignments
   projectId: mongoose.Types.ObjectId;
   timestamp: Date;
   notes?: string;
@@ -16,8 +17,9 @@ export interface ITool extends Document {
   description?: string;
   category?: string;
   status: ToolStatus;
-  currentHolderWorkerId?: mongoose.Types.ObjectId;
+  currentHolderWorkerId?: mongoose.Types.ObjectId; // Optional - for engineers/managers
   currentHolderName?: string;
+  currentLabourName?: string; // For labour assignments
   currentProjectId?: mongoose.Types.ObjectId;
   issuedAt?: Date;
   history: IToolHistory[];
@@ -36,11 +38,14 @@ const toolHistorySchema = new Schema<IToolHistory>(
     workerId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
     },
     workerName: {
       type: String,
       required: true,
+    },
+    labourName: {
+      type: String,
+      trim: true,
     },
     projectId: {
       type: Schema.Types.ObjectId,
@@ -92,6 +97,10 @@ const toolSchema = new Schema<ITool>(
       ref: 'User',
     },
     currentHolderName: {
+      type: String,
+      trim: true,
+    },
+    currentLabourName: {
       type: String,
       trim: true,
     },

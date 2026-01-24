@@ -20,13 +20,15 @@ import {
   AlertTriangle,
   Loader2,
   Plus,
-  MapPin
+  MapPin,
+  Star
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { projectsApi, Project } from "@/services/api/projects";
 import { usersApi } from "@/services/api/users";
 import { notificationsApi, ProjectInvitation } from "@/services/api/notifications";
+import { contractorApi } from "@/services/api/contractor";
 import { toast } from "sonner";
 import { Search, X, UserPlus } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -69,6 +71,13 @@ export default function ProjectsPage() {
   const [managerSearch, setManagerSearch] = useState("");
   const [selectedEngineers, setSelectedEngineers] = useState<Array<{ offsiteId: string; name: string }>>([]);
   const [selectedManagers, setSelectedManagers] = useState<Array<{ offsiteId: string; name: string }>>([]);
+  const [selectedContractor, setSelectedContractor] = useState<{ offsiteId: string; name: string; rating: number } | null>(null);
+  const [selectedPurchaseManager, setSelectedPurchaseManager] = useState<{ offsiteId: string; name: string } | null>(null);
+  const [contractors, setContractors] = useState<Array<{ offsiteId: string; name: string; rating: number }>>([]);
+  const [isLoadingContractors, setIsLoadingContractors] = useState(false);
+  const [purchaseManagerSearch, setPurchaseManagerSearch] = useState("");
+  const [purchaseManagerSearchResults, setPurchaseManagerSearchResults] = useState<Array<{ offsiteId: string; name: string }>>([]);
+  const [isSearchingPurchaseManager, setIsSearchingPurchaseManager] = useState(false);
   const [searchResults, setSearchResults] = useState<Array<{ offsiteId: string; name: string; role: string }>>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [lastSearchQuery, setLastSearchQuery] = useState<string>('');
@@ -253,9 +262,80 @@ export default function ProjectsPage() {
     setSelectedManagers(selectedManagers.filter(m => m.offsiteId !== offsiteId));
   };
 
+  // Load contractors when dialog opens
+  useEffect(() => {
+    if (isCreateDialogOpen && role === 'owner') {
+      loadContractors();
+    }
+  }, [isCreateDialogOpen, role]);
+
+  const loadContractors = async () => {
+    try {
+      setIsLoadingContractors(true);
+      const data = await contractorApi.getContractors();
+      const contractorsList = (data || []).map((c: any) => ({
+        offsiteId: c.userId?.offsiteId || '',
+        name: c.userId?.name || 'Unknown',
+        rating: c.rating || 0,
+      }));
+      setContractors(contractorsList);
+    } catch (error) {
+      console.error('Error loading contractors:', error);
+      toast.error('Failed to load contractors');
+    } finally {
+      setIsLoadingContractors(false);
+    }
+  };
+
+  const handleSearchPurchaseManager = async (offsiteId: string) => {
+    const trimmedId = offsiteId.trim().toUpperCase();
+    
+    if (!trimmedId || trimmedId.length < 6) {
+      setPurchaseManagerSearchResults([]);
+      return;
+    }
+
+    setIsSearchingPurchaseManager(true);
+    
+    try {
+      const user = await usersApi.searchByOffsiteId(trimmedId);
+      
+      if (user.role !== 'purchase_manager') {
+        toast.error(`This OffSite ID belongs to a ${user.role}, not a purchase manager`);
+        setPurchaseManagerSearchResults([]);
+        return;
+      }
+
+      setPurchaseManagerSearchResults([{
+        offsiteId: user.offsiteId,
+        name: user.name,
+      }]);
+    } catch (error: any) {
+      console.error('Error searching purchase manager:', error);
+      toast.error(error.message || 'Purchase manager not found');
+      setPurchaseManagerSearchResults([]);
+    } finally {
+      setIsSearchingPurchaseManager(false);
+    }
+  };
+
+  const handleSelectPurchaseManager = (user: { offsiteId: string; name: string }) => {
+    setSelectedPurchaseManager(user);
+    setPurchaseManagerSearch("");
+    setPurchaseManagerSearchResults([]);
+  };
+
   const handleDetailsNext = () => {
     if (!newProject.name || !newProject.location || !newProject.startDate) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+    if (!selectedContractor) {
+      toast.error('Please select a contractor');
+      return;
+    }
+    if (!selectedPurchaseManager) {
+      toast.error('Please select a purchase manager');
       return;
     }
     setCreateStep('geofence');
@@ -522,6 +602,16 @@ export default function ProjectsPage() {
       return;
     }
 
+    if (!selectedContractor) {
+      toast.error('Please select a contractor');
+      return;
+    }
+
+    if (!selectedPurchaseManager) {
+      toast.error('Please select a purchase manager');
+      return;
+    }
+
     if (!geoFenceCenter) {
       toast.error('Please set the project site location on the map');
       return;
@@ -536,6 +626,8 @@ export default function ProjectsPage() {
         endDate: newProject.endDate ? new Date(newProject.endDate).toISOString() : undefined,
         engineerOffsiteIds: selectedEngineers.map(e => e.offsiteId),
         managerOffsiteIds: selectedManagers.map(m => m.offsiteId),
+        contractorOffsiteId: selectedContractor.offsiteId,
+        purchaseManagerOffsiteId: selectedPurchaseManager.offsiteId,
         geoFence: {
           enabled: true,
           center: geoFenceCenter,
@@ -556,8 +648,11 @@ export default function ProjectsPage() {
       });
       setSelectedEngineers([]);
       setSelectedManagers([]);
+      setSelectedContractor(null);
+      setSelectedPurchaseManager(null);
       setEngineerSearch("");
       setManagerSearch("");
+      setPurchaseManagerSearch("");
       setGeoFenceCenter(null);
       setGeoFenceRadius(200);
       setCreateStep('details');
@@ -1049,6 +1144,168 @@ export default function ProjectsPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Contractor Section - Required */}
+                <div className="space-y-2.5">
+                  <Label className="text-sm font-medium text-foreground">
+                    Contractor <span className="text-destructive">*</span>
+                  </Label>
+                  {isLoadingContractors ? (
+                    <div className="flex items-center justify-center p-4">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="ml-2 text-sm text-muted-foreground">Loading contractors...</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {contractors.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No contractors available. Please create contractors first.</p>
+                      ) : (
+                        <div className="max-h-48 overflow-y-auto space-y-2 border border-border rounded-lg p-2">
+                          {contractors.map((contractor) => (
+                            <div
+                              key={contractor.offsiteId}
+                              className={cn(
+                                "flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-colors",
+                                selectedContractor?.offsiteId === contractor.offsiteId
+                                  ? "bg-primary/10 border-primary"
+                                  : "bg-background border-border hover:bg-muted"
+                              )}
+                              onClick={() => setSelectedContractor(contractor)}
+                            >
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">{contractor.name}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <p className="text-xs text-muted-foreground font-mono">{contractor.offsiteId}</p>
+                                  {contractor.rating > 0 && (
+                                    <div className="flex items-center gap-1">
+                                      <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                                      <span className="text-xs font-medium">{contractor.rating.toFixed(1)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              {selectedContractor?.offsiteId === contractor.offsiteId && (
+                                <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                                  <div className="w-2 h-2 rounded-full bg-primary-foreground" />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {selectedContractor && (
+                        <div className="p-2 bg-primary/10 rounded-lg border border-primary/20">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium">{selectedContractor.name}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <p className="text-xs text-muted-foreground font-mono">{selectedContractor.offsiteId}</p>
+                                {selectedContractor.rating > 0 && (
+                                  <div className="flex items-center gap-1">
+                                    <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                                    <span className="text-xs font-medium">{selectedContractor.rating.toFixed(1)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setSelectedContractor(null)}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Purchase Manager Section - Required */}
+                <div className="space-y-2.5">
+                  <Label className="text-sm font-medium text-foreground">
+                    Purchase Manager <span className="text-destructive">*</span>
+                  </Label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search by OffSite ID (e.g., OSPR0001)"
+                        value={purchaseManagerSearch}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setPurchaseManagerSearch(value);
+                          if (value.trim().length === 0) {
+                            setPurchaseManagerSearchResults([]);
+                            return;
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && purchaseManagerSearch.trim().length > 0) {
+                            handleSearchPurchaseManager(purchaseManagerSearch);
+                          }
+                        }}
+                        className="bg-background text-foreground pl-10"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleSearchPurchaseManager(purchaseManagerSearch)}
+                      disabled={!purchaseManagerSearch.trim() || isSearchingPurchaseManager}
+                    >
+                      {isSearchingPurchaseManager ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                  
+                  {/* Search Results */}
+                  {purchaseManagerSearchResults.length > 0 && purchaseManagerSearch && (
+                    <div className="mt-2 p-2 bg-muted rounded-lg border border-border">
+                      {purchaseManagerSearchResults.map((user) => (
+                        <div key={user.offsiteId} className="flex items-center justify-between p-2 hover:bg-background rounded">
+                          <div>
+                            <p className="text-sm font-medium">{user.name}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{user.offsiteId}</p>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleSelectPurchaseManager(user)}
+                          >
+                            <UserPlus className="w-4 h-4 mr-1" />
+                            Select
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Selected Purchase Manager */}
+                  {selectedPurchaseManager && (
+                    <div className="mt-2 p-2 bg-primary/10 rounded-lg border border-primary/20">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">{selectedPurchaseManager.name}</p>
+                          <p className="text-xs text-muted-foreground font-mono">{selectedPurchaseManager.offsiteId}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setSelectedPurchaseManager(null);
+                            setPurchaseManagerSearch("");
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
                   </>
                 ) : (
                   <>
@@ -1188,7 +1445,7 @@ export default function ProjectsPage() {
                     <Button
                       onClick={handleDetailsNext}
                       className="flex-1"
-                      disabled={!newProject.name || !newProject.location || !newProject.startDate}
+                      disabled={!newProject.name || !newProject.location || !newProject.startDate || !selectedContractor || !selectedPurchaseManager}
                     >
                       Next: Set Location
                       <ChevronRight className="w-4 h-4 ml-2" />

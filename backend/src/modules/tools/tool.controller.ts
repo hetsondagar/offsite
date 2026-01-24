@@ -13,7 +13,8 @@ const createToolSchema = z.object({
 });
 
 const issueToolSchema = z.object({
-  workerId: z.string(),
+  workerId: z.string().optional(), // Optional for labour assignments
+  labourName: z.string().optional(), // For labour assignments
   projectId: z.string(),
   notes: z.string().optional(),
 });
@@ -146,24 +147,41 @@ export const issueTool = async (
       throw new AppError('Tool is already issued', 400, 'ALREADY_ISSUED');
     }
 
-    // Get worker name
-    const worker = await User.findById(data.workerId).select('name');
-    if (!worker) {
-      throw new AppError('Worker not found', 404, 'WORKER_NOT_FOUND');
+    // Validate: either workerId or labourName must be provided
+    if (!data.workerId && !data.labourName) {
+      throw new AppError('Either workerId or labourName must be provided', 400, 'VALIDATION_ERROR');
+    }
+
+    let holderName = '';
+    let workerId: any = undefined;
+
+    if (data.labourName) {
+      // Labour assignment
+      holderName = data.labourName;
+      tool.currentLabourName = data.labourName;
+    } else if (data.workerId) {
+      // Worker assignment
+      const worker = await User.findById(data.workerId).select('name');
+      if (!worker) {
+        throw new AppError('Worker not found', 404, 'WORKER_NOT_FOUND');
+      }
+      holderName = worker.name;
+      workerId = data.workerId;
+      tool.currentHolderWorkerId = data.workerId as any;
+      tool.currentHolderName = worker.name;
     }
 
     // Update tool
     tool.status = 'ISSUED';
-    tool.currentHolderWorkerId = data.workerId as any;
-    tool.currentHolderName = worker.name;
     tool.currentProjectId = data.projectId as any;
     tool.issuedAt = new Date();
 
     // Add to history
     tool.history.push({
       action: 'ISSUED',
-      workerId: data.workerId as any,
-      workerName: worker.name,
+      workerId: workerId,
+      workerName: holderName,
+      labourName: data.labourName,
       projectId: data.projectId as any,
       timestamp: new Date(),
       notes: data.notes,
@@ -211,11 +229,12 @@ export const returnTool = async (
     }
 
     // Add to history before clearing
-    if (tool.currentHolderWorkerId && tool.currentProjectId) {
+    if (tool.currentProjectId) {
       tool.history.push({
         action: 'RETURNED',
         workerId: tool.currentHolderWorkerId,
-        workerName: tool.currentHolderName || 'Unknown',
+        workerName: tool.currentHolderName || tool.currentLabourName || 'Unknown',
+        labourName: tool.currentLabourName,
         projectId: tool.currentProjectId,
         timestamp: new Date(),
         notes: data.notes,
@@ -226,6 +245,7 @@ export const returnTool = async (
     tool.status = 'AVAILABLE';
     tool.currentHolderWorkerId = undefined;
     tool.currentHolderName = undefined;
+    tool.currentLabourName = undefined;
     tool.currentProjectId = undefined;
     tool.issuedAt = undefined;
 

@@ -8,6 +8,13 @@ export interface ILabourAttendance extends Document {
   present: boolean;
   groupPhotoUrl?: string; // Group photo used for face detection
   detectedAt?: Date;
+  coordinates?: {
+    type: 'Point';
+    coordinates: [number, number]; // [longitude, latitude]
+  };
+  distanceFromSite?: number; // meters
+  geoFenceValid?: boolean;
+  faceMatched?: boolean; // True if face was detected in group photo
   createdAt: Date;
   updatedAt: Date;
 }
@@ -45,11 +52,36 @@ const labourAttendanceSchema = new Schema<ILabourAttendance>(
     detectedAt: {
       type: Date,
     },
+    coordinates: {
+      type: {
+        type: String,
+        enum: ['Point'],
+        default: 'Point',
+      },
+      coordinates: {
+        type: [Number],
+        default: [0, 0],
+      },
+    },
+    distanceFromSite: {
+      type: Number,
+    },
+    geoFenceValid: {
+      type: Boolean,
+      default: false,
+    },
+    faceMatched: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
   }
 );
+
+// Geospatial index for coordinates
+labourAttendanceSchema.index({ coordinates: '2dsphere' });
 
 // Compound index for unique attendance per labour per day
 labourAttendanceSchema.index({ labourId: 1, date: 1 }, { unique: true });

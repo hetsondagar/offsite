@@ -5,10 +5,12 @@ import { Labour } from './labour.model';
 import { LabourAttendance } from './labour-attendance.model';
 import { ContractorInvoice } from './contractor-invoice.model';
 import { User } from '../users/user.model';
+import { Project } from '../projects/project.model';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 import { logger } from '../../utils/logger';
 import { createNotification } from '../notifications/notification.service';
+import { validateGeoFence, getProjectGeoFence } from '../../utils/geoFence';
 
 // Schema definitions
 const assignContractorSchema = z.object({
@@ -32,6 +34,9 @@ const uploadAttendanceSchema = z.object({
   date: z.string().transform(s => new Date(s)),
   groupPhotoUrl: z.string(),
   presentLabourIds: z.array(z.string()),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+  detectedFaces: z.array(z.string()).optional(), // Array of labour IDs whose faces were detected
 });
 
 const createInvoiceSchema = z.object({
@@ -71,7 +76,8 @@ export const getAllContractors = async (
     const contractors = await Contractor.find()
       .populate('userId', 'name email phone offsiteId')
       .populate('assignedProjects', 'name location')
-      .populate('contracts.projectId', 'name location');
+      .populate('contracts.projectId', 'name location')
+      .sort({ rating: -1 }); // Sort by rating descending
 
     const response: ApiResponse = {
       success: true,
@@ -296,13 +302,71 @@ export const uploadAttendance = async (
       throw new AppError('Contractor profile not found', 404, 'NOT_FOUND');
     }
 
+    // Get project for geofence validation
+    const project = await Project.findById(data.projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'NOT_FOUND');
+    }
+
+    // Validate geofence if coordinates provided
+    let geoFenceValid = false;
+    let distanceFromSite: number | undefined;
+    let coordinates: { type: 'Point'; coordinates: [number, number] } | undefined;
+
+    if (data.latitude && data.longitude) {
+      coordinates = {
+        type: 'Point',
+        coordinates: [data.longitude, data.latitude], // GeoJSON format: [longitude, latitude]
+      };
+
+      const geoFence = getProjectGeoFence(project);
+      if (geoFence) {
+        const validation = validateGeoFence(data.latitude, data.longitude, geoFence);
+        distanceFromSite = validation.distanceFromCenter;
+        geoFenceValid = validation.isInside;
+
+        if (!geoFenceValid) {
+          throw new AppError(
+            `You are ${distanceFromSite} meters away from the project site. Please be within ${geoFence.radiusMeters + geoFence.bufferMeters} meters to mark attendance.`,
+            400,
+            'OUTSIDE_GEOFENCE'
+          );
+        }
+      }
+    }
+
     // Normalize date to start of day
     const attendanceDate = new Date(data.date);
     attendanceDate.setHours(0, 0, 0, 0);
 
-    // Create attendance records for each present labour
+    // Get detected faces (labour IDs whose faces were matched in the group photo)
+    const detectedFaceIds = new Set(data.detectedFaces || []);
+
+    // Only mark labours as present if their faces were detected in the group photo
+    // AND they are in the presentLabourIds list
+    const validLabourIds = data.presentLabourIds.filter(labourId => {
+      // Check if this labour's face was detected
+      return detectedFaceIds.has(labourId);
+    });
+
+    if (validLabourIds.length === 0) {
+      throw new AppError(
+        'No labours with detected faces found. Please ensure faces are registered and visible in the group photo.',
+        400,
+        'NO_FACES_DETECTED'
+      );
+    }
+
+    // Create attendance records only for labours with detected faces
     const attendanceRecords = [];
-    for (const labourId of data.presentLabourIds) {
+    for (const labourId of validLabourIds) {
+      // Verify labour exists and belongs to contractor
+      const labour = await Labour.findById(labourId);
+      if (!labour || labour.contractorId.toString() !== contractor._id.toString()) {
+        logger.warn(`Labour ${labourId} not found or doesn't belong to contractor ${contractor._id}`);
+        continue;
+      }
+
       // Check if attendance already exists
       const existing = await LabourAttendance.findOne({
         labourId,
@@ -318,18 +382,37 @@ export const uploadAttendance = async (
           present: true,
           groupPhotoUrl: data.groupPhotoUrl,
           detectedAt: new Date(),
+          coordinates,
+          distanceFromSite,
+          geoFenceValid,
+          faceMatched: true, // Face was detected
         });
         await record.save();
         attendanceRecords.push(record);
+      } else {
+        // Update existing record with face match and geo-fence info
+        existing.faceMatched = true;
+        existing.coordinates = coordinates;
+        existing.distanceFromSite = distanceFromSite;
+        existing.geoFenceValid = geoFenceValid;
+        existing.groupPhotoUrl = data.groupPhotoUrl;
+        existing.detectedAt = new Date();
+        await existing.save();
+        attendanceRecords.push(existing);
       }
     }
 
-    logger.info(`Attendance uploaded for ${attendanceRecords.length} labours by contractor ${req.user.userId}`);
+    logger.info(`Attendance uploaded for ${attendanceRecords.length} labours (faces matched) by contractor ${req.user.userId}`);
 
     const response: ApiResponse = {
       success: true,
-      message: `Attendance marked for ${attendanceRecords.length} labours`,
-      data: attendanceRecords,
+      message: `Attendance marked for ${attendanceRecords.length} labours (faces detected and matched)`,
+      data: {
+        attendanceRecords,
+        totalRequested: data.presentLabourIds.length,
+        facesDetected: detectedFaceIds.size,
+        markedAsPresent: attendanceRecords.length,
+      },
     };
 
     res.status(201).json(response);
