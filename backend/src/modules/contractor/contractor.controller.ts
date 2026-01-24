@@ -552,10 +552,10 @@ export const createWeeklyInvoice = async (
       present: true,
     });
 
-    // Calculate amounts
+    // Calculate amounts (no GST for labour invoices)
     const taxableAmount = attendanceCount * contract.ratePerLabourPerDay;
-    const gstAmount = taxableAmount * (contract.gstRate / 100);
-    const totalAmount = taxableAmount + gstAmount;
+    const gstAmount = 0; // No GST for labour
+    const totalAmount = taxableAmount; // Total = taxable amount only
 
     // Generate invoice number
     const invoiceCount = await ContractorInvoice.countDocuments();
