@@ -40,6 +40,7 @@ export default function ManagerDashboard() {
   const navigate = useNavigate();
   const { hasPermission } = usePermissions();
   const { role } = useAppSelector((state) => state.auth);
+  const { t } = useTranslation();
   const [projectOverview, setProjectOverview] = useState<any[]>([]);
   const [healthScore, setHealthScore] = useState(0);
   const [healthScores, setHealthScores] = useState<Array<{ projectId: string; projectName: string; healthScore: number }>>([]);
@@ -555,19 +556,21 @@ export default function ManagerDashboard() {
 
         {/* Recent DPRs - Available to all project members - ALWAYS VISIBLE */}
         <Card variant="gradient" className="opacity-0 animate-fade-up stagger-5">
-          <CardHeader className="flex-row items-center justify-between pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <FileText className="w-5 h-5 text-primary" />
-              {t("dashboard.recentDPRs")}
-            </CardTitle>
-            <button 
-              onClick={() => navigate("/all-dprs")}
-              className="text-sm text-primary flex items-center gap-1"
-            >
-              View All <ChevronRight className="w-4 h-4" />
-            </button>
-          </CardHeader>
-          <CardContent className="space-y-3">
+          {role !== "owner" && (
+            <CardHeader className="flex-row items-center justify-between pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText className="w-5 h-5 text-primary" />
+                Recent DPRs
+              </CardTitle>
+              <button 
+                onClick={() => navigate("/all-dprs")}
+                className="text-sm text-primary flex items-center gap-1"
+              >
+                View All <ChevronRight className="w-4 h-4" />
+              </button>
+            </CardHeader>
+          )}
+          <CardContent className={role === "owner" ? "space-y-3 pt-4" : "space-y-3"}>
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
