@@ -114,3 +114,38 @@ export async function pickImages(options: CameraOptions = {}): Promise<File[]> {
     });
   }
 }
+
+/**
+ * Convenience helper matching existing page usage: take a single photo and
+ * return a URL (native `webPath` or object URL for web fallback).
+ */
+export async function takePhoto(options: CameraOptions = {}): Promise<string> {
+  if (isNative()) {
+    const source = CameraSource.Camera;
+    const image = await Camera.getPhoto({
+      quality: options.quality ?? 90,
+      allowEditing: options.allowEditing ?? false,
+      resultType: CameraResultType.Uri,
+      source,
+    });
+    // Prefer webPath (works on Capacitor webview) and fall back to path
+    return image.webPath || (image as any).path || '';
+  } else {
+    // Web fallback: open file input and return an object URL for the selected file
+    const files = await new Promise<File[]>((resolve, reject) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.multiple = false;
+      input.onchange = (e: any) => {
+        const files = Array.from(e.target.files) as File[];
+        resolve(files);
+      };
+      input.onerror = reject;
+      input.click();
+    });
+    const file = files[0];
+    if (!file) throw new Error('No file selected');
+    return URL.createObjectURL(file);
+  }
+}

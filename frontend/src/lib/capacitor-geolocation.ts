@@ -8,13 +8,16 @@ import { isNative } from './capacitor';
 import { saveLastKnownLocation } from './indexeddb';
 
 export interface LocationData {
-  latitude: number;
-  longitude: number;
-  accuracy?: number;
-  altitude?: number | null;
-  altitudeAccuracy?: number | null;
-  heading?: number | null;
-  speed?: number | null;
+  coords: {
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+    altitude?: number | null;
+    altitudeAccuracy?: number | null;
+    heading?: number | null;
+    speed?: number | null;
+  };
+  timestamp?: number;
 }
 
 /**
@@ -72,14 +75,20 @@ export async function getCurrentPosition(
       }
 
       const locationData = {
+        coords: {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          altitude: position.coords.altitude ?? null,
+          altitudeAccuracy: position.coords.altitudeAccuracy ?? null,
+          heading: position.coords.heading ?? null,
+          speed: position.coords.speed ?? null,
+        },
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         accuracy: position.coords.accuracy,
-        altitude: position.coords.altitude ?? null,
-        altitudeAccuracy: position.coords.altitudeAccuracy ?? null,
-        heading: position.coords.heading ?? null,
-        speed: position.coords.speed ?? null,
-      };
+        timestamp: position.timestamp ?? Date.now(),
+      } as any;
       
       // Save last known location for offline use (don't await to avoid blocking)
       saveLastKnownLocation(
@@ -91,7 +100,7 @@ export async function getCurrentPosition(
         // Silent fail - saving last known location is non-critical
       });
       
-      return locationData;
+      return locationData as any;
     } catch (error: any) {
       // Re-throw with proper error code
       if (error.message?.includes('permission') || error.message?.includes('Permission')) {
@@ -111,7 +120,7 @@ export async function getCurrentPosition(
     }
   } else {
     // Fallback to browser geolocation on web
-    return new Promise<LocationData>((resolve, reject) => {
+    return new Promise<any>((resolve, reject) => {
       if (!navigator.geolocation) {
         reject(new Error('Geolocation not supported'));
         return;
@@ -120,21 +129,27 @@ export async function getCurrentPosition(
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const locationData = {
+            coords: {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy,
+              altitude: position.coords.altitude ?? null,
+              altitudeAccuracy: position.coords.altitudeAccuracy ?? null,
+              heading: position.coords.heading ?? null,
+              speed: position.coords.speed ?? null,
+            },
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
             accuracy: position.coords.accuracy,
-            altitude: position.coords.altitude ?? null,
-            altitudeAccuracy: position.coords.altitudeAccuracy ?? null,
-            heading: position.coords.heading ?? null,
-            speed: position.coords.speed ?? null,
-          };
+            timestamp: position.timestamp ?? Date.now(),
+          } as any;
           
           // Save last known location for offline use (don't await to avoid blocking)
           saveLastKnownLocation(
-            locationData.latitude,
-            locationData.longitude,
+            locationData.coords.latitude,
+            locationData.coords.longitude,
             undefined,
-            locationData.accuracy
+            locationData.coords.accuracy
           ).catch(() => {
             // Silent fail - saving last known location is non-critical
           });
@@ -149,11 +164,28 @@ export async function getCurrentPosition(
 }
 
 /**
+ * Reverse geocode latitude/longitude to a human readable address.
+ * Uses Nominatim (OpenStreetMap) with a graceful fallback to "lat, lon".
+ */
+export async function reverseGeocode(lat: number, lon: number): Promise<string> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'offsite-app' } });
+    if (!res.ok) throw new Error('Reverse geocode failed');
+    const data = await res.json();
+    if (data && data.display_name) return data.display_name as string;
+  } catch (e) {
+    // ignore and fallback
+  }
+  return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+}
+
+/**
  * Watch position continuously
  * Returns a watch ID that can be used to clear the watch
  */
 export async function watchPosition(
-  callback: (location: LocationData) => void,
+  callback: (location: any) => void,
   errorCallback?: (error: GeolocationPositionError) => void,
   options?: PositionOptions
 ): Promise<number | string> {
@@ -182,25 +214,27 @@ export async function watchPosition(
             return;
           }
           const locationData = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-            altitude: position.coords.altitude ?? null,
-            altitudeAccuracy: position.coords.altitudeAccuracy ?? null,
-            heading: position.coords.heading ?? null,
-            speed: position.coords.speed ?? null,
-          };
+            coords: {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy,
+              altitude: position.coords.altitude ?? null,
+              altitudeAccuracy: position.coords.altitudeAccuracy ?? null,
+              heading: position.coords.heading ?? null,
+              speed: position.coords.speed ?? null,
+            },
+            timestamp: position.timestamp ?? Date.now(),
+          } as any;
           
           // Save last known location for offline use (don't await to avoid blocking)
           saveLastKnownLocation(
-            locationData.latitude,
-            locationData.longitude,
+            locationData.coords.latitude,
+            locationData.coords.longitude,
             undefined,
-            locationData.accuracy
+            locationData.coords.accuracy
           ).catch(() => {
             // Silent fail - saving last known location is non-critical
           });
-          
           callback(locationData);
         }
       );
@@ -221,21 +255,27 @@ export async function watchPosition(
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const locationData = {
+          coords: {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            altitude: position.coords.altitude ?? null,
+            altitudeAccuracy: position.coords.altitudeAccuracy ?? null,
+            heading: position.coords.heading ?? null,
+            speed: position.coords.speed ?? null,
+          },
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy,
-          altitude: position.coords.altitude ?? null,
-          altitudeAccuracy: position.coords.altitudeAccuracy ?? null,
-          heading: position.coords.heading ?? null,
-          speed: position.coords.speed ?? null,
-        };
+          timestamp: position.timestamp ?? Date.now(),
+        } as any;
         
         // Save last known location for offline use (don't await to avoid blocking)
         saveLastKnownLocation(
-          locationData.latitude,
-          locationData.longitude,
+          locationData.coords.latitude,
+          locationData.coords.longitude,
           undefined,
-          locationData.accuracy
+          locationData.coords.accuracy
         ).catch(() => {
           // Silent fail - saving last known location is non-critical
         });
