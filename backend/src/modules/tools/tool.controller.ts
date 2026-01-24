@@ -189,7 +189,7 @@ export const issueTool = async (
 
     await tool.save();
 
-    logger.info(`Tool issued: ${toolId} to ${worker.name}`);
+    logger.info(`Tool issued: ${toolId} to ${workerId.name}`);
 
     const response: ApiResponse = {
       success: true,
