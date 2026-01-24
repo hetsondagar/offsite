@@ -40,6 +40,7 @@ export default function ManagerDashboard() {
   const navigate = useNavigate();
   const { hasPermission } = usePermissions();
   const { role } = useAppSelector((state) => state.auth);
+  const { t } = useTranslation();
   const [projectOverview, setProjectOverview] = useState<any[]>([]);
   const [healthScore, setHealthScore] = useState(0);
   const [healthScores, setHealthScores] = useState<Array<{ projectId: string; projectName: string; healthScore: number }>>([]);
