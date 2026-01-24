@@ -93,14 +93,24 @@ export default function EngineerDashboard() {
           });
           setPendingRequests(userRequests);
           
-          // Load pending project invitations
+          // Load pending project invitations (only if authenticated)
           try {
-            const invitationsData = await notificationsApi.getMyInvitations();
-            console.log('Loaded invitations:', invitationsData);
-            setPendingInvitations(Array.isArray(invitationsData) ? invitationsData : []);
-          } catch (error) {
-            console.error('Error loading invitations:', error);
-            setPendingInvitations([]);
+            const token = localStorage.getItem('accessToken');
+            if (token) {
+              const invitationsData = await notificationsApi.getMyInvitations();
+              console.log('Loaded invitations:', invitationsData);
+              setPendingInvitations(Array.isArray(invitationsData) ? invitationsData : []);
+            } else {
+              setPendingInvitations([]);
+            }
+          } catch (error: any) {
+            // Silently handle 401 errors (user not authenticated)
+            if (error?.message?.includes('Unauthorized') || error?.message?.includes('No token')) {
+              setPendingInvitations([]);
+            } else {
+              console.error('Error loading invitations:', error);
+              setPendingInvitations([]);
+            }
           }
           
           // Build recent activity from DPRs and materials
@@ -447,7 +457,7 @@ export default function EngineerDashboard() {
         {/* Recent Activity */}
         <Card variant="gradient" className="opacity-0 animate-fade-up stagger-5">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Recent Activity</CardTitle>
+            <CardTitle className="text-lg">{t("Recent Activity")}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (

@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { saveAttendance, getCheckInStateFromIndexedDB, cacheGeoFence, getCachedGeoFence } from "@/lib/indexeddb";
+import { saveAttendance, getCheckInStateFromIndexedDB, cacheGeoFence, getCachedGeoFence, getLastKnownLocation, saveLastKnownLocation } from "@/lib/indexeddb";
 import { isOnline as checkOnline } from "@/lib/network";
 import { attendanceApi } from "@/services/api/attendance";
 import { projectsApi } from "@/services/api/projects";
@@ -128,7 +128,19 @@ export default function AttendancePage() {
           setLocation(idbState.location);
           startLocationWatching();
         } else {
-          handleGetLocation().catch(() => {});
+          // Try to use last known location if available
+          const lastKnown = await getLastKnownLocation();
+          if (lastKnown && lastKnown.latitude && lastKnown.longitude) {
+            const ageMinutes = Math.floor((Date.now() - lastKnown.timestamp) / 60000);
+            setLocation({
+              latitude: lastKnown.latitude,
+              longitude: lastKnown.longitude,
+              address: lastKnown.address || `Coordinates: ${lastKnown.latitude.toFixed(6)}, ${lastKnown.longitude.toFixed(6)} (Last Known - ${ageMinutes}m ago)`,
+            });
+            startLocationWatching();
+          } else {
+            handleGetLocation().catch(() => {});
+          }
         }
       } else {
         setIsCheckedIn(false);
@@ -136,6 +148,18 @@ export default function AttendancePage() {
         if (watchIdRef.current != null) {
           clearWatch(watchIdRef.current);
           watchIdRef.current = null;
+        }
+        // Try to load last known location even when not checked in
+        if (!location) {
+          const lastKnown = await getLastKnownLocation();
+          if (lastKnown && lastKnown.latitude && lastKnown.longitude) {
+            const ageMinutes = Math.floor((Date.now() - lastKnown.timestamp) / 60000);
+            setLocation({
+              latitude: lastKnown.latitude,
+              longitude: lastKnown.longitude,
+              address: lastKnown.address || `Coordinates: ${lastKnown.latitude.toFixed(6)}, ${lastKnown.longitude.toFixed(6)} (Last Known - ${ageMinutes}m ago)`,
+            });
+          }
         }
       }
     };
@@ -189,45 +213,65 @@ export default function AttendancePage() {
 
     return () => {
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
+        if (typeof mapInstanceRef.current.remove === 'function') {
+          try {
+            mapInstanceRef.current.remove();
+          } catch (error) {
+            console.warn('Error removing map instance:', error);
+          }
+        }
         mapInstanceRef.current = null;
       }
     };
   }, [location, t]);
 
-  const updateLocationFromCoordinates = async (latitude: number, longitude: number) => {
-    // Reverse geocode using MapTiler
+  const updateLocationFromCoordinates = async (latitude: number, longitude: number, isLastKnown: boolean = false) => {
+    // Save as last known location for offline use
+    await saveLastKnownLocation(latitude, longitude, undefined, undefined).catch(() => {
+      // Silent fail
+    });
+    
+    // Reverse geocode using MapTiler (only if online)
     try {
-      const response = await fetch(
-        `https://api.maptiler.com/geocoding/${longitude},${latitude}.json?key=${MAPTILER_KEY}`
-      );
-      
-      if (!response.ok) {
-        throw new Error('Geocoding service unavailable');
+      const online = await checkOnline();
+      if (online) {
+        const response = await fetch(
+          `https://api.maptiler.com/geocoding/${longitude},${latitude}.json?key=${MAPTILER_KEY}`
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          let address = `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+          if (data.features && data.features.length > 0) {
+            const feature = data.features[0];
+            address = feature.properties?.label || feature.place_name || address;
+          }
+          
+          // Update last known location with address
+          await saveLastKnownLocation(latitude, longitude, address, undefined).catch(() => {});
+          
+          setLocation({
+            latitude,
+            longitude,
+            address: isLastKnown ? `${address} (Last Known)` : address,
+          });
+          return;
+        }
       }
-      
-      const data = await response.json();
-
-      let address = `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-      if (data.features && data.features.length > 0) {
-        const feature = data.features[0];
-        address = feature.properties?.label || feature.place_name || address;
-      }
-
-      setLocation({
-        latitude,
-        longitude,
-        address,
-      });
     } catch (geocodeError) {
       console.error('Geocoding error:', geocodeError);
-      // Still set location with coordinates even if geocoding fails
-      setLocation({
-        latitude,
-        longitude,
-        address: `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-      });
     }
+    
+    // Fallback: use coordinates or last known location address
+    const address = isLastKnown 
+      ? `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)} (Last Known Location)`
+      : `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    
+    setLocation({
+      latitude,
+      longitude,
+      address,
+    });
   };
 
   const startLocationWatching = async () => {
@@ -301,22 +345,40 @@ export default function AttendancePage() {
     } catch (error: any) {
       console.error('Location error:', error);
       
-      // Provide user-friendly error messages based on error code
-      let errorMessage = t('attendance.failedToGetLocation');
-      
-      // Handle different error types
-      if (error.message?.includes('permission denied') || error.code === 1 || error.message?.includes('Permission denied')) {
-        errorMessage = t('attendance.locationPermissionDenied');
-      } else if (error.message?.includes('position unavailable') || error.code === 2 || error.message?.includes('Position unavailable')) {
-        errorMessage = t('attendance.locationUnavailable');
-      } else if (error.message?.includes('timeout') || error.code === 3 || error.message?.includes('Timeout')) {
-        errorMessage = t('attendance.locationTimeout');
-      } else if (error.message?.includes('not supported') || error.message?.includes('Geolocation not supported')) {
-        errorMessage = t('attendance.geolocationNotSupported');
+      // Try to use last known location as fallback
+      const lastKnown = await getLastKnownLocation();
+      if (lastKnown && lastKnown.latitude && lastKnown.longitude) {
+        const ageMinutes = Math.floor((Date.now() - lastKnown.timestamp) / 60000);
+        await updateLocationFromCoordinates(lastKnown.latitude, lastKnown.longitude, true);
+        
+        // Validate geo-fence with last known location
+        if (selectedProject) {
+          await validateLocationAgainstGeoFence(lastKnown.latitude, lastKnown.longitude, selectedProject);
+        }
+        
+        toast.warning(
+          `Using last known location (${ageMinutes} minute${ageMinutes !== 1 ? 's' : ''} ago). Current location unavailable.`,
+          { duration: 5000 }
+        );
+        setLocationError(null);
+      } else {
+        // Provide user-friendly error messages based on error code
+        let errorMessage = t('attendance.failedToGetLocation');
+        
+        // Handle different error types
+        if (error.message?.includes('permission denied') || error.code === 1 || error.message?.includes('Permission denied')) {
+          errorMessage = t('attendance.locationPermissionDenied');
+        } else if (error.message?.includes('position unavailable') || error.code === 2 || error.message?.includes('Position unavailable')) {
+          errorMessage = t('attendance.locationUnavailable');
+        } else if (error.message?.includes('timeout') || error.code === 3 || error.message?.includes('Timeout')) {
+          errorMessage = t('attendance.locationTimeout');
+        } else if (error.message?.includes('not supported') || error.message?.includes('Geolocation not supported')) {
+          errorMessage = t('attendance.geolocationNotSupported');
+        }
+        
+        setLocationError(errorMessage);
+        toast.error(errorMessage);
       }
-      
-      setLocationError(errorMessage);
-      toast.error(errorMessage);
     } finally {
       setIsLocating(false);
     }
@@ -368,9 +430,24 @@ export default function AttendancePage() {
       toast.error("Please select a project first");
       return;
     }
-    if (!location) {
-      toast.error(t("attendance.pleaseGetLocation"));
-      return;
+    
+    // If no location, try to get last known location
+    let checkInLocation = location;
+    if (!checkInLocation) {
+      const lastKnown = await getLastKnownLocation();
+      if (lastKnown && lastKnown.latitude && lastKnown.longitude) {
+        const ageMinutes = Math.floor((Date.now() - lastKnown.timestamp) / 60000);
+        checkInLocation = {
+          latitude: lastKnown.latitude,
+          longitude: lastKnown.longitude,
+          address: lastKnown.address || `Coordinates: ${lastKnown.latitude.toFixed(6)}, ${lastKnown.longitude.toFixed(6)} (Last Known - ${ageMinutes}m ago)`,
+        };
+        setLocation(checkInLocation);
+        toast.warning(`Using last known location (${ageMinutes} minute${ageMinutes !== 1 ? 's' : ''} ago)`, { duration: 3000 });
+      } else {
+        toast.error(t("attendance.pleaseGetLocation"));
+        return;
+      }
     }
     
     // Client-side geo-fence validation (offline-safe)
@@ -472,7 +549,18 @@ export default function AttendancePage() {
         }
       }
     } catch (e) {
-      console.warn('Checkout location not available, using current:', e);
+      console.warn('Checkout location not available, trying last known location:', e);
+      // Try to use last known location
+      const lastKnown = await getLastKnownLocation();
+      if (lastKnown && lastKnown.latitude && lastKnown.longitude) {
+        const ageMinutes = Math.floor((Date.now() - lastKnown.timestamp) / 60000);
+        checkoutLocation = {
+          latitude: lastKnown.latitude,
+          longitude: lastKnown.longitude,
+          address: lastKnown.address || `Coordinates: ${lastKnown.latitude.toFixed(6)}, ${lastKnown.longitude.toFixed(6)} (Last Known - ${ageMinutes}m ago)`,
+        };
+        toast.warning(`Using last known location (${ageMinutes} minute${ageMinutes !== 1 ? 's' : ''} ago)`, { duration: 3000 });
+      }
     }
     const addr = checkoutLocation?.address || location?.address || 'Unknown';
     const lat = checkoutLocation?.latitude ?? location?.latitude;

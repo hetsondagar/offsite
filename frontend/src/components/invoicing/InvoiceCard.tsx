@@ -24,6 +24,7 @@ interface InvoiceCardProps {
 }
 
 export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit, onDelete, isOwner = false, canDownloadPdf = false }: InvoiceCardProps) {
+  const { t } = useTranslation();
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);

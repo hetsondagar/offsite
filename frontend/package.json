@@ -17,11 +17,11 @@
     "install:android": "cd android && java -jar gradle/wrapper/gradle-wrapper.jar installDebug"
   },
   "dependencies": {
-    "@capacitor/android": "^8.0.1",
+    "@capacitor/android": "^8.0.0",
     "@capacitor/app": "^8.0.0",
     "@capacitor/camera": "^8.0.0",
-    "@capacitor/cli": "^8.0.1",
-    "@capacitor/core": "^8.0.1",
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
     "@capacitor/geolocation": "^8.0.0",
     "@capacitor/network": "^8.0.0",
     "@capacitor/preferences": "^8.0.0",
@@ -109,7 +109,7 @@
     "vite": "^7.3.1"
   },
   "overrides": {
-    "tar": "^7.5.4",
+    "tar": "^6.1.11",
     "lodash": "^4.17.23"
   }
 }

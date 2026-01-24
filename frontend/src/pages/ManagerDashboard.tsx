@@ -34,11 +34,13 @@ import { toast } from "sonner";
 import { NotificationBell } from "@/components/common/NotificationBell";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTranslation } from "react-i18next";
+import { UnauthorizedError } from "@/lib/api";
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
   const { hasPermission } = usePermissions();
   const { role } = useAppSelector((state) => state.auth);
+  const { t } = useTranslation();
   const [projectOverview, setProjectOverview] = useState<any[]>([]);
   const [healthScore, setHealthScore] = useState(0);
   const [healthScores, setHealthScores] = useState<Array<{ projectId: string; projectName: string; healthScore: number }>>([]);
@@ -314,14 +316,24 @@ export default function ManagerDashboard() {
         setRecentInvoices([]);
       }
 
-      // Load pending project invitations
+      // Load pending project invitations (only if authenticated)
       try {
-        const invitationsData = await notificationsApi.getMyInvitations();
-        console.log('Loaded invitations:', invitationsData);
-        setPendingInvitations(Array.isArray(invitationsData) ? invitationsData : []);
-      } catch (error) {
-        console.error('Error loading invitations:', error);
-        setPendingInvitations([]);
+        const token = localStorage.getItem('accessToken');
+        if (token) {
+          const invitationsData = await notificationsApi.getMyInvitations();
+          console.log('Loaded invitations:', invitationsData);
+          setPendingInvitations(Array.isArray(invitationsData) ? invitationsData : []);
+        } else {
+          setPendingInvitations([]);
+        }
+      } catch (error: any) {
+        // Silently handle 401 errors (user not authenticated)
+        if (error instanceof UnauthorizedError || error?.message?.includes('Unauthorized') || error?.message?.includes('No token')) {
+          setPendingInvitations([]);
+        } else {
+          console.error('Error loading invitations:', error);
+          setPendingInvitations([]);
+        }
       }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -381,7 +393,7 @@ export default function ManagerDashboard() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <UserPlus className="w-5 h-5 text-primary" />
-                Project Invitations ({pendingInvitations.length})
+                {t("dashboard.projectInvitations")} ({pendingInvitations.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -461,7 +473,7 @@ export default function ManagerDashboard() {
         {/* KPI Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
           <KPICard
-            title="Active Projects"
+            title={t("dashboard.activeProjects")}
             value={kpis.activeProjects}
             icon={FolderKanban}
             trend="up"
@@ -470,7 +482,7 @@ export default function ManagerDashboard() {
             onClick={() => navigate("/projects")}
           />
           <KPICard
-            title="Today's Attendance"
+            title={t("dashboard.todayAttendance")}
             value={kpis.attendance}
             suffix="%"
             icon={Users}
@@ -484,7 +496,7 @@ export default function ManagerDashboard() {
             onClick={() => navigate("/attendance-details")}
           />
           <KPICard
-            title="Pending Approvals"
+            title={t("dashboard.pendingApprovals")}
             value={kpis.pendingApprovals}
             icon={Clock}
             variant="warning"
@@ -504,9 +516,9 @@ export default function ManagerDashboard() {
         {/* Projects Overview */}
         <Card variant="gradient" className="opacity-0 animate-fade-up stagger-4">
           <CardHeader className="flex-row items-center justify-between pb-3 px-4 sm:px-6">
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-              Projects
+              {t("projects.title")}
             </CardTitle>
             <button 
               onClick={() => navigate("/projects")}
@@ -544,19 +556,21 @@ export default function ManagerDashboard() {
 
         {/* Recent DPRs - Available to all project members - ALWAYS VISIBLE */}
         <Card variant="gradient" className="opacity-0 animate-fade-up stagger-5">
-          <CardHeader className="flex-row items-center justify-between pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <FileText className="w-5 h-5 text-primary" />
-              Recent DPRs
-            </CardTitle>
-            <button 
-              onClick={() => navigate("/all-dprs")}
-              className="text-sm text-primary flex items-center gap-1"
-            >
-              View All <ChevronRight className="w-4 h-4" />
-            </button>
-          </CardHeader>
-          <CardContent className="space-y-3">
+          {role !== "owner" && (
+            <CardHeader className="flex-row items-center justify-between pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText className="w-5 h-5 text-primary" />
+                Recent DPRs
+              </CardTitle>
+              <button 
+                onClick={() => navigate("/all-dprs")}
+                className="text-sm text-primary flex items-center gap-1"
+              >
+                View All <ChevronRight className="w-4 h-4" />
+              </button>
+            </CardHeader>
+          )}
+          <CardContent className={role === "owner" ? "space-y-3 pt-4" : "space-y-3"}>
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -646,7 +660,7 @@ export default function ManagerDashboard() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5" />
-                Recent Invoices
+                {t("dashboard.recentInvoices")}
               </CardTitle>
             </CardHeader>
             <CardContent>

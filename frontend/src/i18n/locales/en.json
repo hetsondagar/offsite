@@ -166,6 +166,8 @@
   },
   "dpr": {
     "createDPR": "Create DPR",
+    "dprDetails": "DPR Details",
+    "projectAndTask": "Project & Task",
     "step1": "Select Project",
     "step2": "Select Task",
     "step3": "Add Photos",
@@ -177,6 +179,8 @@
     "addPhotos": "Add Photos",
     "workDetails": "Work Details",
     "workStoppage": "Work Stoppage",
+    "notes": "Notes",
+    "aiSummary": "AI Summary",
     "reviewSubmit": "Review & Submit",
     "notes": "Notes",
     "notesPlaceholder": "Add any additional notes...",
@@ -224,6 +228,7 @@
     "created": "Created",
     "workStoppageReported": "Work Stoppage Reported",
     "justCreated": "Just Created",
+    "allRecentDPRs": "All Recent DPRs",
     "camera": "Camera",
     "gallery": "Gallery",
     "continue": "Continue",
@@ -279,6 +284,7 @@
   },
   "materials": {
     "title": "Materials",
+    "requestAndTrack": "Request and track materials",
     "requestMaterial": "Request Material",
     "selectMaterial": "Select Material",
     "selectProject": "Select Project",
@@ -301,7 +307,8 @@
     "reject": "Reject",
     "rejectionReason": "Rejection Reason",
     "noMaterials": "No materials available",
-    "awaitingManagerApproval": "Awaiting manager approval"
+    "awaitingManagerApproval": "Awaiting manager approval",
+    "yourRequests": "Your Requests"
   },
   "tasks": {
     "title": "Tasks",
@@ -374,6 +381,11 @@
     "siteEngineers": "Site Engineers",
     "projectManagers": "Project Managers",
     "optional": "Optional",
+    "teamMembers": "Team Members",
+    "addTeamMembers": "Add Team Members",
+    "recentTasks": "Recent Tasks",
+    "recentMaterialRequests": "Recent Material Requests",
+    "recentAttendance": "Recent Attendance",
     "userAlreadyMember": "This user is already a member of this project",
     "pleaseSelectAtLeastOneMember": "Please select at least one member to add",
     "invitationsSentSuccess": "Invitations sent successfully!",
@@ -475,7 +487,8 @@
     "healthy": "Healthy",
     "atRisk": "At Risk",
     "delayRiskPredictor": "Delay Risk Predictor",
-    "aiCommand": "AI Command"
+    "aiCommand": "AI Command",
+    "projectProgress": "Project Progress"
   },
   "approvals": {
     "title": "Approvals",

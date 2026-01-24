@@ -215,7 +215,7 @@ export default function InsightsPage() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Package className="w-4 h-4 text-primary" />
-                  Pending Material Requests ({pendingMaterials.length})
+                  {t("materials.pendingRequests")} ({pendingMaterials.length})
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -287,7 +287,7 @@ export default function InsightsPage() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <AlertTriangle className="w-4 h-4 text-warning" />
-                  Material Anomalies ({materialAnomalies.length})
+                  {t("materials.anomalyDetected")} ({materialAnomalies.length})
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -317,7 +317,7 @@ export default function InsightsPage() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <BarChart3 className="w-4 h-4 text-primary" />
-                  Project Progress
+                  {t("insights.projectProgress")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="w-full overflow-x-auto">

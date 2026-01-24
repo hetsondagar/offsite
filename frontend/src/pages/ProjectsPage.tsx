@@ -54,7 +54,7 @@ export default function ProjectsPage() {
     endDate: "",
   });
   const [geoFenceCenter, setGeoFenceCenter] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [geoFenceRadius, setGeoFenceRadius] = useState<number>(200);
+  const [geoFenceRadius, setGeoFenceRadius] = useState<number>(200); // Default 200m
   const [createStep, setCreateStep] = useState<'details' | 'geofence'>('details');
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapInstance, setMapInstance] = useState<any>(null);
@@ -62,6 +62,9 @@ export default function ProjectsPage() {
   const [mapCircle, setMapCircle] = useState<any>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const MAPTILER_KEY = getMapTilerKey();
+  const [locationSearch, setLocationSearch] = useState("");
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [locationSearchResults, setLocationSearchResults] = useState<Array<{ label: string; coordinates: [number, number] }>>([]);
   const [engineerSearch, setEngineerSearch] = useState("");
   const [managerSearch, setManagerSearch] = useState("");
   const [selectedEngineers, setSelectedEngineers] = useState<Array<{ offsiteId: string; name: string }>>([]);
@@ -80,8 +83,12 @@ export default function ProjectsPage() {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
-      if (mapInstance) {
-        mapInstance.remove();
+      if (mapInstance && typeof mapInstance.remove === 'function') {
+        try {
+          mapInstance.remove();
+        } catch (error) {
+          console.warn('Error removing map instance:', error);
+        }
       }
     };
   }, []);
@@ -89,7 +96,13 @@ export default function ProjectsPage() {
   // Cleanup map when dialog closes
   useEffect(() => {
     if (!isCreateDialogOpen && mapInstance) {
-      mapInstance.remove();
+      if (typeof mapInstance.remove === 'function') {
+        try {
+          mapInstance.remove();
+        } catch (error) {
+          console.warn('Error removing map instance:', error);
+        }
+      }
       setMapInstance(null);
       setMapMarker(null);
       setMapCircle(null);
@@ -97,6 +110,8 @@ export default function ProjectsPage() {
       setCreateStep('details');
       setGeoFenceCenter(null);
       setGeoFenceRadius(200);
+      setLocationSearch("");
+      setLocationSearchResults([]);
     }
   }, [isCreateDialogOpen]);
 
@@ -248,33 +263,41 @@ export default function ProjectsPage() {
     setTimeout(() => initializeGeoFenceMap(), 100);
   };
 
-  const initializeGeoFenceMap = async () => {
+  const initializeGeoFenceMap = async (centerLat?: number, centerLon?: number) => {
     if (!mapContainerRef.current || mapInstance) return;
 
     try {
-      // Try to get user's current location for initial map center
-      let initialLat = 19.0760; // Default: Mumbai
-      let initialLon = 72.8777;
-      try {
-        const position = await getCurrentPosition({ enableHighAccuracy: false, timeout: 5000 });
-        initialLat = position.latitude;
-        initialLon = position.longitude;
-      } catch {
-        // Use default if location unavailable
-      }
+      // Use provided center or default location
+      let initialLat = centerLat ?? 19.0760; // Default: Mumbai
+      let initialLon = centerLon ?? 72.8777;
 
       // Configure MapTiler API key
       maptiler.config.apiKey = MAPTILER_KEY;
+
+      // Calculate appropriate zoom based on radius (50m to 5km range)
+      const radiusKm = geoFenceRadius / 1000;
+      let initialZoom = 16;
+      if (radiusKm >= 5) initialZoom = 12;
+      else if (radiusKm >= 2) initialZoom = 13;
+      else if (radiusKm >= 1) initialZoom = 14;
+      else if (radiusKm >= 0.5) initialZoom = 15;
+      else if (radiusKm >= 0.2) initialZoom = 16;
+      else initialZoom = 17; // For very small radii (50-200m)
 
       const map = new maptiler.Map({
         container: mapContainerRef.current,
         style: 'https://api.maptiler.com/maps/streets-v2/style.json?key=' + MAPTILER_KEY,
         center: [initialLon, initialLat],
-        zoom: 15,
+        zoom: initialZoom,
       });
 
       map.on('load', () => {
         setMapLoaded(true);
+        // If we have a center already, show it
+        if (geoFenceCenter) {
+          updateMapMarker(map, geoFenceCenter.latitude, geoFenceCenter.longitude);
+          updateMapCircle(map, geoFenceCenter.latitude, geoFenceCenter.longitude, geoFenceRadius);
+        }
         // Add click handler to drop pin
         map.on('click', (e: any) => {
           const { lng, lat } = e.lngLat;
@@ -291,8 +314,118 @@ export default function ProjectsPage() {
     }
   };
 
+  const handleUseCurrentLocation = async () => {
+    try {
+      setIsSearchingLocation(true);
+      const position = await getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
+      const lat = position.latitude;
+      const lng = position.longitude;
+      
+      setGeoFenceCenter({ latitude: lat, longitude: lng });
+      
+      // If map is already initialized, update it
+      if (mapInstance && mapLoaded) {
+        updateMapMarker(mapInstance, lat, lng);
+        updateMapCircle(mapInstance, lat, lng, geoFenceRadius);
+        // Adjust zoom based on radius (50m to 5km range)
+        const radiusKm = geoFenceRadius / 1000;
+        let zoom = 16;
+        if (radiusKm >= 5) zoom = 12;
+        else if (radiusKm >= 2) zoom = 13;
+        else if (radiusKm >= 1) zoom = 14;
+        else if (radiusKm >= 0.5) zoom = 15;
+        else if (radiusKm >= 0.2) zoom = 16;
+        else zoom = 17; // For very small radii (50-200m)
+        mapInstance.flyTo({ center: [lng, lat], zoom, duration: 1000 });
+      } else {
+        // Initialize map with current location
+        await initializeGeoFenceMap(lat, lng);
+        setGeoFenceCenter({ latitude: lat, longitude: lng });
+      }
+      
+      toast.success('Current location set');
+    } catch (error: any) {
+      console.error('Error getting current location:', error);
+      toast.error('Failed to get current location. Please enable location permissions.');
+    } finally {
+      setIsSearchingLocation(false);
+    }
+  };
+
+  const handleSearchLocation = async (query: string) => {
+    if (!query.trim()) {
+      setLocationSearchResults([]);
+      return;
+    }
+
+    try {
+      setIsSearchingLocation(true);
+      const encodedQuery = encodeURIComponent(query);
+      const response = await fetch(
+        `https://api.maptiler.com/geocoding/${encodedQuery}.json?key=${MAPTILER_KEY}&limit=5`
+      );
+
+      if (!response.ok) {
+        throw new Error('Geocoding failed');
+      }
+
+      const data = await response.json();
+      if (data.features && data.features.length > 0) {
+        const results = data.features.map((feature: any) => ({
+          label: feature.properties?.label || feature.place_name || 'Unknown location',
+          coordinates: feature.geometry.coordinates as [number, number],
+        }));
+        setLocationSearchResults(results);
+      } else {
+        setLocationSearchResults([]);
+        toast.error('No locations found');
+      }
+    } catch (error: any) {
+      console.error('Error searching location:', error);
+      toast.error('Failed to search location');
+      setLocationSearchResults([]);
+    } finally {
+      setIsSearchingLocation(false);
+    }
+  };
+
+  const handleSelectLocation = (coordinates: [number, number], label: string) => {
+    const [lng, lat] = coordinates;
+    setGeoFenceCenter({ latitude: lat, longitude: lng });
+    setLocationSearch("");
+    setLocationSearchResults([]);
+    
+    // If map is already initialized, update it
+    if (mapInstance && mapLoaded) {
+      updateMapMarker(mapInstance, lat, lng);
+      updateMapCircle(mapInstance, lat, lng, geoFenceRadius);
+      // Adjust zoom based on radius (50m to 5km range)
+      const radiusKm = geoFenceRadius / 1000;
+      let zoom = 16;
+      if (radiusKm >= 5) zoom = 12;
+      else if (radiusKm >= 2) zoom = 13;
+      else if (radiusKm >= 1) zoom = 14;
+      else if (radiusKm >= 0.5) zoom = 15;
+      else if (radiusKm >= 0.2) zoom = 16;
+      else zoom = 17; // For very small radii (50-200m)
+      mapInstance.flyTo({ center: [lng, lat], zoom, duration: 1000 });
+    } else {
+      // Initialize map with selected location
+      initializeGeoFenceMap(lat, lng);
+      setGeoFenceCenter({ latitude: lat, longitude: lng });
+    }
+    
+    toast.success(`Location set: ${label}`);
+  };
+
   const updateMapMarker = (map: any, lat: number, lng: number) => {
-    if (mapMarker) mapMarker.remove();
+    if (mapMarker && typeof mapMarker.remove === 'function') {
+      try {
+        mapMarker.remove();
+      } catch (error) {
+        console.warn('Error removing map marker:', error);
+      }
+    }
     const marker = new maptiler.Marker({ color: '#3b82f6' })
       .setLngLat([lng, lat])
       .addTo(map);
@@ -300,10 +433,18 @@ export default function ProjectsPage() {
   };
 
   const updateMapCircle = (map: any, lat: number, lng: number, radius: number) => {
-    if (mapCircle) mapCircle.remove();
+    // Ensure radius is at least 50m (minimum allowed)
+    if (radius < 50) {
+      radius = 50;
+    }
+
+    // Note: mapCircle is a boolean flag, not an object with remove() method
+    // The circle is managed through map layers/sources
     // Create circle using GeoJSON (MapTiler doesn't have built-in circle, use polygon approximation)
-    const points = 64;
+    // Use more points for larger circles to ensure smooth appearance
+    const points = radius > 10000 ? 128 : 64;
     const circleCoords: [number, number][] = [];
+    
     for (let i = 0; i <= points; i++) {
       const angle = (i * 360) / points;
       const dx = (radius / 111320) * Math.cos((angle * Math.PI) / 180);
@@ -312,24 +453,20 @@ export default function ProjectsPage() {
     }
     circleCoords.push(circleCoords[0]); // Close the polygon
 
+    const geojsonData = {
+      type: 'Feature',
+      geometry: {
+        type: 'Polygon',
+        coordinates: [circleCoords],
+      },
+    };
+
     if (map.getSource('geofence-circle')) {
-      map.getSource('geofence-circle').setData({
-        type: 'Feature',
-        geometry: {
-          type: 'Polygon',
-          coordinates: [circleCoords],
-        },
-      });
+      map.getSource('geofence-circle').setData(geojsonData);
     } else {
       map.addSource('geofence-circle', {
         type: 'geojson',
-        data: {
-          type: 'Feature',
-          geometry: {
-            type: 'Polygon',
-            coordinates: [circleCoords],
-          },
-        },
+        data: geojsonData,
       });
       map.addLayer({
         id: 'geofence-circle',
@@ -337,7 +474,7 @@ export default function ProjectsPage() {
         source: 'geofence-circle',
         paint: {
           'fill-color': '#3b82f6',
-          'fill-opacity': 0.2,
+          'fill-opacity': 0.25,
         },
       });
       map.addLayer({
@@ -346,10 +483,27 @@ export default function ProjectsPage() {
         source: 'geofence-circle',
         paint: {
           'line-color': '#3b82f6',
-          'line-width': 2,
+          'line-width': 3,
         },
       });
     }
+    
+    // Adjust zoom to fit the circle (50m to 5km range)
+    const radiusKm = radius / 1000;
+    let targetZoom = 16;
+    if (radiusKm >= 5) targetZoom = 12;
+    else if (radiusKm >= 2) targetZoom = 13;
+    else if (radiusKm >= 1) targetZoom = 14;
+    else if (radiusKm >= 0.5) targetZoom = 15;
+    else if (radiusKm >= 0.2) targetZoom = 16;
+    else targetZoom = 17; // For very small radii (50-200m)
+    
+    // Smoothly zoom to fit the circle
+    const currentZoom = map.getZoom();
+    if (Math.abs(currentZoom - targetZoom) > 1) {
+      map.flyTo({ center: [lng, lat], zoom: targetZoom, duration: 500 });
+    }
+    
     setMapCircle(true);
   };
 
@@ -359,6 +513,8 @@ export default function ProjectsPage() {
       updateMapCircle(mapInstance, geoFenceCenter.latitude, geoFenceCenter.longitude, geoFenceRadius);
     }
   }, [geoFenceRadius, geoFenceCenter, mapInstance, mapLoaded]);
+
+  // Note: Radius can be 50m to 5km
 
   const handleCreateProject = async () => {
     if (!newProject.name || !newProject.location || !newProject.startDate) {
@@ -405,8 +561,16 @@ export default function ProjectsPage() {
       setGeoFenceCenter(null);
       setGeoFenceRadius(200);
       setCreateStep('details');
+      setLocationSearch("");
+      setLocationSearchResults([]);
       if (mapInstance) {
-        mapInstance.remove();
+        if (typeof mapInstance.remove === 'function') {
+          try {
+            mapInstance.remove();
+          } catch (error) {
+            console.warn('Error removing map instance:', error);
+          }
+        }
         setMapInstance(null);
         setMapMarker(null);
         setMapCircle(null);
@@ -890,9 +1054,71 @@ export default function ProjectsPage() {
                   <>
                     <div className="space-y-3">
                       <p className="text-sm text-muted-foreground">
-                        Click on the map to set the project site center. This defines the geo-fence for attendance.
+                        Set the project site location and geo-fence radius. You can use your current location or search for an address.
                       </p>
                       
+                      {/* Location Selection */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-foreground">
+                          Location
+                        </Label>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleUseCurrentLocation}
+                            disabled={isSearchingLocation}
+                            className="flex-1"
+                          >
+                            {isSearchingLocation ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Getting location...
+                              </>
+                            ) : (
+                              <>
+                                <MapPin className="w-4 h-4 mr-2" />
+                                Use Current Location
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                        
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search for location (e.g., address, city)"
+                            value={locationSearch}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setLocationSearch(value);
+                              if (value.trim().length > 2) {
+                                handleSearchLocation(value);
+                              } else {
+                                setLocationSearchResults([]);
+                              }
+                            }}
+                            className="bg-background text-foreground pl-10"
+                          />
+                        </div>
+                        
+                        {/* Location Search Results */}
+                        {locationSearchResults.length > 0 && (
+                          <div className="mt-2 p-2 bg-muted rounded-lg border border-border max-h-40 overflow-y-auto">
+                            {locationSearchResults.map((result, index) => (
+                              <div
+                                key={index}
+                                className="flex items-center justify-between p-2 hover:bg-background rounded cursor-pointer"
+                                onClick={() => handleSelectLocation(result.coordinates, result.label)}
+                              >
+                                <p className="text-sm">{result.label}</p>
+                                <MapPin className="w-4 h-4 text-muted-foreground" />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
                       {/* Map Container */}
                       <div className="relative w-full h-64 rounded-lg overflow-hidden border border-border">
                         <div ref={mapContainerRef} className="w-full h-full" />
@@ -902,34 +1128,45 @@ export default function ProjectsPage() {
                           </div>
                         )}
                       </div>
+                      
+                      <p className="text-xs text-muted-foreground">
+                        Click on the map to set the project site center, or use the location options above.
+                      </p>
 
                       {/* Radius Selector */}
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground">
-                          Geo-fence Radius: {geoFenceRadius}m
+                          Geo-fence Radius: {geoFenceRadius < 1000 ? `${geoFenceRadius} m` : (geoFenceRadius / 1000).toFixed(2) + ' km'}
                         </Label>
                         <Slider
                           value={[geoFenceRadius]}
-                          onValueChange={(vals) => setGeoFenceRadius(vals[0])}
+                          onValueChange={(vals) => {
+                            const newRadius = vals[0];
+                            setGeoFenceRadius(newRadius);
+                            // Update circle if center is already set
+                            if (geoFenceCenter && mapInstance && mapLoaded) {
+                              updateMapCircle(mapInstance, geoFenceCenter.latitude, geoFenceCenter.longitude, newRadius);
+                            }
+                          }}
                           min={50}
-                          max={500}
-                          step={10}
+                          max={5000}
+                          step={50}
                           className="w-full"
                         />
                         <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>50m</span>
-                          <span>500m</span>
+                          <span>50 m</span>
+                          <span>5 km</span>
                         </div>
                       </div>
 
                       {geoFenceCenter && (
                         <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
-                          <p className="text-sm font-medium text-foreground">Site Location Set</p>
+                          <p className="text-sm font-medium text-foreground">✓ Site Location Set</p>
                           <p className="text-xs text-muted-foreground mt-1">
                             Lat: {geoFenceCenter.latitude.toFixed(6)}, Lng: {geoFenceCenter.longitude.toFixed(6)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Radius: {geoFenceRadius}m (with {20}m buffer)
+                            Radius: {geoFenceRadius < 1000 ? `${geoFenceRadius} m` : (geoFenceRadius / 1000).toFixed(2) + ' km'} (with {20}m buffer)
                           </p>
                         </div>
                       )}
@@ -963,8 +1200,16 @@ export default function ProjectsPage() {
                       variant="outline"
                       onClick={() => {
                         setCreateStep('details');
+                        setLocationSearch("");
+                        setLocationSearchResults([]);
                         if (mapInstance) {
-                          mapInstance.remove();
+                          if (typeof mapInstance.remove === 'function') {
+                            try {
+                              mapInstance.remove();
+                            } catch (error) {
+                              console.warn('Error removing map instance:', error);
+                            }
+                          }
                           setMapInstance(null);
                           setMapMarker(null);
                           setMapCircle(null);

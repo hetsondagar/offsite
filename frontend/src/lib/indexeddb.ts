@@ -119,11 +119,22 @@ interface OffSiteDB extends DBSchema {
       timestamp: number;
     };
   };
+  lastKnownLocation: {
+    key: string; // 'current' - single record
+    value: {
+      key: string;
+      latitude: number;
+      longitude: number;
+      address?: string;
+      accuracy?: number;
+      timestamp: number; // When this location was captured
+    };
+  };
 }
 
 let dbInstance: IDBPDatabase<OffSiteDB> | null = null;
 
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 100; // Initial delay, doubles on each retry
 
@@ -209,6 +220,9 @@ export async function getDB(): Promise<IDBPDatabase<OffSiteDB>> {
         }
         if (!db.objectStoreNames.contains('geoFences')) {
           db.createObjectStore('geoFences', { keyPath: 'projectId' });
+        }
+        if (!db.objectStoreNames.contains('lastKnownLocation')) {
+          db.createObjectStore('lastKnownLocation', { keyPath: 'key' });
         }
       },
       blocked() {
@@ -571,5 +585,55 @@ export async function getAllCachedGeoFences(): Promise<GeoFenceCache[]> {
   }).catch((e) => {
     console.warn('Failed to get cached geo-fences:', e);
     return [];
+  });
+}
+
+// ----- Last Known Location (for offline check-in/check-out) -----
+
+export interface LastKnownLocation {
+  key: string;
+  latitude: number;
+  longitude: number;
+  address?: string;
+  accuracy?: number;
+  timestamp: number;
+}
+
+/**
+ * Save last known location for offline use
+ */
+export async function saveLastKnownLocation(
+  latitude: number,
+  longitude: number,
+  address?: string,
+  accuracy?: number
+): Promise<void> {
+  return withRetry(async () => {
+    const db = await getDB();
+    if (!db.objectStoreNames.contains('lastKnownLocation')) return;
+    await db.put('lastKnownLocation', {
+      key: 'current',
+      latitude,
+      longitude,
+      address,
+      accuracy,
+      timestamp: Date.now(),
+    });
+  }).catch((e) => {
+    console.warn('Failed to save last known location:', e);
+  });
+}
+
+/**
+ * Get last known location for offline use
+ */
+export async function getLastKnownLocation(): Promise<LastKnownLocation | null> {
+  return withRetry(async () => {
+    const db = await getDB();
+    if (!db.objectStoreNames.contains('lastKnownLocation')) return null;
+    return await db.get('lastKnownLocation', 'current') || null;
+  }).catch((e) => {
+    console.warn('Failed to get last known location:', e);
+    return null;
   });
 }
