@@ -82,9 +82,13 @@ export default function ContractorAttendancePage() {
         setIsCapturingLocation(false);
       }
 
-      // Process face recognition if labours are loaded
+      // Process face recognition if labours are loaded (wait a bit for photo to be ready)
       if (labours.length > 0) {
-        await processFaceRecognition(photo);
+        setTimeout(() => {
+          processFaceRecognition(photo).catch(err => {
+            console.error("Face recognition error:", err);
+          });
+        }, 200);
       }
     } catch (error: any) {
       console.error("Failed to capture photo:", error);
@@ -95,6 +99,7 @@ export default function ContractorAttendancePage() {
   const processFaceRecognition = async (photoUrl: string) => {
     try {
       setIsProcessingFace(true);
+      toast.info("Processing faces in photo...");
       
       // Get labours with face embeddings
       const laboursWithFaces = labours.filter(l => l.faceEmbedding && l.faceEmbedding.length > 0);
@@ -105,29 +110,37 @@ export default function ContractorAttendancePage() {
         return;
       }
 
+      console.log(`Processing face recognition for ${laboursWithFaces.length} labours with registered faces`);
+
+      // Wait a bit for image to be ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       // Create image element
       const img = await createImageElement(photoUrl);
+      console.log("Image element created for attendance, dimensions:", img.width, "x", img.height);
       
       // Detect all faces in the group photo
       const detectedFaceEmbeddings = await detectAllFaces(img);
       
       if (detectedFaceEmbeddings.length === 0) {
-        toast.warning("No faces detected in the photo. Please ensure faces are visible.");
+        toast.warning("No faces detected in the photo. Please ensure:\n- Faces are clearly visible\n- Good lighting\n- Try taking the photo again");
         setDetectedFaces([]);
         return;
       }
 
+      console.log(`Detected ${detectedFaceEmbeddings.length} face(s) in group photo`);
+
       // Create map of labourId -> face embedding
       const labourEmbeddings = new Map<string, number[]>();
       laboursWithFaces.forEach(labour => {
-        if (labour.faceEmbedding) {
+        if (labour.faceEmbedding && labour.faceEmbedding.length > 0) {
           labourEmbeddings.set(labour._id, labour.faceEmbedding);
         }
       });
 
-      // Match detected faces with saved embeddings
+      // Match detected faces with saved embeddings (lower threshold for better matching)
       const detectedEmbeddings = detectedFaceEmbeddings.map(f => f.embedding);
-      const matches = matchFaces(detectedEmbeddings, labourEmbeddings, 0.6); // 0.6 similarity threshold
+      const matches = matchFaces(detectedEmbeddings, labourEmbeddings, 0.5); // 0.5 similarity threshold (more lenient)
 
       // Get matched labour IDs
       const matchedLabourIds = Array.from(matches.keys());
@@ -136,14 +149,18 @@ export default function ContractorAttendancePage() {
       // Auto-select matched labours
       setSelectedLabours(matchedLabourIds);
       
-      toast.success(`Detected ${matchedLabourIds.length} of ${laboursWithFaces.length} registered labours`);
+      if (matchedLabourIds.length > 0) {
+        toast.success(`✓ Detected ${matchedLabourIds.length} of ${laboursWithFaces.length} registered labours`);
+      } else {
+        toast.warning("No faces matched. You can manually select labours.");
+      }
       
-      if (matchedLabourIds.length < laboursWithFaces.length) {
-        toast.info("Some labours were not detected. You can manually select them.");
+      if (matchedLabourIds.length < laboursWithFaces.length && matchedLabourIds.length > 0) {
+        toast.info(`${laboursWithFaces.length - matchedLabourIds.length} labour(s) not detected. You can manually select them.`);
       }
     } catch (error: any) {
       console.error("Face recognition error:", error);
-      toast.error("Face recognition failed. You can manually select labours.");
+      toast.error(`Face recognition failed: ${error.message || 'Unknown error'}. You can manually select labours.`);
       setDetectedFaces([]);
     } finally {
       setIsProcessingFace(false);

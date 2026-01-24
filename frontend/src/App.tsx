@@ -13,6 +13,7 @@ import { setOnlineStatus } from "./store/slices/offlineSlice";
 import { getNetworkStatus, addNetworkListener } from "@/lib/network";
 import { scheduleSync } from "@/lib/syncEngine";
 import { initAppLifecycle } from "@/lib/appLifecycle";
+import { preloadFaceModels } from "@/lib/face-recognition";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -140,6 +141,11 @@ function AppContent() {
 
     const interval = setInterval(initialCheck, 30000);
     const cleanupLifecycle = initAppLifecycle();
+
+    // Preload face recognition models in background
+    preloadFaceModels().catch(err => {
+      console.warn('Face models preload failed, will retry on first use:', err);
+    });
 
     return () => {
       removeNetworkListener();

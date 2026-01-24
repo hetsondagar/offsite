@@ -49,26 +49,34 @@ export default function ContractorLaboursPage() {
 
   const handleCapturePhoto = async () => {
     try {
+      setIsProcessingFace(true);
+      
       // Capture photo
       const photo = await takePhoto({ source: 'camera' });
       setFaceImageUrl(photo);
+      toast.info("Processing face...");
+      
+      // Wait a bit for image to be ready
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Extract face embedding
-      setIsProcessingFace(true);
       try {
+        console.log("Starting face extraction for photo:", photo.substring(0, 50));
         const img = await createImageElement(photo);
+        console.log("Image element created, dimensions:", img.width, "x", img.height);
+        
         const embedding = await extractFaceEmbedding(img);
         
-        if (embedding) {
+        if (embedding && embedding.length > 0) {
           setFaceEmbedding(embedding);
-          toast.success("Photo captured and face registered!");
+          toast.success(`Face detected and registered! (${embedding.length} dimensions)`);
         } else {
-          toast.warning("Photo captured but no face detected. Please ensure face is clearly visible.");
+          toast.warning("No face detected. Please ensure:\n- Face is clearly visible\n- Good lighting\n- Face is not too far or too close");
           setFaceEmbedding(null);
         }
       } catch (error: any) {
         console.error("Face extraction error:", error);
-        toast.error("Failed to extract face. Please try again.");
+        toast.error(`Face extraction failed: ${error.message || 'Unknown error'}. Please try again.`);
         setFaceEmbedding(null);
       } finally {
         setIsProcessingFace(false);
@@ -77,6 +85,7 @@ export default function ContractorLaboursPage() {
       console.error("Photo capture error:", error);
       toast.error(error.message || "Failed to capture photo");
       setFaceEmbedding(null);
+      setIsProcessingFace(false);
     }
   };
 
