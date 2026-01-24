@@ -134,6 +134,16 @@ export const createProject = async (
       }
     }
 
+    // Also add contractor to the project members list so /api/projects works for contractors
+    if (!project.members.includes(contractorUser._id as any)) {
+      project.members.push(contractorUser._id as any);
+      await project.save();
+    }
+    // And ensure contractor user profile lists the project
+    await User.findByIdAndUpdate(contractorUser._id, {
+      $addToSet: { assignedProjects: project._id },
+    });
+
     // Find and assign Purchase Manager
     const purchaseManagerUser = await User.findOne({
       offsiteId: { $regex: new RegExp(`^${data.purchaseManagerOffsiteId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
@@ -307,12 +317,24 @@ export const getProjects = async (
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    // Security: Owner sees only their projects; PM/SE see only projects they are members of
+    // Security: Owner sees only their projects.
+    // Engineer/Manager/Purchase Manager see only projects they are members of.
+    // Contractor sees projects where they are a member OR are assigned via Contractor profile.
+    const userObjectId = new mongoose.Types.ObjectId(req.user.userId);
     const query: any = {};
+
     if (req.user.role === 'owner') {
-      query.owner = new mongoose.Types.ObjectId(req.user.userId);
+      query.owner = userObjectId;
+    } else if (req.user.role === 'contractor') {
+      // Backward compatibility: some older projects may not include contractor in members.
+      const contractor = await Contractor.findOne({ userId: userObjectId }).select('assignedProjects');
+      const assignedProjectIds = (contractor?.assignedProjects || []).map((id: any) => new mongoose.Types.ObjectId(id));
+      query.$or = [
+        { members: userObjectId },
+        ...(assignedProjectIds.length ? [{ _id: { $in: assignedProjectIds } }] : []),
+      ];
     } else {
-      query.members = new mongoose.Types.ObjectId(req.user.userId);
+      query.members = userObjectId;
     }
 
     const [projects, total] = await Promise.all([
@@ -375,6 +397,15 @@ export const getProjectById = async (
       (member: any) => member._id?.toString() === userId || member.toString() === userId
     );
 
+    // Contractors may be assigned via Contractor profile (older data), even if not in members
+    let isAssignedContractor = false;
+    if (req.user.role === 'contractor' && !isMember) {
+      const contractor = await Contractor.findOne({ userId: req.user.userId }).select('assignedProjects');
+      isAssignedContractor = (contractor?.assignedProjects || []).some(
+        (pid: any) => pid?.toString?.() === id
+      );
+    }
+
     if (req.user.role === 'owner') {
       if (!isProjectOwner) {
         throw new AppError(
@@ -383,7 +414,7 @@ export const getProjectById = async (
           'FORBIDDEN'
         );
       }
-    } else if (!isMember) {
+    } else if (!isMember && !isAssignedContractor) {
       throw new AppError(
         'Access denied. You must be a team member to view this project.',
         403,

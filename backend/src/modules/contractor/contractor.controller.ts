@@ -181,6 +181,27 @@ export const assignContractorToProject = async (
 
     await contractor.save();
 
+    // Ensure contractor user can see the project in /api/projects (members-based)
+    // and in their profile (assignedProjects)
+    try {
+      await Project.findByIdAndUpdate(
+        data.projectId,
+        { $addToSet: { members: contractorUser._id } },
+        { new: false }
+      );
+      await User.findByIdAndUpdate(
+        contractorUser._id,
+        { $addToSet: { assignedProjects: data.projectId as any } },
+        { new: false }
+      );
+    } catch (e) {
+      logger.warn('Failed to sync contractor membership/assignedProjects', {
+        err: (e as Error).message,
+        projectId: data.projectId,
+        contractorUserId: contractorUser._id?.toString?.() ?? contractorUser._id,
+      });
+    }
+
     // Populate and return
     await contractor.populate('userId', 'name email phone offsiteId');
     await contractor.populate('assignedProjects', 'name location');
