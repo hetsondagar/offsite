@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from '@/lib/api';
+import { apiGet, apiPost, apiPatch, apiPut, apiDelete, redirectToLogin } from '@/lib/api';
 
 export interface BillingPeriod {
   from: string;
@@ -113,8 +113,7 @@ export const invoicesApi = {
 
     if (!response.ok) {
       if (response.status === 401) {
-        localStorage.removeItem('accessToken');
-        window.location.href = '/';
+        redirectToLogin();
         throw new Error('Session expired. Please log in again.');
       }
       throw new Error('Failed to download invoice PDF');
