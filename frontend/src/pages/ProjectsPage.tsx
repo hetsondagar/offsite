@@ -263,18 +263,35 @@ export default function ProjectsPage() {
 
       // Load MapTiler SDK if not already loaded
       if (!window.maptilerSdk && !window.maptiler) {
+        // Use jsDelivr CDN which has better MIME type handling
         const script = document.createElement('script');
-        script.src = `https://unpkg.com/@maptiler/sdk@latest/dist/maptiler-sdk.umd.js`;
+        script.type = 'text/javascript';
+        script.src = `https://cdn.jsdelivr.net/npm/@maptiler/sdk@3.10.2/dist/maptiler-sdk.umd.js`;
         script.async = true;
-        await new Promise((resolve, reject) => {
-          script.onload = resolve;
-          script.onerror = reject;
+        script.crossOrigin = 'anonymous';
+        
+        await new Promise<void>((resolve, reject) => {
+          script.onload = () => {
+            // Wait a bit for the SDK to initialize on window
+            setTimeout(() => {
+              if (window.maptilerSdk || window.maptiler) {
+                resolve();
+              } else {
+                reject(new Error('MapTiler SDK loaded but not available on window'));
+              }
+            }, 100);
+          };
+          script.onerror = (error) => {
+            console.error('MapTiler SDK script load error:', error);
+            reject(new Error('Failed to load MapTiler SDK script'));
+          };
           document.head.appendChild(script);
         });
 
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/@maptiler/sdk@latest/dist/maptiler-sdk.css';
+        link.href = 'https://cdn.jsdelivr.net/npm/@maptiler/sdk@3.10.2/dist/maptiler-sdk.css';
+        link.crossOrigin = 'anonymous';
         document.head.appendChild(link);
       }
 

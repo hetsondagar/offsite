@@ -186,31 +186,37 @@ export default function AttendancePage() {
         return;
       }
 
-      // Load MapTiler SDK from CDN (more reliable than GL JS)
+      // Load MapTiler SDK from CDN (use jsDelivr for better MIME type handling)
       const script = document.createElement('script');
-      script.src = `https://unpkg.com/@maptiler/sdk@latest/dist/maptiler-sdk.umd.js`;
+      script.type = 'text/javascript';
+      script.src = `https://cdn.jsdelivr.net/npm/@maptiler/sdk@3.10.2/dist/maptiler-sdk.umd.js`;
+      script.async = true;
+      script.crossOrigin = 'anonymous';
       script.onload = () => {
-        // @ts-ignore
-        const maptiler = window.maptilerSdk || window.maptiler;
-        if (maptiler && mapContainerRef.current) {
+        // Wait a bit for SDK to initialize
+        setTimeout(() => {
           // @ts-ignore
-          maptiler.config.apiKey = MAPTILER_KEY;
-          // @ts-ignore
-          const map = new maptiler.Map({
-            container: mapContainerRef.current,
-            style: 'https://api.maptiler.com/maps/streets-v2/style.json?key=' + MAPTILER_KEY,
-            center: [location.longitude, location.latitude],
-            zoom: 16,
-          });
+          const maptiler = window.maptilerSdk || window.maptiler;
+          if (maptiler && mapContainerRef.current) {
+            // @ts-ignore
+            maptiler.config.apiKey = MAPTILER_KEY;
+            // @ts-ignore
+            const map = new maptiler.Map({
+              container: mapContainerRef.current,
+              style: 'https://api.maptiler.com/maps/streets-v2/style.json?key=' + MAPTILER_KEY,
+              center: [location.longitude, location.latitude],
+              zoom: 16,
+            });
 
-          // Add marker
-          // @ts-ignore
-          new maptiler.Marker({ color: '#3b82f6' })
-            .setLngLat([location.longitude, location.latitude])
-            .addTo(map);
+            // Add marker
+            // @ts-ignore
+            new maptiler.Marker({ color: '#3b82f6' })
+              .setLngLat([location.longitude, location.latitude])
+              .addTo(map);
 
-          mapInstanceRef.current = map;
-        }
+            mapInstanceRef.current = map;
+          }
+        }, 100);
       };
       script.onerror = () => {
         console.error('Failed to load MapTiler SDK');
@@ -219,8 +225,9 @@ export default function AttendancePage() {
       document.head.appendChild(script);
 
       const link = document.createElement('link');
-      link.href = 'https://unpkg.com/@maptiler/sdk@latest/dist/maptiler-sdk.css';
+      link.href = 'https://cdn.jsdelivr.net/npm/@maptiler/sdk@3.10.2/dist/maptiler-sdk.css';
       link.rel = 'stylesheet';
+      link.crossOrigin = 'anonymous';
       link.onerror = () => {
         console.error('Failed to load MapTiler SDK CSS');
       };
