@@ -21,7 +21,7 @@ const createExpenseSchema = z.object({
 });
 
 /**
- * Submit petty cash expense (Manager)
+ * Submit petty cash expense (Engineer/Manager)
  */
 export const submitExpense = async (
   req: Request,
@@ -33,8 +33,8 @@ export const submitExpense = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    if (req.user.role !== 'manager') {
-      throw new AppError('Only managers can submit petty cash expenses', 403, 'FORBIDDEN');
+    if (req.user.role !== 'manager' && req.user.role !== 'engineer') {
+      throw new AppError('Only engineers and managers can submit petty cash expenses', 403, 'FORBIDDEN');
     }
 
     const data = createExpenseSchema.parse(req.body);
@@ -80,20 +80,24 @@ export const submitExpense = async (
 
     await expense.save();
 
-    // Notify other managers in the project
-    const managers = await Project.findById(data.projectId)
-      .populate('members', 'role offsiteId _id');
-    if (managers) {
-      const otherManagers = (managers.members as any[])
-        .filter(m => m.role === 'manager' && m._id.toString() !== req.user!.userId);
-      for (const manager of otherManagers) {
+    // Notify project managers for PM approval
+    const projectWithMembers = await Project.findById(data.projectId).populate(
+      'members',
+      'role offsiteId _id'
+    );
+    if (projectWithMembers) {
+      const managersToNotify = (projectWithMembers.members as any[]).filter(
+        m => m.role === 'manager' && m._id.toString() !== req.user!.userId
+      );
+
+      for (const manager of managersToNotify) {
         try {
           await createNotification({
             userId: manager._id.toString(),
             offsiteId: manager.offsiteId,
             type: 'general',
-            title: 'Petty Cash Expense Submitted',
-            message: `New expense: ₹${data.amount} - ${data.category}`,
+            title: 'Reimbursement Approval Required',
+            message: `New reimbursement: ₹${data.amount} - ${data.category}`,
             data: { expenseId: expense._id.toString() },
           });
         } catch (e) {
