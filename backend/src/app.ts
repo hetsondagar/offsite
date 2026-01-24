@@ -107,14 +107,26 @@ app.use(
       const allowedOrigins = getAllowedOrigins();
       const normalizedOrigin = origin.replace(/\/+$/, '');
       
+      // Allow explicit matches
       if (allowedOrigins.includes(normalizedOrigin)) {
-        callback(null, true);
-      } else {
-        // Log for debugging
-        console.warn(`CORS blocked origin: ${origin} (normalized: ${normalizedOrigin})`);
-        console.warn(`Allowed origins: ${allowedOrigins.join(', ')}`);
-        callback(new Error('Not allowed by CORS'));
+        return callback(null, true);
       }
+
+      // Allow Vercel preview domains (e.g. *.vercel.app) used by deployments/previews
+      try {
+        const vercelRegex = /^https:\/\/[-a-z0-9]+\.vercel\.app$/i;
+        if (vercelRegex.test(normalizedOrigin)) {
+          console.info(`CORS: allowing vercel origin ${normalizedOrigin}`);
+          return callback(null, true);
+        }
+      } catch (e) {
+        // ignore regex errors
+      }
+
+      // Not allowed
+      console.warn(`CORS blocked origin: ${origin} (normalized: ${normalizedOrigin})`);
+      console.warn(`Allowed origins: ${allowedOrigins.join(', ')}`);
+      callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
