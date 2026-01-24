@@ -118,11 +118,18 @@ export default function Signup() {
 
       if (String(errorMessage).includes('Failed to fetch') || String(errorMessage).includes('ERR_CONNECTION_REFUSED')) {
         errorMessage = 'Cannot reach backend API. Start the backend on http://localhost:3000 (and MongoDB), then try again.';
-      }
-      
-      // Handle specific error codes
-      if (errorMessage.includes('already exists') || errorMessage.includes('409')) {
+      } else if (
+        errorMessage.toLowerCase().includes('email') && 
+        (errorMessage.includes('already exists') || errorMessage.includes('already registered'))
+      ) {
         errorMessage = 'This email is already registered. Please login instead.';
+      } else if (
+        errorMessage.toLowerCase().includes('phone') && 
+        errorMessage.includes('already exists')
+      ) {
+        errorMessage = 'This phone number is already registered. Use a different number or leave it empty.';
+      } else if (errorMessage.includes('already exists') || errorMessage.includes('409')) {
+        errorMessage = 'Signup failed. Please try again.';
       } else if (errorMessage.includes('Validation error')) {
         errorMessage = 'Please check your input fields and try again.';
       } else if (errorMessage.includes('500') || errorMessage.includes('Internal Server Error')) {
