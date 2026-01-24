@@ -172,7 +172,7 @@ export default function ToolsPage() {
 
                     {tool.status === 'ISSUED' && (
                       <div className="text-sm text-muted-foreground mb-3">
-                        <p>👤 Holder: {tool.currentHolderName}</p>
+                        <p>👤 Holder: {tool.currentHolderName || tool.currentLabourName || 'N/A'}</p>
                         <p>📍 Project: {tool.currentProjectId?.name || 'N/A'}</p>
                       </div>
                     )}

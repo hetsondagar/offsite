@@ -18,6 +18,7 @@ export interface Tool {
   status: 'AVAILABLE' | 'ISSUED';
   currentHolderWorkerId?: any;
   currentHolderName?: string;
+  currentLabourName?: string;
   currentProjectId?: any;
   issuedAt?: string;
   history: ToolHistory[];
