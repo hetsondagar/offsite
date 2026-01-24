@@ -13,7 +13,7 @@ const signupSchema = z.object({
   email: z.string().email('Please provide a valid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   name: z.string().min(2, 'Name must be at least 2 characters').max(100, 'Name must be less than 100 characters'),
-  role: z.enum(['engineer', 'manager', 'owner']),
+  role: z.enum(['engineer', 'manager', 'owner', 'purchase_manager', 'contractor']),
   phone: z.string().optional().transform((val) => (val && val.trim().length > 0 ? val.trim() : undefined)),
 });
 
