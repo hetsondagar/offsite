@@ -42,6 +42,7 @@ const assignContractorSchema = z.object({
 const createLabourSchema = z.object({
   name: z.string().min(1),
   faceImageUrl: z.string().optional(),
+  faceEmbedding: z.array(z.number()).optional(), // Face embedding array
   projectId: z.string(),
 });
 
@@ -250,8 +251,10 @@ export const registerLabour = async (
     // Generate labour code
     const code = await generateLabourCode(contractor._id.toString());
 
-    // Generate dummy embedding (MVP - replace with face-api.js later)
-    const faceEmbedding = data.faceImageUrl ? generateDummyEmbedding() : undefined;
+    // Use provided face embedding or generate dummy (for backward compatibility)
+    const faceEmbedding = data.faceEmbedding && data.faceEmbedding.length > 0 
+      ? data.faceEmbedding 
+      : (data.faceImageUrl ? generateDummyEmbedding() : undefined);
 
     const labour = new Labour({
       contractorId: contractor._id,

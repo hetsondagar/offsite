@@ -2,7 +2,7 @@
  * Face Recognition Utility using face-api.js
  * Handles face detection and embedding extraction for labour attendance
  */
-
+const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
 // Face-api.js types
 interface FaceDetection {
   detection: {
