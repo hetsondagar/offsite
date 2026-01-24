@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { NotificationBell } from "@/components/common/NotificationBell";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTranslation } from "react-i18next";
+import { UnauthorizedError } from "@/lib/api";
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
@@ -314,14 +315,24 @@ export default function ManagerDashboard() {
         setRecentInvoices([]);
       }
 
-      // Load pending project invitations
+      // Load pending project invitations (only if authenticated)
       try {
-        const invitationsData = await notificationsApi.getMyInvitations();
-        console.log('Loaded invitations:', invitationsData);
-        setPendingInvitations(Array.isArray(invitationsData) ? invitationsData : []);
-      } catch (error) {
-        console.error('Error loading invitations:', error);
-        setPendingInvitations([]);
+        const token = localStorage.getItem('accessToken');
+        if (token) {
+          const invitationsData = await notificationsApi.getMyInvitations();
+          console.log('Loaded invitations:', invitationsData);
+          setPendingInvitations(Array.isArray(invitationsData) ? invitationsData : []);
+        } else {
+          setPendingInvitations([]);
+        }
+      } catch (error: any) {
+        // Silently handle 401 errors (user not authenticated)
+        if (error instanceof UnauthorizedError || error?.message?.includes('Unauthorized') || error?.message?.includes('No token')) {
+          setPendingInvitations([]);
+        } else {
+          console.error('Error loading invitations:', error);
+          setPendingInvitations([]);
+        }
       }
     } catch (error) {
       console.error('Error loading dashboard data:', error);

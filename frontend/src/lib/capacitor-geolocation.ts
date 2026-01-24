@@ -5,6 +5,7 @@
 
 import { Geolocation } from '@capacitor/geolocation';
 import { isNative } from './capacitor';
+import { saveLastKnownLocation } from './indexeddb';
 
 export interface LocationData {
   latitude: number;
@@ -70,7 +71,7 @@ export async function getCurrentPosition(
         throw new Error('Invalid position data received');
       }
 
-      return {
+      const locationData = {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         accuracy: position.coords.accuracy,
@@ -79,6 +80,18 @@ export async function getCurrentPosition(
         heading: position.coords.heading ?? null,
         speed: position.coords.speed ?? null,
       };
+      
+      // Save last known location for offline use (don't await to avoid blocking)
+      saveLastKnownLocation(
+        locationData.latitude,
+        locationData.longitude,
+        undefined,
+        locationData.accuracy
+      ).catch(() => {
+        // Silent fail - saving last known location is non-critical
+      });
+      
+      return locationData;
     } catch (error: any) {
       // Re-throw with proper error code
       if (error.message?.includes('permission') || error.message?.includes('Permission')) {
@@ -106,7 +119,7 @@ export async function getCurrentPosition(
 
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          resolve({
+          const locationData = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
             accuracy: position.coords.accuracy,
@@ -114,7 +127,19 @@ export async function getCurrentPosition(
             altitudeAccuracy: position.coords.altitudeAccuracy ?? null,
             heading: position.coords.heading ?? null,
             speed: position.coords.speed ?? null,
+          };
+          
+          // Save last known location for offline use (don't await to avoid blocking)
+          saveLastKnownLocation(
+            locationData.latitude,
+            locationData.longitude,
+            undefined,
+            locationData.accuracy
+          ).catch(() => {
+            // Silent fail - saving last known location is non-critical
           });
+          
+          resolve(locationData);
         },
         reject,
         options
@@ -156,7 +181,7 @@ export async function watchPosition(
             errorCallback?.(err);
             return;
           }
-          callback({
+          const locationData = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
             accuracy: position.coords.accuracy,
@@ -164,7 +189,19 @@ export async function watchPosition(
             altitudeAccuracy: position.coords.altitudeAccuracy ?? null,
             heading: position.coords.heading ?? null,
             speed: position.coords.speed ?? null,
+          };
+          
+          // Save last known location for offline use (don't await to avoid blocking)
+          saveLastKnownLocation(
+            locationData.latitude,
+            locationData.longitude,
+            undefined,
+            locationData.accuracy
+          ).catch(() => {
+            // Silent fail - saving last known location is non-critical
           });
+          
+          callback(locationData);
         }
       );
       return watchId;
@@ -183,7 +220,7 @@ export async function watchPosition(
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
-        callback({
+        const locationData = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy,
@@ -191,7 +228,19 @@ export async function watchPosition(
           altitudeAccuracy: position.coords.altitudeAccuracy ?? null,
           heading: position.coords.heading ?? null,
           speed: position.coords.speed ?? null,
+        };
+        
+        // Save last known location for offline use (don't await to avoid blocking)
+        saveLastKnownLocation(
+          locationData.latitude,
+          locationData.longitude,
+          undefined,
+          locationData.accuracy
+        ).catch(() => {
+          // Silent fail - saving last known location is non-critical
         });
+        
+        callback(locationData);
       },
       errorCallback,
       {

@@ -279,6 +279,7 @@
   },
   "materials": {
     "title": "Materials",
+    "requestAndTrack": "Request and track materials",
     "requestMaterial": "Request Material",
     "selectMaterial": "Select Material",
     "selectProject": "Select Project",

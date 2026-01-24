@@ -54,7 +54,7 @@ export default function ProjectsPage() {
     endDate: "",
   });
   const [geoFenceCenter, setGeoFenceCenter] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [geoFenceRadius, setGeoFenceRadius] = useState<number>(5000); // Default 5km
+  const [geoFenceRadius, setGeoFenceRadius] = useState<number>(200); // Default 200m
   const [createStep, setCreateStep] = useState<'details' | 'geofence'>('details');
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapInstance, setMapInstance] = useState<any>(null);
@@ -109,7 +109,7 @@ export default function ProjectsPage() {
       setMapLoaded(false);
       setCreateStep('details');
       setGeoFenceCenter(null);
-      setGeoFenceRadius(5000);
+      setGeoFenceRadius(200);
       setLocationSearch("");
       setLocationSearchResults([]);
     }
@@ -274,14 +274,15 @@ export default function ProjectsPage() {
       // Configure MapTiler API key
       maptiler.config.apiKey = MAPTILER_KEY;
 
-      // Calculate appropriate zoom based on radius (larger radius = lower zoom)
+      // Calculate appropriate zoom based on radius (50m to 5km range)
       const radiusKm = geoFenceRadius / 1000;
-      let initialZoom = 15;
-      if (radiusKm >= 20) initialZoom = 10;
-      else if (radiusKm >= 10) initialZoom = 11;
-      else if (radiusKm >= 5) initialZoom = 12;
+      let initialZoom = 16;
+      if (radiusKm >= 5) initialZoom = 12;
       else if (radiusKm >= 2) initialZoom = 13;
       else if (radiusKm >= 1) initialZoom = 14;
+      else if (radiusKm >= 0.5) initialZoom = 15;
+      else if (radiusKm >= 0.2) initialZoom = 16;
+      else initialZoom = 17; // For very small radii (50-200m)
 
       const map = new maptiler.Map({
         container: mapContainerRef.current,
@@ -326,14 +327,15 @@ export default function ProjectsPage() {
       if (mapInstance && mapLoaded) {
         updateMapMarker(mapInstance, lat, lng);
         updateMapCircle(mapInstance, lat, lng, geoFenceRadius);
-        // Adjust zoom based on radius
+        // Adjust zoom based on radius (50m to 5km range)
         const radiusKm = geoFenceRadius / 1000;
-        let zoom = 15;
-        if (radiusKm >= 20) zoom = 10;
-        else if (radiusKm >= 10) zoom = 11;
-        else if (radiusKm >= 5) zoom = 12;
+        let zoom = 16;
+        if (radiusKm >= 5) zoom = 12;
         else if (radiusKm >= 2) zoom = 13;
         else if (radiusKm >= 1) zoom = 14;
+        else if (radiusKm >= 0.5) zoom = 15;
+        else if (radiusKm >= 0.2) zoom = 16;
+        else zoom = 17; // For very small radii (50-200m)
         mapInstance.flyTo({ center: [lng, lat], zoom, duration: 1000 });
       } else {
         // Initialize map with current location
@@ -397,14 +399,15 @@ export default function ProjectsPage() {
     if (mapInstance && mapLoaded) {
       updateMapMarker(mapInstance, lat, lng);
       updateMapCircle(mapInstance, lat, lng, geoFenceRadius);
-      // Adjust zoom based on radius
+      // Adjust zoom based on radius (50m to 5km range)
       const radiusKm = geoFenceRadius / 1000;
-      let zoom = 15;
-      if (radiusKm >= 20) zoom = 10;
-      else if (radiusKm >= 10) zoom = 11;
-      else if (radiusKm >= 5) zoom = 12;
+      let zoom = 16;
+      if (radiusKm >= 5) zoom = 12;
       else if (radiusKm >= 2) zoom = 13;
       else if (radiusKm >= 1) zoom = 14;
+      else if (radiusKm >= 0.5) zoom = 15;
+      else if (radiusKm >= 0.2) zoom = 16;
+      else zoom = 17; // For very small radii (50-200m)
       mapInstance.flyTo({ center: [lng, lat], zoom, duration: 1000 });
     } else {
       // Initialize map with selected location
@@ -430,23 +433,9 @@ export default function ProjectsPage() {
   };
 
   const updateMapCircle = (map: any, lat: number, lng: number, radius: number) => {
-    // If radius is 0, remove the circle layers if they exist
-    if (radius === 0) {
-      try {
-        if (map.getLayer('geofence-circle')) {
-          map.removeLayer('geofence-circle');
-        }
-        if (map.getLayer('geofence-circle-border')) {
-          map.removeLayer('geofence-circle-border');
-        }
-        if (map.getSource('geofence-circle')) {
-          map.removeSource('geofence-circle');
-        }
-      } catch (error) {
-        console.warn('Error removing circle layers:', error);
-      }
-      setMapCircle(false);
-      return;
+    // Ensure radius is at least 50m (minimum allowed)
+    if (radius < 50) {
+      radius = 50;
     }
 
     // Note: mapCircle is a boolean flag, not an object with remove() method
@@ -499,14 +488,15 @@ export default function ProjectsPage() {
       });
     }
     
-    // Adjust zoom to fit the circle
+    // Adjust zoom to fit the circle (50m to 5km range)
     const radiusKm = radius / 1000;
-    let targetZoom = 15;
-    if (radiusKm >= 20) targetZoom = 10;
-    else if (radiusKm >= 10) targetZoom = 11;
-    else if (radiusKm >= 5) targetZoom = 12;
+    let targetZoom = 16;
+    if (radiusKm >= 5) targetZoom = 12;
     else if (radiusKm >= 2) targetZoom = 13;
     else if (radiusKm >= 1) targetZoom = 14;
+    else if (radiusKm >= 0.5) targetZoom = 15;
+    else if (radiusKm >= 0.2) targetZoom = 16;
+    else targetZoom = 17; // For very small radii (50-200m)
     
     // Smoothly zoom to fit the circle
     const currentZoom = map.getZoom();
@@ -524,7 +514,7 @@ export default function ProjectsPage() {
     }
   }, [geoFenceRadius, geoFenceCenter, mapInstance, mapLoaded]);
 
-  // Note: Radius can be 0km to 50km
+  // Note: Radius can be 50m to 5km
 
   const handleCreateProject = async () => {
     if (!newProject.name || !newProject.location || !newProject.startDate) {
@@ -569,7 +559,7 @@ export default function ProjectsPage() {
       setEngineerSearch("");
       setManagerSearch("");
       setGeoFenceCenter(null);
-      setGeoFenceRadius(5000);
+      setGeoFenceRadius(200);
       setCreateStep('details');
       setLocationSearch("");
       setLocationSearchResults([]);
@@ -1146,7 +1136,7 @@ export default function ProjectsPage() {
                       {/* Radius Selector */}
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground">
-                          Geo-fence Radius: {geoFenceRadius === 0 ? '0 km' : (geoFenceRadius / 1000).toFixed(1) + ' km'}
+                          Geo-fence Radius: {geoFenceRadius < 1000 ? `${geoFenceRadius} m` : (geoFenceRadius / 1000).toFixed(2) + ' km'}
                         </Label>
                         <Slider
                           value={[geoFenceRadius]}
@@ -1158,14 +1148,14 @@ export default function ProjectsPage() {
                               updateMapCircle(mapInstance, geoFenceCenter.latitude, geoFenceCenter.longitude, newRadius);
                             }
                           }}
-                          min={0}
-                          max={50000}
-                          step={500}
+                          min={50}
+                          max={5000}
+                          step={50}
                           className="w-full"
                         />
                         <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>0 km</span>
-                          <span>50 km</span>
+                          <span>50 m</span>
+                          <span>5 km</span>
                         </div>
                       </div>
 
@@ -1176,7 +1166,7 @@ export default function ProjectsPage() {
                             Lat: {geoFenceCenter.latitude.toFixed(6)}, Lng: {geoFenceCenter.longitude.toFixed(6)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Radius: {geoFenceRadius === 0 ? '0 km' : (geoFenceRadius / 1000).toFixed(1) + ' km'} (with {20}m buffer)
+                            Radius: {geoFenceRadius < 1000 ? `${geoFenceRadius} m` : (geoFenceRadius / 1000).toFixed(2) + ' km'} (with {20}m buffer)
                           </p>
                         </div>
                       )}
