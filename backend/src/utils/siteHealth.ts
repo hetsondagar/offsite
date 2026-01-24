@@ -249,13 +249,14 @@ export const calculateProjectHealthScore = async (
     
     // Penalty for anomalies
     const anomalyPenalty = (anomalyRequests.length / totalRequests) * 30; // 30% penalty
-    
+
     // Penalty for rejections
-    const rejectionPenalty = (rejectedRequests.length / totalRequests) * 20; // 20% penalty
-    
+    const rejectionPenalty = (rejectedRequests / totalRequests) * 20; // 20% penalty
+
     // Penalty for long approval delays (>3 days)
     const threeDaysAgo = new Date();
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
     const delayedRequests = materialRequests.filter(m => {
       if (m.status !== 'pending') return false;
       return new Date(m.createdAt) < threeDaysAgo;
