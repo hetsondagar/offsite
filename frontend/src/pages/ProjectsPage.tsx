@@ -451,18 +451,6 @@ export default function ProjectsPage() {
           title={t('projects.title')}
           subtitle={isLoading ? t('common.loading') : `${projects.length} ${projects.length !== 1 ? t('projects.activeProjectsPlural') : t('projects.activeProjects')}`}
           showBack={false}
-          rightAction={
-            (role === 'owner' || role === 'manager') && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setIsCreateDialogOpen(true)}
-                className="h-10 w-10"
-              >
-                <Plus className="w-5 h-5" />
-              </Button>
-            )
-          }
         />
 
         {/* Content */}

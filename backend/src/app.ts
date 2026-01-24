@@ -164,12 +164,34 @@ app.use('/api/owner', ownerRoutes);
 // Build the frontend first: ../frontend/dist
 const frontendDistPath = path.resolve(process.cwd(), '../frontend/dist');
 if (fs.existsSync(frontendDistPath)) {
-  app.use(express.static(frontendDistPath));
+  // Serve static assets with proper MIME types
+  app.use(express.static(frontendDistPath, {
+    maxAge: '1y', // Cache static assets
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+      // Ensure proper MIME types for JS modules
+      if (filePath.endsWith('.js') || filePath.endsWith('.mjs')) {
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      } else if (filePath.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css; charset=utf-8');
+      }
+    },
+  }));
 
   // SPA fallback (must be after API routes)
   app.get('*', (req, res, next) => {
     // Don’t interfere with API routes
     if (req.path.startsWith('/api') || req.path.startsWith('/auth')) return next();
+    
+    // Don't serve index.html for static asset requests
+    // Static assets should be handled by express.static above
+    if (req.path.startsWith('/assets/') || 
+        req.path.match(/\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|json|webmanifest)$/i)) {
+      return next(); // Let it 404 if not found (shouldn't happen if static middleware works)
+    }
+    
+    // For all other routes, serve index.html (SPA routing)
     return res.sendFile(path.join(frontendDistPath, 'index.html'));
   });
 }

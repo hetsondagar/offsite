@@ -116,9 +116,9 @@ export default function DPRPage() {
     loadTasks();
   }, [selectedProject]);
 
-  const handlePhotoUpload = async () => {
+  const handlePhotoUpload = async (source: 'camera' | 'gallery' = 'gallery') => {
     try {
-      const files = await pickImages({ quality: 90 });
+      const files = await pickImages({ quality: 90, source });
       
       if (files.length + photos.length > 6) {
         toast.error(t('dpr.maxPhotos'));
@@ -138,7 +138,12 @@ export default function DPRPage() {
       });
     } catch (error: any) {
       console.error('Photo upload error:', error);
-      // User cancelled or error occurred - silently fail
+      if (error.message?.includes('permission')) {
+        toast.error(error.message);
+      } else if (error.message && !error.message.includes('User cancelled')) {
+        toast.error('Failed to capture photo. Please try again.');
+      }
+      // User cancelled - silently fail
     }
   };
 
@@ -155,9 +160,9 @@ export default function DPRPage() {
     }
   };
 
-  const handleWorkStoppagePhotoUpload = async () => {
+  const handleWorkStoppagePhotoUpload = async (source: 'camera' | 'gallery' = 'gallery') => {
     try {
-      const files = await pickImages({ quality: 90 });
+      const files = await pickImages({ quality: 90, source });
       setWorkStoppageEvidencePhotos(prev => [...prev, ...files]);
       
       // Create previews
@@ -169,8 +174,13 @@ export default function DPRPage() {
         reader.readAsDataURL(file);
       });
     } catch (error: any) {
-      console.error('Photo upload error:', error);
-      // User cancelled or error occurred - silently fail
+      console.error('Work stoppage photo upload error:', error);
+      if (error.message?.includes('permission')) {
+        toast.error(error.message);
+      } else if (error.message && !error.message.includes('User cancelled')) {
+        toast.error('Failed to capture photo. Please try again.');
+      }
+      // User cancelled - silently fail
     }
   };
 
@@ -712,7 +722,7 @@ export default function DPRPage() {
                     ))}
                     {photos.length < 6 && (
                       <button
-                        onClick={handlePhotoUpload}
+                        onClick={() => handlePhotoUpload('camera')}
                         className="aspect-square rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors"
                       >
                         <Camera className="w-6 h-6" />
@@ -721,11 +731,11 @@ export default function DPRPage() {
                     )}
                   </div>
                   <div className="flex gap-3">
-                    <Button variant="outline" className="flex-1" onClick={handlePhotoUpload}>
+                    <Button variant="outline" className="flex-1" onClick={() => handlePhotoUpload('camera')}>
                       <Camera className="w-4 h-4 mr-2" />
                       {t('dpr.camera')}
                     </Button>
-                    <Button variant="outline" className="flex-1" onClick={handlePhotoUpload}>
+                    <Button variant="outline" className="flex-1" onClick={() => handlePhotoUpload('gallery')}>
                       <Upload className="w-4 h-4 mr-2" />
                       {t('dpr.gallery')}
                     </Button>
@@ -938,15 +948,26 @@ export default function DPRPage() {
                         <label className="text-sm font-medium text-foreground mb-2 block">
                           Evidence Photos (Optional)
                         </label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-full"
-                          onClick={handleWorkStoppagePhotoUpload}
-                        >
-                          <Camera className="w-4 h-4 mr-2" />
-                          Add Evidence Photos
-                        </Button>
+                        <div className="flex gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => handleWorkStoppagePhotoUpload('camera')}
+                          >
+                            <Camera className="w-4 h-4 mr-2" />
+                            Camera
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => handleWorkStoppagePhotoUpload('gallery')}
+                          >
+                            <Upload className="w-4 h-4 mr-2" />
+                            Gallery
+                          </Button>
+                        </div>
                         {workStoppageEvidencePreviews.length > 0 && (
                           <div className="flex gap-2 mt-3 overflow-x-auto pb-2 w-full max-w-full">
                             {workStoppageEvidencePreviews.map((preview, index) => (
