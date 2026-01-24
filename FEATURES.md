@@ -18,6 +18,11 @@
 15. [Offline Capabilities](#offline-capabilities)
 16. [Profile Management](#profile-management)
 17. [Sync & Data Synchronization](#sync--data-synchronization)
+18. [Purchase Manager Workflow](#purchase-manager-workflow)
+19. [Contractor & Labour Management](#contractor--labour-management)
+20. [Tool Library System](#tool-library-system)
+21. [Permit-to-Work (OTP) System](#permit-to-work-otp-system)
+22. [Petty Cash Management](#petty-cash-management)
 
 ---
 
@@ -97,6 +102,9 @@ OffSite is a mobile-first construction field operations management application d
 - View all insights and analytics
 - Set approval rules
 - Manage system configuration
+- Manage contractors and their project assignments
+- Approve petty cash expenses
+- View financial dashboard with labour & material costs
 
 **Access:**
 - Manager Dashboard (with additional features)
@@ -104,6 +112,8 @@ OffSite is a mobile-first construction field operations management application d
 - Invoicing page
 - User management capabilities
 - System configuration access
+- Contractor management page
+- Petty cash approval dashboard
 - All manager features plus additional administrative functions
 
 **Special Capabilities:**
@@ -111,6 +121,68 @@ OffSite is a mobile-first construction field operations management application d
 - Invoice creation and finalization
 - User management
 - System-wide settings
+- Contractor assignment to projects
+- Petty cash expense approval
+
+---
+
+### Purchase Manager Role
+**Primary Responsibilities:**
+- View approved material requests
+- Send materials to site
+- Track purchase history
+- Manage tool library
+
+**Access:**
+- Purchase Dashboard
+- Purchase History page
+- Tools page
+- Profile page
+
+**OffSite ID Format:** OSPR0001, OSPR0002, etc.
+
+**Key Features:**
+- View all approved material requests pending dispatch
+- Mark materials as sent with GST calculation
+- Track sent materials and their receipt status
+- View complete purchase history with costs
+
+**Restrictions:**
+- Cannot approve material requests
+- Cannot create DPRs or mark attendance
+- Cannot manage projects or users
+- Cannot access insights and analytics
+
+---
+
+### Contractor Role
+**Primary Responsibilities:**
+- Register labourers with face photos
+- Mark daily labour attendance
+- Generate weekly invoices
+- Manage assigned project labours
+
+**Access:**
+- Contractor Dashboard
+- Labour Management page
+- Attendance Upload page
+- Weekly Invoice page
+- Profile page
+
+**OffSite ID Format:** OSCT0001, OSCT0002, etc.
+
+**Key Features:**
+- Register labourers with name and face photo
+- Upload group photos for attendance marking
+- Manual labour selection for attendance
+- Auto-calculate weekly labour costs with GST
+- Submit invoices for PM approval
+
+**Restrictions:**
+- Cannot approve material requests
+- Cannot create DPRs
+- Cannot manage projects
+- Cannot access insights and analytics
 
 ---
 
@@ -1475,6 +1547,266 @@ OffSite is a mobile-first construction field operations management application d
   - Google Play Store
   - Direct APK installation
   - Enterprise distribution
+
+---
+
+---
+
+## Purchase Manager Workflow
+
+### Purchase Dashboard
+**Page:** `/purchase-dashboard`
+
+**Features:**
+- View all approved material requests pending dispatch
+- See request details including:
+  - Material name and quantity
+  - Requesting engineer
+  - Approving manager
+  - Project information
+  - Estimated cost with GST breakdown
+- One-click "Send Materials" action
+- Real-time status updates
+
+**Send Materials Process:**
+1. View approved material request
+2. Review material details and GST rate
+3. Click "Send Materials"
+4. System creates purchase history entry
+5. Material request status updated to "SENT"
+6. Engineer receives notification
+
+### Purchase History
+**Page:** `/purchase-history`
+
+**For Engineers:**
+- View materials sent to their projects
+- Confirm receipt of materials with:
+  - Photo proof (via camera)
+  - GPS coordinates (automatic)
+  - Reverse geocoded address
+- Offline support for receipt confirmation
+
+**For Purchase Managers:**
+- View all sent materials
+- Track receipt status
+- View photo proofs and locations
+- Export purchase reports
+
+**Receipt Confirmation Process:**
+1. Engineer views sent materials
+2. Clicks "Confirm Receipt"
+3. System captures photo proof (optional)
+4. GPS location is captured automatically
+5. Receipt is recorded with timestamp
+6. Purchase Manager receives notification
+
+---
+
+## Contractor & Labour Management
+
+### Contractor Management (Owner)
+**Page:** `/contractors`
+
+**Features:**
+- View all contractors in system
+- Assign contractors to projects with:
+  - Labour count per day
+  - Rate per labour per day (INR)
+  - GST rate (default 18%)
+  - Contract start and end dates
+- Modify contract terms
+- View contractor performance
+
+### Labour Registration (Contractor)
+**Page:** `/contractor/labours`
+
+**Features:**
+- Register new labourers with:
+  - Name/code
+  - Face photo (for future attendance verification)
+  - Project assignment
+- Automatic labour code generation (LAB0001, LAB0002, etc.)
+- Face embedding storage (placeholder for face-api.js)
+- View all registered labourers
+
+### Daily Attendance Upload (Contractor)
+**Page:** `/contractor/attendance`
+
+**Features:**
+- Select project for attendance
+- Capture group photo of present labours
+- Manually select labourers who are present
+- Bulk attendance marking
+- Select all / deselect all functionality
+- GPS location capture (optional)
+- Offline support with IndexedDB sync
+
+**Attendance Process:**
+1. Contractor selects project
+2. Captures group photo
+3. Selects present labourers from list
+4. Submits attendance
+5. System creates attendance records
+6. Data syncs when online
+
+### Weekly Invoice Generation (Contractor)
+**Page:** `/contractor/weekly-invoice`
+
+**Features:**
+- Auto-calculate labour days from attendance
+- Apply contract rate and GST
+- Generate invoice for Mon-Sun period
+- Submit for PM approval
+- Track invoice status (PENDING, APPROVED, REJECTED)
+- View rejection reasons
+
+**Invoice Calculation:**
+- Total Labour Days = Count of attendance records for week
+- Taxable Amount = Labour Days × Rate per Labour/Day
+- GST Amount = Taxable Amount × GST Rate
+- Total = Taxable Amount + GST Amount
+
+### Invoice Approval (Project Manager)
+**Access via:** Approvals page or notifications
+
+**Features:**
+- View pending contractor invoices
+- See invoice breakdown:
+  - Labour count and rate
+  - Taxable amount
+  - GST calculation
+  - Total amount
+- Approve or reject with reason
+- Approved invoices visible to Owner
+
+### Approved Invoices (Owner)
+**Features:**
+- View all approved contractor invoices
+- Export combined labour + material report
+- GST breakdown for accounting
+- Financial dashboard integration
+
+---
+
+## Tool Library System
+
+### Tool Management
+**Page:** `/tools`
+
+**Features:**
+- Add new tools to inventory:
+  - Tool name
+  - Category (optional)
+  - Auto-generated tool ID
+- View all tools with status
+- Issue tools to workers
+- Return tools to inventory
+- View tool history
+
+### Tool Issue/Return Workflow
+**Issue Process:**
+1. Select available tool
+2. Select project
+3. Enter worker ID
+4. Add notes (optional)
+5. Tool status changes to "ISSUED"
+6. Worker receives notification
+
+**Return Process:**
+1. Select issued tool
+2. Click "Return"
+3. Add return notes (optional)
+4. Tool status changes to "AVAILABLE"
+5. History entry created
+
+### Tool History
+**Features:**
+- Complete audit trail for each tool
+- Track who issued, to whom, when
+- Track returns and handovers
+- Permanent history log
+- Filter by tool or worker
+
+---
+
+## Permit-to-Work (OTP) System
+
+### Permit Request (Engineer)
+**Page:** `/permits`
+
+**Features:**
+- Request permits for hazardous tasks
+- Specify:
+  - Project
+  - Hazard type (Working at Height, Hot Work, Confined Space, etc.)
+  - Task description
+  - Safety measures to be taken
+- Submit for Safety Officer (PM) approval
+
+### Permit Approval (Project Manager)
+**Features:**
+- View pending permit requests
+- Review hazard details and safety measures
+- Approve permits:
+  - Generates 6-digit OTP
+  - OTP valid for 10 minutes
+  - Engineer notified with OTP
+- Reject permits with reason
+
+### OTP Verification (Engineer)
+**Features:**
+- Enter OTP received via notification
+- OTP verified against stored hash
+- Task can begin after verification
+- Permit marked as COMPLETED
+- PM and Owner notified of task start
+
+**Permit Status Flow:**
+1. PENDING → Awaiting PM approval
+2. APPROVED → PM approved, OTP generated
+3. OTP_GENERATED → Waiting for engineer to enter OTP
+4. COMPLETED → OTP verified, work started
+5. EXPIRED → OTP expired (10 minutes)
+
+---
+
+## Petty Cash Management
+
+### Expense Submission (Project Manager)
+**Page:** `/petty-cash`
+
+**Features:**
+- Submit petty cash expenses:
+  - Amount (INR)
+  - Category (Transportation, Food, Tools, Safety, etc.)
+  - Description
+  - Receipt photo (via camera)
+  - GPS location (automatic)
+- Geo-fence validation:
+  - Expense location validated against project site
+  - Warning if outside 200m radius
+- Submit for Owner approval
+
+### Expense Approval (Owner)
+**Features:**
+- View pending petty cash expenses
+- See expense details:
+  - Amount and category
+  - Submitting manager
+  - Receipt photo
+  - GPS location on map
+  - Geo-fence validity status
+- Approve or reject with reason
+- Approved expenses added to financial dashboard
+
+### Financial Dashboard (Owner)
+**Features:**
+- Total petty cash expenses
+- Breakdown by category
+- Breakdown by project
+- Flagged expenses (outside geo-fence)
+- Export expense reports
 
 ---
 

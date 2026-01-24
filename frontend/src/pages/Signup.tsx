@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/common/Logo";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
-import { ArrowLeft, Loader2, HardHat, Briefcase, Crown, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Loader2, HardHat, Briefcase, Crown, Eye, EyeOff, ShoppingCart, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Role, UserRole } from "@/lib/permissions";
 
@@ -367,6 +367,52 @@ export default function Signup() {
                     </h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Full access, all projects, analytics
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className={cn(
+                  "p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 tap-target",
+                  "hover:border-primary/50 hover:bg-primary/5 active:scale-[0.98]",
+                  role === UserRole.PURCHASE_MANAGER ? "border-primary bg-primary/10" : "border-border/50"
+                )}
+                onClick={() => handleRoleSelect(UserRole.PURCHASE_MANAGER)}
+              >
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="p-2 sm:p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 shrink-0">
+                    <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-display font-semibold text-sm sm:text-base text-foreground">
+                      Purchase Manager
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      View purchase requests, send materials
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className={cn(
+                  "p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 tap-target",
+                  "hover:border-primary/50 hover:bg-primary/5 active:scale-[0.98]",
+                  role === UserRole.CONTRACTOR ? "border-primary bg-primary/10" : "border-border/50"
+                )}
+                onClick={() => handleRoleSelect(UserRole.CONTRACTOR)}
+              >
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="p-2 sm:p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 shrink-0">
+                    <Users className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-display font-semibold text-sm sm:text-base text-foreground">
+                      Contractor
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Manage labours, mark attendance, invoices
                     </p>
                   </div>
                 </div>

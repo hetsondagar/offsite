@@ -104,10 +104,12 @@ This document provides a comprehensive list of all features implemented in the O
 - ✅ System configuration access
 - ✅ Global analytics and dashboards
 - ✅ Export comprehensive reports
+- ✅ Manage contractors and assign to projects
+- ✅ Approve/reject petty cash expenses
+- ✅ View financial dashboards (contractor costs, purchase costs, GST)
 - ❌ Cannot create DPRs
 - ❌ Cannot mark attendance
 - ❌ Cannot raise material requests
-- ❌ Cannot approve material requests (delegated to managers)
 
 **Accessible Pages:**
 - Manager Dashboard (with additional features)
@@ -116,7 +118,47 @@ This document provides a comprehensive list of all features implemented in the O
 - Insights Page
 - AI Command Center
 - Invoicing Page
+- Contractors Management Page
+- Petty Cash Page
+- Tools Page
 - Tasks Page
+
+### Purchase Manager Role
+**Capabilities:**
+- ✅ View approved material requests
+- ✅ Send materials to site
+- ✅ Track purchase history
+- ✅ Manage tools (issue/return)
+- ✅ View purchase analytics
+- ❌ Cannot approve material requests
+- ❌ Cannot create DPRs
+- ❌ Cannot mark attendance
+- ❌ Cannot view invoices
+
+**Accessible Pages:**
+- Purchase Dashboard
+- Purchase History Page
+- Tools Page
+- Profile Page
+
+### Contractor Role
+**Capabilities:**
+- ✅ Register labourers with face photos
+- ✅ Mark daily labour attendance
+- ✅ Generate weekly invoices
+- ✅ View own invoices and status
+- ✅ Manage tools (issue/return)
+- ❌ Cannot view other contractors' data
+- ❌ Cannot approve anything
+- ❌ Cannot view insights
+
+**Accessible Pages:**
+- Contractor Dashboard
+- Labours Page
+- Attendance Page
+- Weekly Invoice Page
+- Tools Page
+- Profile Page
 - Events Page
 - Profile Page
 - Sync Page
@@ -513,13 +555,13 @@ This document provides a comprehensive list of all features implemented in the O
 
 ## Summary
 
-**Total Features: 100+**
+**Total Features: 120+**
 
 The OffSite application is a comprehensive, production-ready construction management platform with:
 
-- ✅ **3 User Roles** with distinct permissions
-- ✅ **20+ Pages** covering all aspects of construction management
-- ✅ **15+ Backend Modules** with full CRUD operations
+- ✅ **5 User Roles** with distinct permissions (Engineer, Manager, Owner, Purchase Manager, Contractor)
+- ✅ **25+ Pages** covering all aspects of construction management
+- ✅ **20+ Backend Modules** with full CRUD operations
 - ✅ **4 Languages** with complete translation
 - ✅ **Native Android App** via Capacitor
 - ✅ **Offline-First Architecture** with IndexedDB
@@ -527,6 +569,11 @@ The OffSite application is a comprehensive, production-ready construction manage
 - ✅ **GST-Compliant Invoicing** with PDF generation
 - ✅ **Real-time Notifications** system
 - ✅ **Comprehensive Analytics** and reporting
+- ✅ **Purchase Workflow** with send/receive tracking
+- ✅ **Contractor Management** with labour attendance and weekly invoicing
+- ✅ **Tool Library** with issue/return history
+- ✅ **Permit-to-Work System** with OTP verification
+- ✅ **Petty Cash Wallet** with geo-fence fraud prevention
 
 All features are implemented, tested, and ready for production use.
 

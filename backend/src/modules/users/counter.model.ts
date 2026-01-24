@@ -5,7 +5,7 @@ import mongoose, { Schema, Document } from 'mongoose';
  * Ensures concurrency-safe, sequential OffSite ID generation.
  */
 export interface ICounter extends Document {
-  role: 'SE' | 'PM' | 'OW';
+  role: 'SE' | 'PM' | 'OW' | 'PR' | 'CT';
   seq: number;
 }
 
@@ -13,7 +13,7 @@ const counterSchema = new Schema<ICounter>(
   {
     role: {
       type: String,
-      enum: ['SE', 'PM', 'OW'],
+      enum: ['SE', 'PM', 'OW', 'PR', 'CT'],
       required: true,
       unique: true,
     },

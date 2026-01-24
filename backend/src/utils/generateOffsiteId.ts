@@ -14,10 +14,12 @@ import { UserRole } from '../types';
  * @returns Promise<string> - Unique OffSite ID (e.g., "OSSE0023")
  */
 export async function generateOffsiteId(role: UserRole): Promise<string> {
-  const roleMap: Record<UserRole, 'SE' | 'PM' | 'OW'> = {
+  const roleMap: Record<UserRole, 'SE' | 'PM' | 'OW' | 'PR' | 'CT'> = {
     engineer: 'SE',
     manager: 'PM',
     owner: 'OW',
+    purchase_manager: 'PR',
+    contractor: 'CT',
   };
 
   const roleCode = roleMap[role];

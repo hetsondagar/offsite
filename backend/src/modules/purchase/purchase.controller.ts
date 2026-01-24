@@ -1,0 +1,433 @@
+import { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
+import { PurchaseHistory } from './purchase-history.model';
+import { MaterialRequest } from '../materials/material.model';
+import { MaterialCatalog } from '../materials/material-catalog.model';
+import { ApiResponse } from '../../types';
+import { AppError } from '../../middlewares/error.middleware';
+import { logger } from '../../utils/logger';
+import { createNotification } from '../notifications/notification.service';
+
+const sendMaterialSchema = z.object({
+  gstRate: z.number().min(0).max(100).optional().default(18),
+});
+
+const receiveMaterialSchema = z.object({
+  proofPhotoUrl: z.string().optional(),
+  geoLocation: z.string().optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+});
+
+/**
+ * Get approved material requests ready to be sent by Purchase Manager
+ */
+export const getApprovedRequests = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    if (req.user.role !== 'purchase_manager' && req.user.role !== 'owner') {
+      throw new AppError('Access denied', 403, 'FORBIDDEN');
+    }
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    // Get approved material requests that haven't been sent yet
+    const sentRequestIds = await PurchaseHistory.find().distinct('materialRequestId');
+    
+    const query = {
+      status: 'approved',
+      _id: { $nin: sentRequestIds },
+    };
+
+    const [requests, total] = await Promise.all([
+      MaterialRequest.find(query)
+        .populate('requestedBy', 'name phone offsiteId')
+        .populate('approvedBy', 'name phone offsiteId')
+        .populate('projectId', 'name location')
+        .sort({ approvedAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      MaterialRequest.countDocuments(query),
+    ]);
+
+    // Get catalog info for GST rates
+    const materialIds = [...new Set(requests.map(r => r.materialId))];
+    const catalogItems = await MaterialCatalog.find({ _id: { $in: materialIds } });
+    const catalogMap = new Map(catalogItems.map(c => [c._id.toString(), c]));
+
+    const requestsWithGst = requests.map(r => {
+      const catalog = catalogMap.get(r.materialId);
+      return {
+        ...r.toObject(),
+        gstRate: 18, // Default GST rate
+        approxPriceINR: catalog?.approxPriceINR || 0,
+      };
+    });
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Approved requests retrieved successfully',
+      data: {
+        requests: requestsWithGst,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      },
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Send materials - Purchase Manager marks material as sent
+ */
+export const sendMaterial = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    if (req.user.role !== 'purchase_manager') {
+      throw new AppError('Only Purchase Manager can send materials', 403, 'FORBIDDEN');
+    }
+
+    const { requestId } = req.params;
+    const data = sendMaterialSchema.parse(req.body);
+
+    // Get the material request
+    const materialRequest = await MaterialRequest.findById(requestId)
+      .populate('requestedBy', 'name phone offsiteId _id')
+      .populate('projectId', 'name');
+
+    if (!materialRequest) {
+      throw new AppError('Material request not found', 404, 'NOT_FOUND');
+    }
+
+    if (materialRequest.status !== 'approved') {
+      throw new AppError('Only approved requests can be sent', 400, 'INVALID_STATUS');
+    }
+
+    // Check if already sent
+    const existingHistory = await PurchaseHistory.findOne({ materialRequestId: requestId });
+    if (existingHistory) {
+      throw new AppError('Material has already been sent', 400, 'ALREADY_SENT');
+    }
+
+    // Get catalog for pricing
+    const catalog = await MaterialCatalog.findById(materialRequest.materialId);
+    const basePrice = (catalog?.approxPriceINR || 0) * materialRequest.quantity;
+    const gstAmount = basePrice * (data.gstRate / 100);
+    const totalCost = basePrice + gstAmount;
+
+    // Create purchase history entry
+    const purchaseHistory = new PurchaseHistory({
+      projectId: materialRequest.projectId,
+      materialRequestId: materialRequest._id,
+      materialId: materialRequest.materialId,
+      materialName: materialRequest.materialName,
+      qty: materialRequest.quantity,
+      unit: materialRequest.unit,
+      gstRate: data.gstRate,
+      gstAmount,
+      basePrice,
+      totalCost,
+      sentAt: new Date(),
+      sentBy: req.user.userId,
+      status: 'SENT',
+    });
+
+    await purchaseHistory.save();
+
+    // Update material request status
+    materialRequest.status = 'sent' as any;
+    await materialRequest.save();
+
+    // Send notification to the requesting engineer
+    const requester = materialRequest.requestedBy as any;
+    if (requester && requester._id) {
+      try {
+        await createNotification({
+          userId: requester._id.toString(),
+          offsiteId: requester.offsiteId,
+          type: 'material_approved',
+          title: 'Materials Sent',
+          message: `Purchase Manager has sent: ${materialRequest.materialName} (${materialRequest.quantity} ${materialRequest.unit})`,
+          data: {
+            purchaseHistoryId: purchaseHistory._id.toString(),
+            materialName: materialRequest.materialName,
+            quantity: materialRequest.quantity,
+            unit: materialRequest.unit,
+          },
+        });
+      } catch (notifError: any) {
+        logger.warn('Failed to send notification:', notifError.message);
+      }
+    }
+
+    logger.info(`Material sent: ${purchaseHistory._id} by ${req.user.userId}`);
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Material sent successfully',
+      data: purchaseHistory,
+    };
+
+    res.status(201).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Receive materials - Engineer confirms receipt
+ */
+export const receiveMaterial = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    const { historyId } = req.params;
+    const data = receiveMaterialSchema.parse(req.body);
+
+    const purchaseHistory = await PurchaseHistory.findById(historyId)
+      .populate('sentBy', 'name offsiteId');
+
+    if (!purchaseHistory) {
+      throw new AppError('Purchase history not found', 404, 'NOT_FOUND');
+    }
+
+    if (purchaseHistory.status === 'RECEIVED') {
+      throw new AppError('Material already received', 400, 'ALREADY_RECEIVED');
+    }
+
+    // Update to received
+    purchaseHistory.status = 'RECEIVED';
+    purchaseHistory.receivedAt = new Date();
+    purchaseHistory.receivedBy = req.user.userId as any;
+    
+    if (data.proofPhotoUrl) {
+      purchaseHistory.proofPhotoUrl = data.proofPhotoUrl;
+    }
+    if (data.geoLocation) {
+      purchaseHistory.geoLocation = data.geoLocation;
+    }
+    if (data.latitude !== undefined && data.longitude !== undefined) {
+      purchaseHistory.coordinates = {
+        latitude: data.latitude,
+        longitude: data.longitude,
+      };
+    }
+
+    await purchaseHistory.save();
+
+    // Update material request status
+    await MaterialRequest.findByIdAndUpdate(purchaseHistory.materialRequestId, {
+      status: 'received',
+    });
+
+    logger.info(`Material received: ${historyId} by ${req.user.userId}`);
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Material received successfully',
+      data: purchaseHistory,
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get purchase history by project
+ */
+export const getHistoryByProject = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    const { projectId } = req.params;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+    const status = req.query.status as string;
+
+    const query: any = { projectId };
+    if (status && ['SENT', 'RECEIVED'].includes(status)) {
+      query.status = status;
+    }
+
+    const [history, total] = await Promise.all([
+      PurchaseHistory.find(query)
+        .populate('sentBy', 'name phone offsiteId')
+        .populate('receivedBy', 'name phone offsiteId')
+        .populate('projectId', 'name location')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      PurchaseHistory.countDocuments(query),
+    ]);
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Purchase history retrieved successfully',
+      data: {
+        history,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      },
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get all sent materials for engineer to confirm
+ */
+export const getSentMaterialsForEngineer = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    // Get materials sent to projects the engineer is a member of
+    const { Project } = await import('../projects/project.model');
+    const engineerProjects = await Project.find({
+      members: req.user.userId,
+    }).select('_id');
+
+    const projectIds = engineerProjects.map(p => p._id);
+
+    const query = {
+      projectId: { $in: projectIds },
+      status: 'SENT',
+    };
+
+    const [history, total] = await Promise.all([
+      PurchaseHistory.find(query)
+        .populate('sentBy', 'name phone offsiteId')
+        .populate('projectId', 'name location')
+        .sort({ sentAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      PurchaseHistory.countDocuments(query),
+    ]);
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Sent materials retrieved successfully',
+      data: {
+        history,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      },
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get all purchase history for purchase manager
+ */
+export const getAllHistory = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+    const status = req.query.status as string;
+
+    const query: any = {};
+    if (status && ['SENT', 'RECEIVED'].includes(status)) {
+      query.status = status;
+    }
+
+    const [history, total] = await Promise.all([
+      PurchaseHistory.find(query)
+        .populate('sentBy', 'name phone offsiteId')
+        .populate('receivedBy', 'name phone offsiteId')
+        .populate('projectId', 'name location')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      PurchaseHistory.countDocuments(query),
+    ]);
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Purchase history retrieved successfully',
+      data: {
+        history,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      },
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};

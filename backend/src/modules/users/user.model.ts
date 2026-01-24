@@ -71,7 +71,7 @@ const userSchema = new Schema<IUser>(
     },
     role: {
       type: String,
-      enum: ['engineer', 'manager', 'owner'],
+      enum: ['engineer', 'manager', 'owner', 'purchase_manager', 'contractor'],
       required: true,
     },
     offsiteId: {

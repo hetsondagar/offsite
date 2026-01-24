@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 interface MobileLayoutProps {
   children: ReactNode;
-  role: "engineer" | "manager" | "owner";
+  role: "engineer" | "manager" | "owner" | "purchase_manager" | "contractor";
   hideNav?: boolean;
 }
 

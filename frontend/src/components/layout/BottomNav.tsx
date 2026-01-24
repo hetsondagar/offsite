@@ -1,4 +1,4 @@
-import { Home, FileText, MapPin, Package, User, LayoutDashboard, FolderKanban, CheckSquare, Lightbulb, Receipt, Calendar } from "lucide-react";
+import { Home, FileText, MapPin, Package, User, LayoutDashboard, FolderKanban, CheckSquare, Lightbulb, Receipt, Calendar, Users, Wrench, ShieldCheck, Wallet, Send, History } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -34,8 +34,24 @@ const ownerNav: NavItem[] = [
   { icon: User, labelKey: "navigation.profile", path: "/profile" },
 ];
 
+const purchaseManagerNav: NavItem[] = [
+  { icon: LayoutDashboard, labelKey: "navigation.dashboard", path: "/" },
+  { icon: Send, labelKey: "navigation.purchaseRequests", path: "/purchase-dashboard" },
+  { icon: History, labelKey: "navigation.purchaseHistory", path: "/purchase-history" },
+  { icon: Wrench, labelKey: "navigation.tools", path: "/tools" },
+  { icon: User, labelKey: "navigation.profile", path: "/profile" },
+];
+
+const contractorNav: NavItem[] = [
+  { icon: LayoutDashboard, labelKey: "navigation.dashboard", path: "/" },
+  { icon: Users, labelKey: "navigation.labours", path: "/contractor/labours" },
+  { icon: MapPin, labelKey: "navigation.attendance", path: "/contractor/attendance" },
+  { icon: Receipt, labelKey: "navigation.weeklyInvoice", path: "/contractor/weekly-invoice" },
+  { icon: User, labelKey: "navigation.profile", path: "/profile" },
+];
+
 interface BottomNavProps {
-  role: "engineer" | "manager" | "owner";
+  role: "engineer" | "manager" | "owner" | "purchase_manager" | "contractor";
 }
 
 export function BottomNav({ role }: BottomNavProps) {
@@ -56,6 +72,10 @@ export function BottomNav({ role }: BottomNavProps) {
   } else if (role === "owner") {
     // Owner should see all nav items - they have all permissions
     navItems = ownerNav;
+  } else if (role === "purchase_manager") {
+    navItems = purchaseManagerNav;
+  } else if (role === "contractor") {
+    navItems = contractorNav;
   } else {
     navItems = managerNav.filter(item => {
       if (item.path === "/approvals") return hasPermission("canApproveMaterialRequests");

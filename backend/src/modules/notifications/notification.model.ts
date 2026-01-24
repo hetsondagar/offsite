@@ -4,12 +4,20 @@ export type NotificationType =
   | 'material_request'
   | 'material_approved'
   | 'material_rejected'
+  | 'material_sent'
+  | 'material_received'
   | 'dpr_submitted'
   | 'task_assigned'
   | 'task_completed'
   | 'attendance_reminder'
   | 'project_update'
   | 'system_alert'
+  | 'contractor_invoice'
+  | 'permit_request'
+  | 'permit_approved'
+  | 'petty_cash'
+  | 'tool_issued'
+  | 'tool_returned'
   | 'general';
 
 export interface INotification extends Document {
@@ -44,12 +52,20 @@ const notificationSchema = new Schema<INotification>(
         'material_request',
         'material_approved',
         'material_rejected',
+        'material_sent',
+        'material_received',
         'dpr_submitted',
         'task_assigned',
         'task_completed',
         'attendance_reminder',
         'project_update',
         'system_alert',
+        'contractor_invoice',
+        'permit_request',
+        'permit_approved',
+        'petty_cash',
+        'tool_issued',
+        'tool_returned',
         'general',
       ],
       required: true,

@@ -123,7 +123,16 @@
     "materials": "Materials",
     "approvals": "Approvals",
     "invoices": "Invoices",
-    "profile": "Profile"
+    "profile": "Profile",
+    "purchaseRequests": "Requests",
+    "purchaseHistory": "History",
+    "tools": "Tools",
+    "labours": "Labours",
+    "weeklyInvoice": "Invoice",
+    "permits": "Permits",
+    "pettyCash": "Petty Cash",
+    "contractors": "Contractors",
+    "sync": "Sync"
   },
   "dashboard": {
     "goodMorning": "Good Morning",

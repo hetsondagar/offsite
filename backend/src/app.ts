@@ -27,6 +27,11 @@ import notificationRoutes from './modules/notifications/notification.routes';
 import aiRoutes from './modules/ai/ai.routes';
 import stockRoutes from './modules/stock/stock.routes';
 import ownerRoutes from './modules/owner/owner.routes';
+import purchaseRoutes from './modules/purchase/purchase.routes';
+import contractorRoutes from './modules/contractor/contractor.routes';
+import toolRoutes from './modules/tools/tool.routes';
+import permitRoutes from './modules/permits/permit.routes';
+import pettyCashRoutes from './modules/petty-cash/petty-cash.routes';
 
 const app: Application = express();
 
@@ -194,6 +199,11 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/owner', ownerRoutes);
+app.use('/api/purchase', purchaseRoutes);
+app.use('/api/contractor', contractorRoutes);
+app.use('/api/tools', toolRoutes);
+app.use('/api/permits', permitRoutes);
+app.use('/api/petty-cash', pettyCashRoutes);
 
 // Serve frontend build (single-origin local/prod setup)
 // Build the frontend first: ../frontend/dist

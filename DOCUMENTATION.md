@@ -83,7 +83,9 @@ frontend/
 **User Roles:**
 - `engineer` - Field workers who create DPRs, mark attendance, raise material requests
 - `manager` - Approve material requests, view insights, monitor progress
-- `owner` - Full system access including project creation, invoicing, user management
+- `owner` - Full system access including project creation, invoicing, user management, contractor management
+- `purchase_manager` - View approved material requests, send materials to site, track purchase history
+- `contractor` - Register labourers, mark daily attendance, generate weekly invoices
 
 ### 2. Users Module (`/api/users`)
 
@@ -400,6 +402,132 @@ frontend/
 **Routes:**
 - `GET /api/owner/overview/:projectId` - Get owner overview (owner only)
 
+### 16. Purchase Module (`/api/purchase`)
+
+**Features:**
+- Purchase Manager workflow for sending materials
+- Engineer workflow for receiving materials
+- Purchase history tracking with GST calculations
+
+**Routes:**
+- `GET /api/purchase/approved-requests` - Get approved material requests pending dispatch (purchase_manager, owner)
+- `POST /api/purchase/send/:requestId` - Send material (purchase_manager only)
+- `POST /api/purchase/receive/:historyId` - Confirm receipt (engineer)
+- `GET /api/purchase/sent-for-engineer` - Get materials sent to engineer's projects
+- `GET /api/purchase/history/project/:projectId` - Get purchase history by project
+- `GET /api/purchase/history` - Get all purchase history
+
+**Purchase History Model Fields:**
+- `projectId`, `materialRequestId`, `materialId`, `materialName`
+- `qty`, `unit`, `gstRate`, `gstAmount`, `basePrice`, `totalCost`
+- `sentAt`, `sentBy` (Purchase Manager)
+- `receivedAt`, `receivedBy` (Engineer), `proofPhotoUrl`, `geoLocation`, `coordinates`
+- `status` (SENT/RECEIVED)
+
+### 17. Contractor Module (`/api/contractor`)
+
+**Features:**
+- Contractor management by Owner
+- Labour registration with face photos
+- Daily attendance upload
+- Weekly invoice generation and approval workflow
+
+**Routes:**
+- `GET /api/contractor` - Get all contractors (owner only)
+- `POST /api/contractor/assign` - Assign contractor to project (owner only)
+- `POST /api/contractor/labour` - Register labour (contractor only)
+- `GET /api/contractor/labours` - Get labours (contractor)
+- `POST /api/contractor/attendance` - Upload attendance (contractor only)
+- `GET /api/contractor/attendance/summary/:projectId` - Get attendance summary
+- `POST /api/contractor/invoice` - Create weekly invoice (contractor only)
+- `GET /api/contractor/invoices/pending` - Get pending invoices (manager, owner)
+- `GET /api/contractor/invoices/approved` - Get approved invoices (owner only)
+- `GET /api/contractor/invoices/my` - Get my invoices (contractor)
+- `POST /api/contractor/invoice/:id/approve` - Approve invoice (manager only)
+- `POST /api/contractor/invoice/:id/reject` - Reject invoice (manager only)
+
+**Contractor Model Fields:**
+- `userId`, `assignedProjects`, `contracts[]`
+- Contract: `projectId`, `labourCountPerDay`, `ratePerLabourPerDay`, `gstRate`, `startDate`, `endDate`, `isActive`
+
+**Labour Model Fields:**
+- `contractorId`, `name`, `code`, `faceImageUrl`, `faceEmbedding`, `projectId`, `isActive`
+
+**Labour Attendance Model Fields:**
+- `labourId`, `contractorId`, `projectId`, `date`, `present`, `groupPhotoUrl`, `detectedAt`
+
+**Contractor Invoice Model Fields:**
+- `contractorId`, `projectId`, `weekStartDate`, `weekEndDate`
+- `labourCountTotal`, `ratePerLabour`, `taxableAmount`, `gstRate`, `gstAmount`, `totalAmount`
+- `status` (PENDING_PM_APPROVAL/APPROVED/REJECTED)
+- `approvedBy`, `approvedAt`, `rejectedBy`, `rejectedAt`, `rejectionReason`
+- `sentToOwner`, `invoiceNumber`
+
+### 18. Tools Module (`/api/tools`)
+
+**Features:**
+- Tool inventory management
+- Issue/return workflow with history tracking
+- Permanent audit trail
+
+**Routes:**
+- `POST /api/tools` - Create tool (manager, owner)
+- `GET /api/tools` - Get all tools
+- `DELETE /api/tools/:toolId` - Delete tool (manager, owner)
+- `POST /api/tools/:toolId/issue` - Issue tool to worker
+- `POST /api/tools/:toolId/return` - Return tool
+- `GET /api/tools/:toolId/history` - Get tool history
+
+**Tool Model Fields:**
+- `toolId`, `name`, `description`, `category`
+- `status` (AVAILABLE/ISSUED)
+- `currentHolderWorkerId`, `currentHolderName`, `currentProjectId`, `issuedAt`
+- `history[]` (action, workerId, workerName, projectId, timestamp, notes)
+- `createdBy`
+
+### 19. Permits Module (`/api/permits`)
+
+**Features:**
+- Permit-to-Work (PTW) system for hazardous tasks
+- OTP-based verification (10-minute validity)
+- Safety Officer approval workflow
+
+**Routes:**
+- `POST /api/permits` - Create permit request (engineer)
+- `GET /api/permits/my` - Get my permits (engineer)
+- `GET /api/permits/pending` - Get pending permits (manager)
+- `POST /api/permits/:id/approve` - Approve permit and generate OTP (manager)
+- `POST /api/permits/:id/verify-otp` - Verify OTP to start work (engineer)
+- `GET /api/permits/project/:projectId` - Get permits by project
+
+**Permit Model Fields:**
+- `projectId`, `requestedBy`, `taskDescription`, `hazardType`, `safetyMeasures[]`
+- `status` (PENDING/APPROVED/OTP_GENERATED/COMPLETED/EXPIRED)
+- `approvedBy`, `approvedAt`, `otp`, `otpGeneratedAt`, `otpExpiresAt`, `otpUsed`
+- `workStartedAt`, `completedAt`, `notes`
+
+### 20. Petty Cash Module (`/api/petty-cash`)
+
+**Features:**
+- Expense submission with receipt photo and GPS
+- Geo-fence validation (within 200m of site)
+- Multi-level approval workflow
+
+**Routes:**
+- `POST /api/petty-cash` - Submit expense (manager)
+- `GET /api/petty-cash/pending` - Get pending expenses (manager, owner)
+- `GET /api/petty-cash/all` - Get all expenses with summary (owner)
+- `GET /api/petty-cash/my` - Get my expenses (manager)
+- `POST /api/petty-cash/:id/approve` - Approve expense (owner)
+- `POST /api/petty-cash/:id/reject` - Reject expense (owner)
+
+**Petty Cash Model Fields:**
+- `projectId`, `submittedBy`, `amount`, `description`, `category`
+- `receiptPhotoUrl`, `geoLocation`, `coordinates`, `distanceFromSite`, `geoFenceValid`
+- `status` (PENDING_PM_APPROVAL/PENDING_OWNER_APPROVAL/APPROVED/REJECTED)
+- `pmApprovedBy`, `pmApprovedAt`, `ownerApprovedBy`, `ownerApprovedAt`
+- `rejectedBy`, `rejectedAt`, `rejectionReason`
+
 ---
 
 ## Frontend Features
@@ -586,7 +714,122 @@ frontend/
 - View assigned projects
 - Change password (if implemented)
 
-### 15. Common Components
+### 15. Purchase Dashboard (`/purchase-dashboard`)
+
+**For:** Purchase Manager
+
+**Features:**
+- View approved material requests awaiting dispatch
+- Material details (name, quantity, unit, project, requested by)
+- Cost calculation with GST breakdown
+- "Send Materials" action to mark as dispatched
+- Notifications sent to Engineer on dispatch
+
+### 16. Purchase History (`/purchase-history`)
+
+**For:** Engineer, Purchase Manager, Owner
+
+**Features:**
+- View materials sent to projects (role-filtered)
+- Engineers see materials sent to their projects with pending confirmation
+- Confirm receipt with:
+  - Photo proof (using Capacitor Camera)
+  - GPS location capture (using Capacitor Geolocation)
+  - Reverse geocoding for location name
+- Offline queue for receipt confirmation
+
+### 17. Contractor Labours (`/contractor/labours`)
+
+**For:** Contractor
+
+**Features:**
+- Register new labourers with name/code
+- Capture face photo for attendance matching
+- Assign labourers to projects
+- View list of all registered labourers
+- Delete/deactivate labourers
+
+### 18. Contractor Attendance (`/contractor/attendance`)
+
+**For:** Contractor
+
+**Features:**
+- Select project for attendance
+- Upload group photo
+- Select labourers present (for face matching placeholder)
+- Mark attendance for selected labourers
+- View attendance history
+- Offline-first with IndexedDB sync
+
+### 19. Contractor Weekly Invoice (`/contractor/weekly-invoice`)
+
+**For:** Contractor
+
+**Features:**
+- Select project
+- Auto-calculate labour days from attendance (Mon-Sun)
+- Apply contract rate (per labour/day)
+- Calculate GST and total amount
+- Generate invoice for PM approval
+- Track invoice status (Pending/Approved/Rejected)
+
+### 20. Contractors Management (`/contractors`)
+
+**For:** Owner
+
+**Features:**
+- View all contractors
+- Assign contractors to projects
+- Define labour contracts:
+  - Labour count per day
+  - Rate per labour/day (INR)
+  - GST rate
+  - Contract start/end dates
+- View contractor invoices
+
+### 21. Tools Page (`/tools`)
+
+**For:** Engineer, Manager, Owner, Purchase Manager, Contractor
+
+**Features:**
+- View tool inventory
+- Add new tools (Manager/Owner only)
+- Issue tools to workers with project assignment
+- Return tools with notes
+- View tool history (who issued/returned when)
+- Status indicators (Available/Issued)
+
+### 22. Permits Page (`/permits`)
+
+**For:** Engineer, Manager
+
+**Features:**
+- **Engineer View:**
+  - Request permit for hazardous tasks
+  - Specify task description and hazard type
+  - View my permit requests
+  - Enter OTP to start permitted work
+- **Manager View (Safety Officer):**
+  - View pending permit requests
+  - Approve permits (generates OTP valid for 10 mins)
+  - Reject permits with reason
+
+### 23. Petty Cash Page (`/petty-cash`)
+
+**For:** Manager, Owner
+
+**Features:**
+- **Manager View:**
+  - Submit expenses with amount, description, category
+  - Capture receipt photo
+  - Capture GPS location (geo-fence validation)
+  - View my expenses and status
+- **Owner View:**
+  - View all expenses with summary
+  - Approve/reject pending expenses
+  - Track total approved amounts
+
+### 24. Common Components
 
 **Notification Bell**
 - Real-time notification display
@@ -686,6 +929,46 @@ frontend/
 - **Collection**: `counters`
 - **Fields**: type, count (for generating unique OffSite IDs)
 
+### Purchase History Model
+- **Collection**: `purchasehistories`
+- **Fields**: projectId, materialRequestId, materialId, materialName, qty, unit, gstRate, gstAmount, basePrice, totalCost, sentAt, sentBy, receivedAt, receivedBy, proofPhotoUrl, geoLocation, coordinates (Point), status
+- **Indexes**: projectId + sentAt, materialRequestId, status
+
+### Contractor Model
+- **Collection**: `contractors`
+- **Fields**: userId, assignedProjects[], contracts[] (projectId, labourCountPerDay, ratePerLabourPerDay, gstRate, startDate, endDate, isActive)
+- **Indexes**: userId
+
+### Labour Model
+- **Collection**: `labours`
+- **Fields**: contractorId, name, code, faceImageUrl, faceEmbedding (placeholder), projectId, isActive
+- **Indexes**: contractorId, projectId, code (unique)
+
+### Labour Attendance Model
+- **Collection**: `labourattendances`
+- **Fields**: labourId, contractorId, projectId, date, present, groupPhotoUrl, detectedAt, coordinates (Point)
+- **Indexes**: contractorId + date, projectId + date
+
+### Contractor Invoice Model
+- **Collection**: `contractorinvoices`
+- **Fields**: contractorId, projectId, weekStartDate, weekEndDate, labourCountTotal, ratePerLabour, taxableAmount, gstRate, gstAmount, totalAmount, status, approvedBy, approvedAt, rejectedBy, rejectedAt, rejectionReason, sentToOwner, invoiceNumber
+- **Indexes**: contractorId + weekStartDate, projectId + status, invoiceNumber
+
+### Tool Model
+- **Collection**: `tools`
+- **Fields**: toolId (unique), name, description, category, status, currentHolderWorkerId, currentHolderName, currentProjectId, issuedAt, history[] (action, workerId, workerName, projectId, timestamp, notes), createdBy
+- **Indexes**: toolId, status, currentHolderWorkerId
+
+### Permit Model
+- **Collection**: `permits`
+- **Fields**: projectId, requestedBy, taskDescription, hazardType, safetyMeasures[], status, approvedBy, approvedAt, otp, otpGeneratedAt, otpExpiresAt, otpUsed, workStartedAt, completedAt, notes
+- **Indexes**: projectId + status, requestedBy + status
+
+### Petty Cash Model
+- **Collection**: `pettycashes`
+- **Fields**: projectId, submittedBy, amount, description, category, receiptPhotoUrl, geoLocation, coordinates (Point), distanceFromSite, geoFenceValid, status, pmApprovedBy, pmApprovedAt, ownerApprovedBy, ownerApprovedAt, rejectedBy, rejectedAt, rejectionReason
+- **Indexes**: projectId + status, submittedBy + createdAt
+
 ---
 
 ## Authentication & Authorization
@@ -705,6 +988,9 @@ frontend/
 - ✅ Mark attendance
 - ✅ Raise material requests
 - ✅ View own submitted data
+- ✅ Confirm material receipt
+- ✅ Request permits
+- ✅ Verify permit OTP
 
 **Manager Permissions:**
 - ✅ View all DPRs
@@ -716,9 +1002,31 @@ frontend/
 - ✅ View global dashboards
 - ✅ Export reports
 - ✅ Send notifications
+- ✅ Approve/reject permits (Safety Officer)
+- ✅ Approve/reject contractor invoices
+- ✅ Submit petty cash expenses
+
+**Purchase Manager Permissions:**
+- ✅ View approved purchase requests
+- ✅ Send materials
+- ✅ View purchase history
+- ✅ Manage tools (issue/return)
+
+**Contractor Permissions:**
+- ✅ Register labours with face photos
+- ✅ Mark labour attendance
+- ✅ Generate weekly invoices
+- ✅ View own invoices
+- ✅ Manage tools (issue/return)
 
 **Owner Permissions:**
 - ✅ All manager permissions
+- ✅ Manage contractors
+- ✅ Assign contractors to projects
+- ✅ Define labour contracts
+- ✅ View all contractor invoices
+- ✅ Approve/reject petty cash expenses
+- ✅ View financial dashboards (contractor costs, purchase costs, GST)
 - ✅ Create projects
 - ✅ Archive projects
 - ✅ Manage users
@@ -1096,6 +1404,22 @@ npm run preview  # Preview production build
 - MongoDB required
 - Connection string in `MONGODB_URI`
 - Collections created automatically on first use
+
+---
+
+## Summary
+
+**OffSite** is a comprehensive construction management platform with:
+
+- **5 User Roles**: Engineer, Manager, Owner, Purchase Manager, Contractor
+- **20+ Backend Modules**: Authentication, Projects, Tasks, DPRs, Attendance, Materials, Invoicing, Purchase, Contractor, Tools, Permits, Petty Cash, and more
+- **24+ Frontend Pages**: Role-specific dashboards, operational pages, and management interfaces
+- **Offline-First Architecture**: IndexedDB, Service Workers, PWA capabilities
+- **AI-Powered Features**: DPR summaries, health explanations, risk assessments, anomaly detection
+- **GST-Compliant Invoicing**: Multi-type GST support with PDF generation
+- **Real-time Notifications**: Role-based notification system
+- **Native Android App**: Via Capacitor with camera and geolocation support
+- **Multi-language Support**: English, Hindi, Tamil, Bengali
 
 ---
 
