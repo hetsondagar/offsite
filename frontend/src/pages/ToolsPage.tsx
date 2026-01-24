@@ -26,7 +26,7 @@ export default function ToolsPage() {
   const [newToolName, setNewToolName] = useState("");
   const [newToolCategory, setNewToolCategory] = useState("");
   const [selectedProject, setSelectedProject] = useState("");
-  const [selectedWorker, setSelectedWorker] = useState("");
+  const [selectedWorkerName, setSelectedWorkerName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -74,7 +74,7 @@ export default function ToolsPage() {
   };
 
   const handleIssueTool = async () => {
-    if (!selectedProject || !selectedWorker) {
+    if (!selectedProject || !selectedWorkerName) {
       toast.error("Please fill all fields");
       return;
     }
@@ -83,12 +83,12 @@ export default function ToolsPage() {
       setIsSubmitting(true);
       await toolsApi.issueTool(issueDialog.toolId, {
         projectId: selectedProject,
-        workerId: selectedWorker,
+        labourName: selectedWorkerName,
       });
       toast.success("Tool issued successfully!");
       setIssueDialog({ open: false, toolId: '' });
       setSelectedProject("");
-      setSelectedWorker("");
+      setSelectedWorkerName("");
       loadData();
     } catch (error: any) {
       toast.error(error.message || "Failed to issue tool");
@@ -117,7 +117,7 @@ export default function ToolsPage() {
 
   return (
     <MobileLayout role={getMobileRole() as any}>
-      <div className="p-4 space-y-6 safe-area-top">
+      <div className="p-4 space-y-6 safe-area-top pb-24">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -127,43 +127,6 @@ export default function ToolsPage() {
             <h1 className="text-2xl font-bold text-foreground">Tool Library</h1>
             <p className="text-sm text-muted-foreground">Issue and return tools</p>
           </div>
-          {(role === 'manager' || role === 'owner') && (
-            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add New Tool</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label>Tool Name *</Label>
-                    <Input
-                      value={newToolName}
-                      onChange={(e) => setNewToolName(e.target.value)}
-                      placeholder="e.g., Power Drill"
-                    />
-                  </div>
-                  <div>
-                    <Label>Category</Label>
-                    <Input
-                      value={newToolCategory}
-                      onChange={(e) => setNewToolCategory(e.target.value)}
-                      placeholder="e.g., Power Tools"
-                    />
-                  </div>
-                  <Button className="w-full" onClick={handleCreateTool} disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    Create Tool
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          )}
         </motion.div>
 
         <Card>
@@ -247,11 +210,11 @@ export default function ToolsPage() {
                                 </Select>
                               </div>
                               <div>
-                                <Label>Worker ID *</Label>
+                                <Label>Worker Name *</Label>
                                 <Input
-                                  value={selectedWorker}
-                                  onChange={(e) => setSelectedWorker(e.target.value)}
-                                  placeholder="Enter worker user ID"
+                                  value={selectedWorkerName}
+                                  onChange={(e) => setSelectedWorkerName(e.target.value)}
+                                  placeholder="Enter worker name"
                                 />
                               </div>
                               <Button className="w-full" onClick={handleIssueTool} disabled={isSubmitting}>
@@ -283,6 +246,48 @@ export default function ToolsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Floating Action Button */}
+      {(role === 'manager' || role === 'owner') && (
+        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+          <DialogTrigger asChild>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className="fixed bottom-6 right-6 p-4 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-shadow z-40 safe-area-inset-bottom"
+            >
+              <Plus className="w-6 h-6" />
+            </motion.button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Tool</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Tool Name *</Label>
+                <Input
+                  value={newToolName}
+                  onChange={(e) => setNewToolName(e.target.value)}
+                  placeholder="e.g., Power Drill"
+                />
+              </div>
+              <div>
+                <Label>Category</Label>
+                <Input
+                  value={newToolCategory}
+                  onChange={(e) => setNewToolCategory(e.target.value)}
+                  placeholder="e.g., Power Tools"
+                />
+              </div>
+              <Button className="w-full" onClick={handleCreateTool} disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Create Tool
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </MobileLayout>
   );
 }

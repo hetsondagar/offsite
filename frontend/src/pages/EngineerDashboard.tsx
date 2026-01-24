@@ -7,7 +7,7 @@ import { Logo } from "@/components/common/Logo";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useTranslation } from "react-i18next";
-import { FileText, MapPin, Package, ClipboardList, Clock, AlertTriangle, CheckCircle } from "lucide-react";
+import { FileText, MapPin, Package, ClipboardList, Clock, AlertTriangle, CheckCircle, Wrench, FileCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { dprApi } from "@/services/api/dpr";
@@ -448,6 +448,30 @@ export default function EngineerDashboard() {
                   sublabel="Raise new request"
                   variant="outline"
                   onClick={() => navigate("/materials")}
+                />
+              </div>
+            )}
+
+            {hasPermission("canViewTools") && (
+              <div className="opacity-0 animate-fade-up stagger-6">
+                <ActionButton
+                  icon={Wrench}
+                  label="Tools"
+                  sublabel="Issue/Return tools"
+                  variant="outline"
+                  onClick={() => navigate("/tools")}
+                />
+              </div>
+            )}
+
+            {hasPermission("canViewPermits") && (
+              <div className="opacity-0 animate-fade-up stagger-7">
+                <ActionButton
+                  icon={FileCheck}
+                  label="Permits"
+                  sublabel="Manage permits"
+                  variant="outline"
+                  onClick={() => navigate("/permits")}
                 />
               </div>
             )}

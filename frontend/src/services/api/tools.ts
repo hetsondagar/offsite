@@ -2,7 +2,7 @@ import { apiGet, apiPost, apiDelete } from '@/lib/api';
 
 export interface ToolHistory {
   action: 'ISSUED' | 'RETURNED';
-  workerId: string;
+  workerId?: string;
   workerName: string;
   projectId: string;
   timestamp: string;
@@ -47,7 +47,8 @@ export const toolsApi = {
 
   // Issue tool
   issueTool: async (toolId: string, data: {
-    workerId: string;
+    labourName?: string;
+    workerId?: string;
     projectId: string;
     notes?: string;
   }) => {
