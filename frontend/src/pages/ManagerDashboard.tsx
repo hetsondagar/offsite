@@ -392,7 +392,7 @@ export default function ManagerDashboard() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <UserPlus className="w-5 h-5 text-primary" />
-                Project Invitations ({pendingInvitations.length})
+                {t("dashboard.projectInvitations")} ({pendingInvitations.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -472,7 +472,7 @@ export default function ManagerDashboard() {
         {/* KPI Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
           <KPICard
-            title="Active Projects"
+            title={t("dashboard.activeProjects")}
             value={kpis.activeProjects}
             icon={FolderKanban}
             trend="up"
@@ -481,7 +481,7 @@ export default function ManagerDashboard() {
             onClick={() => navigate("/projects")}
           />
           <KPICard
-            title="Today's Attendance"
+            title={t("dashboard.todayAttendance")}
             value={kpis.attendance}
             suffix="%"
             icon={Users}
@@ -495,7 +495,7 @@ export default function ManagerDashboard() {
             onClick={() => navigate("/attendance-details")}
           />
           <KPICard
-            title="Pending Approvals"
+            title={t("dashboard.pendingApprovals")}
             value={kpis.pendingApprovals}
             icon={Clock}
             variant="warning"
@@ -515,9 +515,9 @@ export default function ManagerDashboard() {
         {/* Projects Overview */}
         <Card variant="gradient" className="opacity-0 animate-fade-up stagger-4">
           <CardHeader className="flex-row items-center justify-between pb-3 px-4 sm:px-6">
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-              Projects
+              {t("projects.title")}
             </CardTitle>
             <button 
               onClick={() => navigate("/projects")}
@@ -558,7 +558,7 @@ export default function ManagerDashboard() {
           <CardHeader className="flex-row items-center justify-between pb-3">
             <CardTitle className="flex items-center gap-2 text-lg">
               <FileText className="w-5 h-5 text-primary" />
-              Recent DPRs
+              {t("dashboard.recentDPRs")}
             </CardTitle>
             <button 
               onClick={() => navigate("/all-dprs")}
@@ -657,7 +657,7 @@ export default function ManagerDashboard() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5" />
-                Recent Invoices
+                {t("dashboard.recentInvoices")}
               </CardTitle>
             </CardHeader>
             <CardContent>

@@ -864,7 +864,7 @@ export default function DPRPage() {
             <div className="space-y-4 animate-fade-up">
               <Card variant="gradient">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Work Stoppage</CardTitle>
+                  <CardTitle className="text-base">{t('dpr.workStoppage')}</CardTitle>
                   <p className="text-xs text-muted-foreground mt-1">
                     Was work stopped or significantly slowed today?
                   </p>

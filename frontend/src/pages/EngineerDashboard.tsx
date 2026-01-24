@@ -457,7 +457,7 @@ export default function EngineerDashboard() {
         {/* Recent Activity */}
         <Card variant="gradient" className="opacity-0 animate-fade-up stagger-5">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Recent Activity</CardTitle>
+            <CardTitle className="text-lg">{t("common.recentActivity")}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (

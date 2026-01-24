@@ -450,7 +450,7 @@ export default function ProjectDetailPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                Team Members
+                {t("projects.teamMembers")}
               </CardTitle>
               {role === "owner" && (
                 <Dialog open={isAddMemberDialogOpen} onOpenChange={setIsAddMemberDialogOpen}>
@@ -462,7 +462,7 @@ export default function ProjectDetailPage() {
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[425px] bg-card text-foreground max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                      <DialogTitle className="text-foreground">Add Team Members</DialogTitle>
+                      <DialogTitle className="text-foreground">{t("projects.addTeamMembers")}</DialogTitle>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                       {/* Site Engineers Section */}
@@ -734,7 +734,7 @@ export default function ProjectDetailPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5" />
-                Recent Tasks
+                {t("projects.recentTasks")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -775,7 +775,7 @@ export default function ProjectDetailPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ImageIcon className="w-5 h-5" />
-                Recent DPRs
+                {t("dashboard.recentDPRs")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -819,7 +819,7 @@ export default function ProjectDetailPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Package className="w-5 h-5" />
-                Recent Material Requests
+                {t("projects.recentMaterialRequests")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -854,7 +854,7 @@ export default function ProjectDetailPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <UserCheck className="w-5 h-5" />
-                Recent Attendance
+                {t("projects.recentAttendance")}
               </CardTitle>
             </CardHeader>
             <CardContent>

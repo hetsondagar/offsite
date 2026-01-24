@@ -343,7 +343,7 @@ export default function MaterialsPage() {
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <Package className="w-4 h-4 text-primary" />
-                    New Material Request
+                    {t("materials.requestMaterial")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -538,7 +538,7 @@ export default function MaterialsPage() {
               {/* Pending Requests */}
               <Card variant="gradient" className="animate-fade-up stagger-1">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Your Requests</CardTitle>
+                  <CardTitle className="text-base">{t("materials.yourRequests")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">

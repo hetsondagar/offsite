@@ -85,7 +85,7 @@ export default function AllDPRsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <FileText className="w-5 h-5 text-primary" />
-              All Recent DPRs ({allDPRs.length})
+              {t("dpr.allRecentDPRs")} ({allDPRs.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">

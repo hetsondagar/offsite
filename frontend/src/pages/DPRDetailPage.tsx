@@ -87,7 +87,7 @@ export default function DPRDetailPage() {
       <div className="min-h-screen bg-background w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
         <PageHeader
           title={t('dpr.dprDetails')}
-          subtitle={typeof dpr.projectId === 'object' ? dpr.projectId.name : t('dpr.project')}
+          subtitle={typeof dpr.projectId === 'object' && dpr.projectId?.name ? dpr.projectId.name : ''}
           showBack={true}
         />
 
@@ -98,7 +98,7 @@ export default function DPRDetailPage() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <FileText className="w-4 h-4 text-primary" />
-                Project & Task
+                {t('dpr.projectAndTask')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -154,7 +154,7 @@ export default function DPRDetailPage() {
           {dpr.notes && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Notes</CardTitle>
+                <CardTitle className="text-base">{t('dpr.notes')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-foreground whitespace-pre-wrap">{dpr.notes}</p>
@@ -195,7 +195,7 @@ export default function DPRDetailPage() {
           {dpr.aiSummary && (
             <Card className="border-primary/20 bg-primary/5">
               <CardHeader>
-                <CardTitle className="text-base text-primary">AI Summary</CardTitle>
+                <CardTitle className="text-base text-primary">{t('dpr.aiSummary')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-foreground">{dpr.aiSummary}</p>
