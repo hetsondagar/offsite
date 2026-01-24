@@ -10,6 +10,7 @@ import { Task } from '../modules/tasks/task.model';
 import { Attendance } from '../modules/attendance/attendance.model';
 import { MaterialRequest } from '../modules/materials/material.model';
 import { DPR } from '../modules/dpr/dpr.model';
+import { logger } from './logger';
 
 export interface HealthScoreFactors {
   attendanceConsistency: number; // 0-100, last 7 days consistency
@@ -84,14 +85,17 @@ export const calculateSiteHealthScore = (factors: HealthScoreFactors): number =>
 export const calculateProjectHealthScore = async (
   projectId: string
 ): Promise<number> => {
-  // Get project details
-  const project = await Project.findById(projectId).populate('members', 'role');
-  if (!project) {
-    return 50; // Neutral score if project not found
-  }
+  try {
+    // Get project details
+    const project = await Project.findById(projectId).populate('members', 'role');
+    if (!project) {
+      return 50; // Neutral score if project not found
+    }
 
-  const engineerMembers = project.members?.filter((member: any) => member.role === 'engineer') || [];
-  const expectedEngineers = engineerMembers.length;
+    const engineerMembers = Array.isArray(project.members)
+      ? project.members.filter((member: any) => member && member.role === 'engineer')
+      : [];
+    const expectedEngineers = engineerMembers.length;
   
   // Track if we have any operational data
   let hasData = false;
@@ -102,11 +106,11 @@ export const calculateProjectHealthScore = async (
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   sevenDaysAgo.setHours(0, 0, 0, 0);
   
-  const attendanceRecords = await Attendance.find({
-    projectId,
-    timestamp: { $gte: sevenDaysAgo },
-    type: 'checkin',
-  });
+    const attendanceRecords = await Attendance.find({
+      projectId,
+      timestamp: { $gte: sevenDaysAgo },
+      type: 'checkin',
+    });
   
   let attendanceConsistency = 0;
   if (expectedEngineers > 0 && attendanceRecords.length > 0) {
@@ -115,11 +119,17 @@ export const calculateProjectHealthScore = async (
     // Group attendance by day
     const dailyAttendance = new Map<string, Set<string>>();
     attendanceRecords.forEach(record => {
-      const dateKey = new Date(record.timestamp).toISOString().split('T')[0];
-      if (!dailyAttendance.has(dateKey)) {
-        dailyAttendance.set(dateKey, new Set());
+      try {
+        if (!record || !record.timestamp) return;
+        const dateKey = new Date(record.timestamp).toISOString().split('T')[0];
+        if (!dailyAttendance.has(dateKey)) {
+          dailyAttendance.set(dateKey, new Set());
+        }
+        const uid = record.userId ? record.userId.toString() : null;
+        if (uid) dailyAttendance.get(dateKey)!.add(uid);
+      } catch (e) {
+        logger.warn('Skipping malformed attendance record in health calc', { err: (e as Error).message });
       }
-      dailyAttendance.get(dateKey)!.add(record.userId.toString());
     });
     
     // Calculate average daily attendance rate
@@ -142,7 +152,7 @@ export const calculateProjectHealthScore = async (
     attendanceConsistency = daysWithData > 0 ? totalDailyRate / daysWithData : 0;
     
     // Penalty for geo-fence violations
-    const violationRecords = attendanceRecords.filter(a => a.geoFenceViolation === true);
+    const violationRecords = attendanceRecords.filter(a => a && a.geoFenceViolation === true);
     const violationRate = attendanceRecords.length > 0 
       ? (violationRecords.length / attendanceRecords.length) * 100 
       : 0;
@@ -169,10 +179,10 @@ export const calculateProjectHealthScore = async (
   const workingDays = 7; // Last 7 days window
   const expectedDPRs = workingDays * expectedEngineers;
   
-  const actualDPRs = await DPR.find({
-    projectId,
-    createdAt: { $gte: sevenDaysAgo },
-  });
+    const actualDPRs = await DPR.find({
+      projectId,
+      createdAt: { $gte: sevenDaysAgo },
+    });
   
   let dprSubmissionRate = 0;
   if (expectedEngineers > 0) {
@@ -204,7 +214,7 @@ export const calculateProjectHealthScore = async (
   }
   
   // ========== 3. TASK COMPLETION RATE (20% weight) ==========
-  const tasks = await Task.find({ projectId });
+    const tasks = await Task.find({ projectId });
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.status === 'completed').length;
   const pendingTasks = tasks.filter(t => t.status === 'pending').length;
@@ -232,7 +242,7 @@ export const calculateProjectHealthScore = async (
   }
   
   // ========== 4. MATERIAL EFFICIENCY (15% weight) ==========
-  const materialRequests = await MaterialRequest.find({ projectId });
+    const materialRequests = await MaterialRequest.find({ projectId });
   let materialEfficiency = 100; // Start at 100, reduce for issues
   
   if (materialRequests.length > 0) {
@@ -267,11 +277,11 @@ export const calculateProjectHealthScore = async (
   }
   
   // ========== 5. WORK STOPPAGE PENALTY (10% weight, negative) ==========
-  const dprsWithStoppage = await DPR.find({
-    projectId,
-    'workStoppage.occurred': true,
-    createdAt: { $gte: sevenDaysAgo },
-  });
+    const dprsWithStoppage = await DPR.find({
+      projectId,
+      'workStoppage.occurred': true,
+      createdAt: { $gte: sevenDaysAgo },
+    });
   
   let workStoppagePenalty = 0;
   if (dprsWithStoppage.length > 0) {
@@ -292,14 +302,19 @@ export const calculateProjectHealthScore = async (
     }
   }
   
-  // Calculate final score
-  return calculateSiteHealthScore({
-    attendanceConsistency,
-    dprSubmissionRate,
-    taskCompletionRate,
-    materialEfficiency,
-    workStoppagePenalty,
-    hasData,
-  });
+    // Calculate final score
+    return calculateSiteHealthScore({
+      attendanceConsistency,
+      dprSubmissionRate,
+      taskCompletionRate,
+      materialEfficiency,
+      workStoppagePenalty,
+      hasData,
+    });
+  } catch (err) {
+    logger.error('Error calculating project health score', { err: (err as Error).message });
+    // Return neutral score to avoid failing the entire request
+    return 50;
+  }
 };
 

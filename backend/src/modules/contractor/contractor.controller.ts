@@ -12,6 +12,21 @@ import { logger } from '../../utils/logger';
 import { createNotification } from '../notifications/notification.service';
 import { validateGeoFence, getProjectGeoFence } from '../../utils/geoFence';
 
+// Ensure contractor profile helper
+async function ensureContractorProfileForUser(userId: string) {
+  let contractor = await Contractor.findOne({ userId });
+  if (!contractor) {
+    contractor = new Contractor({ userId, assignedProjects: [], contracts: [] });
+    await contractor.save();
+    try {
+      await contractor.populate('userId', 'name email phone offsiteId');
+    } catch (e) {
+      // ignore populate failures
+    }
+  }
+  return contractor;
+}
+
 // Schema definitions
 const assignContractorSchema = z.object({
   contractorUserId: z.string(),
@@ -191,11 +206,8 @@ export const registerLabour = async (
 
     const data = createLabourSchema.parse(req.body);
 
-    // Find contractor profile
-    const contractor = await Contractor.findOne({ userId: req.user.userId });
-    if (!contractor) {
-      throw new AppError('Contractor profile not found', 404, 'NOT_FOUND');
-    }
+    // Find or create contractor profile
+    const contractor = await ensureContractorProfileForUser(req.user.userId);
 
     // Verify contractor is assigned to project
     if (!contractor.assignedProjects.includes(data.projectId as any)) {
@@ -247,10 +259,7 @@ export const getLabours = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    const contractor = await Contractor.findOne({ userId: req.user.userId });
-    if (!contractor && req.user.role === 'contractor') {
-      throw new AppError('Contractor profile not found', 404, 'NOT_FOUND');
-    }
+    const contractor = req.user ? await ensureContractorProfileForUser(req.user.userId) : null;
 
     const projectId = req.query.projectId as string;
 
@@ -297,10 +306,7 @@ export const uploadAttendance = async (
 
     const data = uploadAttendanceSchema.parse(req.body);
 
-    const contractor = await Contractor.findOne({ userId: req.user.userId });
-    if (!contractor) {
-      throw new AppError('Contractor profile not found', 404, 'NOT_FOUND');
-    }
+    const contractor = await ensureContractorProfileForUser(req.user.userId);
 
     // Get project for geofence validation
     const project = await Project.findById(data.projectId);
@@ -495,10 +501,7 @@ export const createWeeklyInvoice = async (
 
     const data = createInvoiceSchema.parse(req.body);
 
-    const contractor = await Contractor.findOne({ userId: req.user.userId });
-    if (!contractor) {
-      throw new AppError('Contractor profile not found', 404, 'NOT_FOUND');
-    }
+    const contractor = await ensureContractorProfileForUser(req.user.userId);
 
     // Get contract for this project
     const contract = contractor.contracts.find(
@@ -790,10 +793,7 @@ export const getMyInvoices = async (
       throw new AppError('Only contractors can view their invoices', 403, 'FORBIDDEN');
     }
 
-    const contractor = await Contractor.findOne({ userId: req.user.userId });
-    if (!contractor) {
-      throw new AppError('Contractor profile not found', 404, 'NOT_FOUND');
-    }
+    const contractor = await ensureContractorProfileForUser(req.user.userId);
 
     const invoices = await ContractorInvoice.find({ contractorId: contractor._id })
       .populate('projectId', 'name location')
