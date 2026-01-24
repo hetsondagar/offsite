@@ -547,18 +547,44 @@ export const createWeeklyInvoice = async (
       throw new AppError('No active contract for this project', 400, 'NO_CONTRACT');
     }
 
-    // Count attendance for the week
-    const attendanceCount = await LabourAttendance.countDocuments({
+    // Get all attendance records for the week (only marked as present)
+    const attendanceRecords = await LabourAttendance.find({
       contractorId: contractor._id,
       projectId: data.projectId,
       date: { $gte: data.weekStartDate, $lte: data.weekEndDate },
       present: true,
+      faceMatched: true, // Only count faces that were matched
+    }).select('labourId date');
+
+    if (attendanceRecords.length === 0) {
+      throw new AppError('No attendance records found for this week', 400, 'NO_ATTENDANCE');
+    }
+
+    // Count unique labour-days (each labour present on each day = 1 labour-day)
+    // Group by date and labourId to count unique labour-days
+    const labourDayMap = new Map<string, number>(); // key: "date_labourId", value: count
+    attendanceRecords.forEach(record => {
+      const dateKey = record.date.toISOString().split('T')[0];
+      const key = `${dateKey}_${record.labourId}`;
+      labourDayMap.set(key, 1); // Each unique combination = 1 labour-day
     });
 
-    // Calculate amounts (no GST for labour invoices)
-    const taxableAmount = attendanceCount * contract.ratePerLabourPerDay;
-    const gstAmount = 0; // No GST for labour
-    const totalAmount = taxableAmount; // Total = taxable amount only
+    const totalLabourDays = labourDayMap.size;
+
+    // Calculate average rate (use contract rate, but if multiple contracts exist, average them)
+    let averageRate = contract.ratePerLabourPerDay;
+    const activeContracts = contractor.contracts.filter(c => 
+      c.projectId.toString() === data.projectId && c.isActive
+    );
+    if (activeContracts.length > 1) {
+      const totalRate = activeContracts.reduce((sum, c) => sum + c.ratePerLabourPerDay, 0);
+      averageRate = totalRate / activeContracts.length;
+    }
+
+    // Calculate amounts with GST
+    const taxableAmount = totalLabourDays * averageRate;
+    const gstAmount = Math.round((taxableAmount * contract.gstRate) / 100 * 100) / 100; // Round to 2 decimal places
+    const totalAmount = Math.round((taxableAmount + gstAmount) * 100) / 100; // Round to 2 decimal places
 
     // Generate invoice number
     const invoiceCount = await ContractorInvoice.countDocuments();
@@ -569,8 +595,8 @@ export const createWeeklyInvoice = async (
       projectId: data.projectId,
       weekStartDate: data.weekStartDate,
       weekEndDate: data.weekEndDate,
-      labourCountTotal: attendanceCount,
-      ratePerLabour: contract.ratePerLabourPerDay,
+      labourCountTotal: totalLabourDays, // Total labour-days (unique labour present per day)
+      ratePerLabour: averageRate, // Average rate per labour-day
       taxableAmount,
       gstRate: contract.gstRate,
       gstAmount,

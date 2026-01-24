@@ -10,7 +10,7 @@ import { MapPin, Camera, Upload, Users, Loader2, CheckCircle, AlertCircle } from
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { takePhoto } from "@/lib/capacitor-camera";
-import { getCurrentPosition } from "@/lib/capacitor-geolocation";
+import { getCurrentPosition, reverseGeocode } from "@/lib/capacitor-geolocation";
 import { detectAllFaces, matchFaces, createImageElement } from "@/lib/face-recognition";
 
 export default function ContractorAttendancePage() {
@@ -24,6 +24,7 @@ export default function ContractorAttendancePage() {
   const [isProcessingFace, setIsProcessingFace] = useState(false);
   const [detectedFaces, setDetectedFaces] = useState<string[]>([]);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationName, setLocationName] = useState<string | null>(null);
   const [isCapturingLocation, setIsCapturingLocation] = useState(false);
 
   useEffect(() => {
@@ -70,11 +71,22 @@ export default function ContractorAttendancePage() {
       setIsCapturingLocation(true);
       try {
         const position = await getCurrentPosition({ enableHighAccuracy: true });
-        setLocation({
+        const loc = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
-        });
-        toast.success("Photo and location captured!");
+        };
+        setLocation(loc);
+        
+        // Reverse geocode to get location name
+        try {
+          const address = await reverseGeocode(loc.latitude, loc.longitude);
+          setLocationName(address);
+          toast.success("Photo and location captured!");
+        } catch (geoError) {
+          console.warn("Reverse geocoding failed:", geoError);
+          setLocationName(`${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}`);
+          toast.success("Photo and location captured!");
+        }
       } catch (locError: any) {
         console.error("Location capture failed:", locError);
         toast.error("Photo captured but location failed. Please enable location permissions.");
@@ -228,6 +240,7 @@ export default function ContractorAttendancePage() {
       setGroupPhotoUrl(undefined);
       setDetectedFaces([]);
       setLocation(null);
+      setLocationName(null);
     } catch (error: any) {
       toast.error(error.message || "Failed to submit attendance");
     } finally {
@@ -288,7 +301,7 @@ export default function ContractorAttendancePage() {
             {location && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <MapPin className="w-3 h-3" />
-                <span>Location: {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}</span>
+                <span className="truncate">{locationName || `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`}</span>
               </div>
             )}
             

@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { contractorApi, Contractor, ContractorInvoice } from "@/services/api/contractor";
 import { projectsApi } from "@/services/api/projects";
 import { usersApi } from "@/services/api/users";
-import { Users, Plus, Receipt, Loader2, Building } from "lucide-react";
+import { Users, Plus, Receipt, Loader2, Building, Star } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 
@@ -224,13 +224,35 @@ export default function ContractorsManagementPage() {
                     className="p-4 rounded-lg border bg-card"
                   >
                     <div className="flex justify-between items-start mb-2">
-                      <div>
+                      <div className="flex-1">
                         <h3 className="font-semibold text-foreground">
                           {(contractor.userId as any)?.name || 'Unknown'}
                         </h3>
                         <p className="text-sm text-muted-foreground">
                           {(contractor.userId as any)?.email}
                         </p>
+                        <p className="text-xs text-muted-foreground font-mono mt-1">
+                          {(contractor.userId as any)?.offsiteId}
+                        </p>
+                        {/* Rating Display */}
+                        <div className="flex items-center gap-1 mt-2">
+                          {Array.from({ length: 5 }).map((_, i) => {
+                            const rating = contractor.rating || 3; // Default 3 stars
+                            return (
+                              <Star
+                                key={i}
+                                className={`w-4 h-4 ${
+                                  i < Math.round(rating)
+                                    ? 'fill-yellow-400 text-yellow-400'
+                                    : 'text-muted-foreground'
+                                }`}
+                              />
+                            );
+                          })}
+                          <span className="text-xs text-muted-foreground ml-1">
+                            ({contractor.rating ? contractor.rating.toFixed(1) : '3.0'})
+                          </span>
+                        </div>
                       </div>
                       <StatusBadge status="success" label="Active" />
                     </div>

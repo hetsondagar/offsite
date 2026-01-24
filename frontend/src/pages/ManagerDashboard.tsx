@@ -28,8 +28,9 @@ import { attendanceApi } from "@/services/api/attendance";
 import { notificationsApi } from "@/services/api/notifications";
 import { dprApi } from "@/services/api/dpr";
 import { invoicesApi, type Invoice } from "@/services/api/invoices";
+import { contractorApi, Contractor } from "@/services/api/contractor";
 import { Button } from "@/components/ui/button";
-import { Loader2, UserPlus, X } from "lucide-react";
+import { Loader2, UserPlus, X, Star, Building } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationBell } from "@/components/common/NotificationBell";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -56,6 +57,7 @@ export default function ManagerDashboard() {
   const [recentDPRs, setRecentDPRs] = useState<any[]>([]);
   const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [contractors, setContractors] = useState<Contractor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDPR, setSelectedDPR] = useState<any | null>(null);
   const [isDPRModalOpen, setIsDPRModalOpen] = useState(false);
@@ -75,16 +77,28 @@ export default function ManagerDashboard() {
   const loadDashboardData = async () => {
     try {
       setIsLoading(true);
-      const [projectsData, healthData, delayRisksData, materialsData] = await Promise.all([
+      const loadPromises: Promise<any>[] = [
         projectsApi.getAll(1, 10),
         insightsApi.getSiteHealth(),
         insightsApi.getDelayRisks(),
         materialsApi.getPending(1, 100),
-      ]);
+      ];
+      
+      // Load contractors for owners
+      if (role === 'owner') {
+        loadPromises.push(contractorApi.getContractors());
+      }
+      
+      const results = await Promise.all(loadPromises);
+      const [projectsData, healthData, delayRisksData, materialsData, contractorsData] = results;
 
       setProjectOverview(projectsData?.projects || []);
       setHealthScore(healthData?.overallHealthScore || 0);
       setHealthScores(healthData?.projectHealthScores || []);
+      
+      if (role === 'owner' && contractorsData) {
+        setContractors(contractorsData || []);
+      }
       
       // Calculate attendance percentage from real data
       let attendancePercentage = 0;
@@ -649,6 +663,77 @@ export default function ManagerDashboard() {
                   </button>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Contractors Card - Only for Owners */}
+        {role === 'owner' && (
+          <Card className="opacity-0 animate-fade-up stagger-6">
+            <CardHeader className="flex-row items-center justify-between pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Building className="w-5 h-5 text-primary" />
+                Contractors ({contractors.length})
+              </CardTitle>
+              <button 
+                onClick={() => navigate("/contractors")}
+                className="text-sm text-primary flex items-center gap-1"
+              >
+                View All <ChevronRight className="w-4 h-4" />
+              </button>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : contractors.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No contractors registered</p>
+              ) : (
+                <div className="space-y-3">
+                  {contractors.slice(0, 5).map((contractor, index) => (
+                    <div
+                      key={contractor._id}
+                      className="p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                      onClick={() => navigate("/contractors")}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm text-foreground">
+                            {(contractor.userId as any)?.name || 'Unknown'}
+                          </p>
+                          <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                            {(contractor.userId as any)?.offsiteId}
+                          </p>
+                          <div className="flex items-center gap-1 mt-2">
+                            {Array.from({ length: 5 }).map((_, i) => {
+                              const rating = contractor.rating || 3; // Default 3 stars
+                              return (
+                                <Star
+                                  key={i}
+                                  className={`w-3 h-3 ${
+                                    i < Math.round(rating)
+                                      ? 'fill-yellow-400 text-yellow-400'
+                                      : 'text-muted-foreground'
+                                  }`}
+                                />
+                              );
+                            })}
+                            <span className="text-xs text-muted-foreground ml-1">
+                              ({contractor.rating ? contractor.rating.toFixed(1) : '3.0'})
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-muted-foreground">
+                            {contractor.assignedProjects.length} project{contractor.assignedProjects.length !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

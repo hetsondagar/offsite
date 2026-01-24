@@ -3,6 +3,7 @@ import { apiGet, apiPost } from '@/lib/api';
 export interface Contractor {
   _id: string;
   userId: any;
+  rating?: number; // Rating out of 5
   assignedProjects: any[];
   contracts: {
     projectId: any;
@@ -51,6 +52,12 @@ export interface ContractorInvoice {
 export const contractorApi = {
   // Get all contractors (Owner)
   getAllContractors: async () => {
+    const response = await apiGet<Contractor[]>('/contractor');
+    return response.data;
+  },
+
+  // Get all contractors (Owner) - alias
+  getContractors: async () => {
     const response = await apiGet<Contractor[]>('/contractor');
     return response.data;
   },
