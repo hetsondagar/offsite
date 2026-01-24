@@ -73,7 +73,7 @@ app.use(
   })
 );
 
-// CORS configuration - support multiple origins
+// CORS configuration - support multiple origins and Vercel preview deployments
 const getAllowedOrigins = (): string[] => {
   const origins: string[] = [];
   
@@ -94,6 +94,19 @@ const getAllowedOrigins = (): string[] => {
   // Remove duplicates and normalize (remove trailing slashes)
   const normalizedOrigins = origins.map(origin => origin.replace(/\/+$/, ''));
   return [...new Set(normalizedOrigins)];
+};
+
+// Check if origin matches Vercel pattern
+const isVercelOrigin = (origin: string): boolean => {
+  // Vercel preview deployments: *.vercel.app
+  // Vercel production: your-domain.vercel.app or custom domain
+  const vercelPatterns = [
+    /^https:\/\/.*\.vercel\.app$/,
+    /^https:\/\/offsite-be-off-the-site.*\.vercel\.app$/,
+    /^https:\/\/offsite.*\.vercel\.app$/,
+  ];
+  
+  return vercelPatterns.some(pattern => pattern.test(origin));
 };
 
 app.use(
@@ -131,6 +144,7 @@ app.use(
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range'],
   })
 );
 
@@ -154,8 +168,26 @@ if (env.NODE_ENV === 'development') {
   app.use(morgan('combined'));
 }
 
-// Health check
-app.get('/health', (_req, res) => {
+// Helper function to set CORS headers
+const setCorsHeaders = (req: express.Request, res: express.Response): void => {
+  const origin = req.headers.origin;
+  if (origin) {
+    // Check if origin is allowed
+    const allowedOrigins = getAllowedOrigins();
+    const normalizedOrigin = origin.replace(/\/+$/, '');
+    
+    if (allowedOrigins.includes(normalizedOrigin) || isVercelOrigin(normalizedOrigin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    }
+  }
+};
+
+// Health check (CORS enabled for all origins)
+app.get('/health', (req, res) => {
+  setCorsHeaders(req, res);
   res.json({
     success: true,
     message: 'OffSite API is running',
@@ -163,8 +195,15 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// API health check (includes database status)
-app.get('/api/health', async (_req, res) => {
+// Handle OPTIONS for /health
+app.options('/health', (req, res) => {
+  setCorsHeaders(req, res);
+  res.sendStatus(204);
+});
+
+// API health check (includes database status) - CORS enabled
+app.get('/api/health', async (req, res) => {
+  setCorsHeaders(req, res);
   const mongoose = await import('mongoose');
   const dbStatus = mongoose.default.connection.readyState === 1 ? 'connected' : 'disconnected';
   
@@ -178,6 +217,12 @@ app.get('/api/health', async (_req, res) => {
       environment: env.NODE_ENV,
     },
   });
+});
+
+// Handle OPTIONS for /api/health
+app.options('/api/health', (req, res) => {
+  setCorsHeaders(req, res);
+  res.sendStatus(204);
 });
 
 // Root
