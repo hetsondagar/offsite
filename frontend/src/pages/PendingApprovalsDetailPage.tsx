@@ -86,7 +86,7 @@ export default function PendingApprovalsDetailPage() {
     <MobileLayout role="manager">
       <div className="min-h-screen bg-background w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
         <PageHeader
-          title={t('materials.pendingApprovals')}
+          title={t('Pending Approvals')}
           subtitle={`${pendingRequests.length} ${pendingRequests.length !== 1 ? t('materials.pendingRequests') : t('materials.requestMaterial')} ${t('attendance.pending')}`}
           showBack={true}
         />
