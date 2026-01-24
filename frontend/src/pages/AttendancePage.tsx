@@ -8,7 +8,6 @@ import { Logo } from "@/components/common/Logo";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAppSelector } from "@/store/hooks";
 import { motion } from "framer-motion";
-import { AlertCircle } from "lucide-react";
 import { 
   ArrowLeft, 
   MapPin, 
@@ -17,11 +16,12 @@ import {
   Loader2,
   Navigation,
   WifiOff,
-  RefreshCw
+  RefreshCw,
+  AlertCircle
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { saveAttendance, getCheckInStateFromIndexedDB } from "@/lib/indexeddb";
+import { saveAttendance, getCheckInStateFromIndexedDB, cacheGeoFence, getCachedGeoFence } from "@/lib/indexeddb";
 import { isOnline as checkOnline } from "@/lib/network";
 import { attendanceApi } from "@/services/api/attendance";
 import { projectsApi } from "@/services/api/projects";
@@ -30,6 +30,7 @@ import { getCurrentPosition, watchPosition, clearWatch } from "@/lib/capacitor-g
 import { getMapTilerKey } from "@/lib/config";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Label } from "@/components/ui/label";
+import { validateGeoFence, getProjectGeoFence } from "@/utils/geoFence";
 
 const MAPTILER_KEY = getMapTilerKey();
 
@@ -52,16 +53,29 @@ export default function AttendancePage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [geoFenceStatus, setGeoFenceStatus] = useState<'INSIDE' | 'OUTSIDE' | null>(null);
+  const [distanceFromCenter, setDistanceFromCenter] = useState<number | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const watchIdRef = useRef<number | string | null>(null);
 
-  // Load projects and check existing check-in status
+  // Load projects and cache geo-fences for offline use
   useEffect(() => {
     const loadProjects = async () => {
       try {
         const data = await projectsApi.getAll(1, 100);
         setProjects(data?.projects || []);
+        
+        // Cache geo-fence data for offline attendance validation
+        if (data?.projects) {
+          for (const project of data.projects) {
+            const geoFence = getProjectGeoFence(project);
+            if (geoFence) {
+              await cacheGeoFence(project._id, geoFence);
+            }
+          }
+        }
+        
         if (data?.projects && data.projects.length > 0) {
           setSelectedProject(data.projects[0]._id);
         } else {
@@ -71,7 +85,6 @@ export default function AttendancePage() {
         console.error('Error loading projects:', error);
         const errorMessage = error?.message || t("attendance.failedToLoadProjects");
         toast.error(errorMessage);
-        // Set empty projects array to prevent further errors
         setProjects([]);
       }
     };
@@ -266,10 +279,18 @@ export default function AttendancePage() {
 
     // Start watching position
     try {
-      watchIdRef.current = await watchPosition(
-        (locationData) => {
+      watchIdRef.current = await         watchPosition(
+        async (locationData) => {
           if (locationData && locationData.latitude && locationData.longitude) {
-            updateLocationFromCoordinates(locationData.latitude, locationData.longitude);
+            await updateLocationFromCoordinates(locationData.latitude, locationData.longitude);
+            // Validate geo-fence on location update
+            if (selectedProject) {
+              await validateLocationAgainstGeoFence(
+                locationData.latitude,
+                locationData.longitude,
+                selectedProject
+              );
+            }
           }
         },
         (error) => {
@@ -310,6 +331,12 @@ export default function AttendancePage() {
 
       const { latitude, longitude } = locationData;
       await updateLocationFromCoordinates(latitude, longitude);
+      
+      // Validate geo-fence client-side (offline-safe)
+      if (selectedProject) {
+        await validateLocationAgainstGeoFence(latitude, longitude, selectedProject);
+      }
+      
       toast.success(t('attendance.locationCapturedSuccess'));
     } catch (error: any) {
       console.error('Location error:', error);
@@ -335,6 +362,47 @@ export default function AttendancePage() {
     }
   };
 
+  const validateLocationAgainstGeoFence = async (lat: number, lng: number, projectId: string) => {
+    // Try to get geo-fence from cache (offline-first)
+    let geoFence = await getCachedGeoFence(projectId);
+    
+    // If not in cache, try to get from current projects list
+    if (!geoFence) {
+      const project = projects.find(p => p._id === projectId);
+      if (project) {
+        const projectGeoFence = getProjectGeoFence(project);
+        if (projectGeoFence) {
+          await cacheGeoFence(projectId, projectGeoFence);
+          geoFence = {
+            enabled: projectGeoFence.enabled,
+            center: projectGeoFence.center,
+            radiusMeters: projectGeoFence.radiusMeters,
+            bufferMeters: projectGeoFence.bufferMeters,
+            cachedAt: new Date().toISOString(),
+          };
+        }
+      }
+    }
+    
+    if (geoFence && geoFence.enabled) {
+      const validation = validateGeoFence(lat, lng, {
+        enabled: geoFence.enabled,
+        center: geoFence.center,
+        radiusMeters: geoFence.radiusMeters,
+        bufferMeters: geoFence.bufferMeters,
+      });
+      
+      setGeoFenceStatus(validation.status);
+      setDistanceFromCenter(validation.distanceFromCenter);
+      
+      return validation;
+    }
+    
+    setGeoFenceStatus(null);
+    setDistanceFromCenter(null);
+    return null;
+  };
+
   const handleCheckIn = async () => {
     if (!selectedProject) {
       toast.error("Please select a project first");
@@ -344,6 +412,22 @@ export default function AttendancePage() {
       toast.error(t("attendance.pleaseGetLocation"));
       return;
     }
+    
+    // Client-side geo-fence validation (offline-safe)
+    const validation = await validateLocationAgainstGeoFence(
+      location.latitude,
+      location.longitude,
+      selectedProject
+    );
+    
+    if (validation && validation.violation) {
+      // Show warning but allow attendance (offline realism - flag for server validation)
+      toast.warning(
+        `⚠️ Outside site boundary (${validation.distanceFromCenter}m from center). Attendance will be flagged.`,
+        { duration: 5000 }
+      );
+    }
+    
     setIsLoading(true);
     const checkInTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     try {
@@ -355,6 +439,9 @@ export default function AttendancePage() {
           location: location.address,
           latitude: location.latitude,
           longitude: location.longitude,
+          distanceFromCenter: validation?.distanceFromCenter,
+          geoFenceStatus: validation?.status,
+          geoFenceViolation: validation?.violation || false,
           timestamp: Date.now(),
           userId: userId || "unknown",
           markedAt: new Date().toISOString(),
@@ -377,6 +464,9 @@ export default function AttendancePage() {
         location: location.address,
         latitude: location.latitude,
         longitude: location.longitude,
+        distanceFromCenter: validation?.distanceFromCenter,
+        geoFenceStatus: validation?.status,
+        geoFenceViolation: validation?.violation || false,
         timestamp: Date.now(),
         userId: userId || "unknown",
         markedAt: new Date().toISOString(),
@@ -410,6 +500,16 @@ export default function AttendancePage() {
           longitude: loc.longitude,
           address: location?.address || `Coordinates: ${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}`,
         };
+        // Validate geo-fence for checkout
+        if (selectedProject) {
+          const validation = await validateLocationAgainstGeoFence(loc.latitude, loc.longitude, selectedProject);
+          if (validation && validation.violation) {
+            toast.warning(
+              `⚠️ Outside site boundary (${validation.distanceFromCenter}m). Checkout will be flagged.`,
+              { duration: 5000 }
+            );
+          }
+        }
       }
     } catch (e) {
       console.warn('Checkout location not available, using current:', e);
@@ -417,8 +517,16 @@ export default function AttendancePage() {
     const addr = checkoutLocation?.address || location?.address || 'Unknown';
     const lat = checkoutLocation?.latitude ?? location?.latitude;
     const lng = checkoutLocation?.longitude ?? location?.longitude;
+    
+    // Validate geo-fence for checkout if coordinates available
+    let checkoutValidation = null;
+    if (lat && lng && selectedProject) {
+      checkoutValidation = await validateLocationAgainstGeoFence(lat, lng, selectedProject);
+    }
+    
     try {
       const online = await checkOnline();
+      
       if (!online) {
         await saveAttendance({
           projectId: selectedProject,
@@ -426,6 +534,9 @@ export default function AttendancePage() {
           location: addr,
           latitude: lat,
           longitude: lng,
+          distanceFromCenter: checkoutValidation?.distanceFromCenter,
+          geoFenceStatus: checkoutValidation?.status,
+          geoFenceViolation: checkoutValidation?.violation || false,
           timestamp: Date.now(),
           userId: userId || "unknown",
           markedAt: new Date().toISOString(),
@@ -446,6 +557,9 @@ export default function AttendancePage() {
         location: addr,
         latitude: lat,
         longitude: lng,
+        distanceFromCenter: checkoutValidation?.distanceFromCenter,
+        geoFenceStatus: checkoutValidation?.status,
+        geoFenceViolation: checkoutValidation?.violation || false,
         timestamp: Date.now(),
         userId: userId || "unknown",
         markedAt: new Date().toISOString(),
@@ -518,7 +632,17 @@ export default function AttendancePage() {
                 <select
                   id="project-select-attendance"
                   value={selectedProject || ''}
-                  onChange={(e) => setSelectedProject(e.target.value)}
+                  onChange={async (e) => {
+                    setSelectedProject(e.target.value);
+                    // Re-validate geo-fence when project changes
+                    if (location && e.target.value) {
+                      await validateLocationAgainstGeoFence(
+                        location.latitude,
+                        location.longitude,
+                        e.target.value
+                      );
+                    }
+                  }}
                   className="w-full h-12 px-4 rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
                 >
                   {projects.map((project) => (
@@ -554,6 +678,39 @@ export default function AttendancePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Geo-fence Status Indicator */}
+              {geoFenceStatus && location && (
+                <div className={cn(
+                  "p-3 rounded-lg border-2",
+                  geoFenceStatus === 'INSIDE' 
+                    ? "bg-green-500/10 border-green-500/30" 
+                    : "bg-yellow-500/10 border-yellow-500/30"
+                )}>
+                  <div className="flex items-center gap-2">
+                    {geoFenceStatus === 'INSIDE' ? (
+                      <Check className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-yellow-500" />
+                    )}
+                    <div className="flex-1">
+                      <p className={cn(
+                        "text-sm font-medium",
+                        geoFenceStatus === 'INSIDE' ? "text-green-600 dark:text-green-400" : "text-yellow-600 dark:text-yellow-400"
+                      )}>
+                        {geoFenceStatus === 'INSIDE' 
+                          ? '✓ Inside Site Boundary' 
+                          : `⚠️ Outside Site Boundary (${distanceFromCenter}m away)`}
+                      </p>
+                      {geoFenceStatus === 'OUTSIDE' && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Attendance will be flagged for review
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               {locationError && (
                 <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
                   {locationError}

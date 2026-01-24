@@ -120,6 +120,9 @@ export async function runSync(): Promise<SyncResult> {
           userId: a.userId,
           latitude: a.latitude,
           longitude: a.longitude,
+          distanceFromCenter: a.distanceFromCenter,
+          geoFenceStatus: a.geoFenceStatus,
+          geoFenceViolation: a.geoFenceViolation,
         };
         const res = await batchSyncRequest({ attendance: [payload], dprs: [], materials: [] });
         const ids = res.attendance || [];

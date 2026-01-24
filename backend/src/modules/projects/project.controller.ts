@@ -20,11 +20,30 @@ const createProjectSchema = z.object({
   location: z.string().min(1).max(500),
   startDate: z.string().transform((str) => new Date(str)),
   endDate: z.string().transform((str) => new Date(str)).optional(),
-  engineerOffsiteIds: z.array(z.string()).optional(), // Array of OffSite IDs for engineers
-  managerOffsiteIds: z.array(z.string()).optional(), // Array of OffSite IDs for managers
+  engineerOffsiteIds: z.array(z.string()).optional(),
+  managerOffsiteIds: z.array(z.string()).optional(),
+  // New geo-fence structure (mandatory for new projects)
+  geoFence: z.object({
+    enabled: z.boolean().default(true),
+    center: z.object({
+      latitude: z.number().min(-90).max(90),
+      longitude: z.number().min(-180).max(180),
+    }),
+    radiusMeters: z.number().min(50).max(500).default(200),
+    bufferMeters: z.number().min(0).max(100).default(20),
+  }).optional(),
+  // Legacy fields (for backward compatibility, will be migrated to geoFence)
   siteLatitude: z.number().min(-90).max(90).optional(),
   siteLongitude: z.number().min(-180).max(180).optional(),
   siteRadiusMeters: z.number().min(1).optional(),
+}).refine((data) => {
+  // Require either new geoFence OR legacy siteLatitude/siteLongitude
+  const hasNewGeoFence = data.geoFence && data.geoFence.center;
+  const hasLegacyGeo = data.siteLatitude && data.siteLongitude;
+  return hasNewGeoFence || hasLegacyGeo;
+}, {
+  message: 'Geo-fence is required. Provide either geoFence.center or siteLatitude/siteLongitude',
+  path: ['geoFence'],
 });
 
 export const createProject = async (
@@ -39,6 +58,33 @@ export const createProject = async (
 
     const data = createProjectSchema.parse(req.body);
     
+    // Build geo-fence: prefer new structure, fallback to legacy
+    let geoFence: any;
+    if (data.geoFence && data.geoFence.center) {
+      geoFence = {
+        enabled: data.geoFence.enabled !== false,
+        center: {
+          latitude: data.geoFence.center.latitude,
+          longitude: data.geoFence.center.longitude,
+        },
+        radiusMeters: data.geoFence.radiusMeters || 200,
+        bufferMeters: data.geoFence.bufferMeters || 20,
+      };
+    } else if (data.siteLatitude && data.siteLongitude) {
+      // Migrate legacy fields to new structure
+      geoFence = {
+        enabled: true,
+        center: {
+          latitude: data.siteLatitude,
+          longitude: data.siteLongitude,
+        },
+        radiusMeters: data.siteRadiusMeters || 200,
+        bufferMeters: 20,
+      };
+    } else {
+      throw new AppError('Geo-fence is required. Please provide geoFence.center or siteLatitude/siteLongitude', 400, 'VALIDATION_ERROR');
+    }
+    
     // Create project: creator is owner and initial member. Only this owner sees/manages it.
     const project = new Project({
       name: data.name,
@@ -50,9 +96,11 @@ export const createProject = async (
       status: 'active',
       progress: 0,
       healthScore: 0,
-      siteLatitude: data.siteLatitude,
-      siteLongitude: data.siteLongitude,
-      siteRadiusMeters: data.siteRadiusMeters || 100,
+      geoFence,
+      // Keep legacy fields for backward compatibility
+      siteLatitude: data.siteLatitude || geoFence.center.latitude,
+      siteLongitude: data.siteLongitude || geoFence.center.longitude,
+      siteRadiusMeters: data.siteRadiusMeters || geoFence.radiusMeters,
     });
 
     await project.save();

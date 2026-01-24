@@ -54,6 +54,9 @@ interface OffSiteDB extends DBSchema {
       location: string;
       latitude?: number;
       longitude?: number;
+      distanceFromCenter?: number;
+      geoFenceStatus?: 'INSIDE' | 'OUTSIDE';
+      geoFenceViolation?: boolean;
       timestamp: number;
       markedAt?: string;
       createdAt: string;
@@ -61,6 +64,20 @@ interface OffSiteDB extends DBSchema {
       synced: boolean;
       retryCount: number;
       lastError?: string;
+    };
+  };
+  geoFences: {
+    key: string; // projectId
+    value: {
+      projectId: string;
+      enabled: boolean;
+      center: {
+        latitude: number;
+        longitude: number;
+      };
+      radiusMeters: number;
+      bufferMeters: number;
+      cachedAt: string; // ISO timestamp
     };
   };
   materials: {
@@ -106,7 +123,7 @@ interface OffSiteDB extends DBSchema {
 
 let dbInstance: IDBPDatabase<OffSiteDB> | null = null;
 
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 100; // Initial delay, doubles on each retry
 
@@ -189,6 +206,9 @@ export async function getDB(): Promise<IDBPDatabase<OffSiteDB>> {
         }
         if (!db.objectStoreNames.contains('apiCache')) {
           db.createObjectStore('apiCache', { keyPath: 'key' });
+        }
+        if (!db.objectStoreNames.contains('geoFences')) {
+          db.createObjectStore('geoFences', { keyPath: 'projectId' });
         }
       },
       blocked() {
@@ -503,5 +523,53 @@ export async function getApiCache<T = any>(
     // Cache failures are non-critical, log but don't throw
     console.warn('Failed to get API cache:', e);
     return null;
+  });
+}
+
+// ----- Geo-Fence Cache (for offline attendance validation) -----
+
+export type GeoFenceCache = OffSiteDB['geoFences']['value'];
+
+export async function cacheGeoFence(projectId: string, geoFence: {
+  enabled: boolean;
+  center: { latitude: number; longitude: number };
+  radiusMeters: number;
+  bufferMeters: number;
+}): Promise<void> {
+  return withRetry(async () => {
+    const db = await getDB();
+    if (!db.objectStoreNames.contains('geoFences')) return;
+    await db.put('geoFences', {
+      projectId,
+      enabled: geoFence.enabled,
+      center: geoFence.center,
+      radiusMeters: geoFence.radiusMeters,
+      bufferMeters: geoFence.bufferMeters,
+      cachedAt: nowISO(),
+    });
+  }).catch((e) => {
+    console.warn('Failed to cache geo-fence:', e);
+  });
+}
+
+export async function getCachedGeoFence(projectId: string): Promise<GeoFenceCache | null> {
+  return withRetry(async () => {
+    const db = await getDB();
+    if (!db.objectStoreNames.contains('geoFences')) return null;
+    return await db.get('geoFences', projectId) || null;
+  }).catch((e) => {
+    console.warn('Failed to get cached geo-fence:', e);
+    return null;
+  });
+}
+
+export async function getAllCachedGeoFences(): Promise<GeoFenceCache[]> {
+  return withRetry(async () => {
+    const db = await getDB();
+    if (!db.objectStoreNames.contains('geoFences')) return [];
+    return await db.getAll('geoFences');
+  }).catch((e) => {
+    console.warn('Failed to get cached geo-fences:', e);
+    return [];
   });
 }

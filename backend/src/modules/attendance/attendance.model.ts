@@ -9,6 +9,9 @@ export interface IAttendance extends Document {
   location: string; // Formatted address
   latitude?: number; // GPS latitude
   longitude?: number; // GPS longitude
+  distanceFromCenter?: number; // Distance from geo-fence center in meters
+  geoFenceStatus?: 'INSIDE' | 'OUTSIDE'; // Validated status
+  geoFenceViolation?: boolean; // True if outside geo-fence
   timestamp: Date;
   synced: boolean;
   createdAt: Date;
@@ -51,6 +54,18 @@ const attendanceSchema = new Schema<IAttendance>(
       type: Number,
       min: -180,
       max: 180,
+    },
+    distanceFromCenter: {
+      type: Number,
+      min: 0,
+    },
+    geoFenceStatus: {
+      type: String,
+      enum: ['INSIDE', 'OUTSIDE'],
+    },
+    geoFenceViolation: {
+      type: Boolean,
+      default: false,
     },
     timestamp: {
       type: Date,

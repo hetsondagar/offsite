@@ -10,6 +10,18 @@ export interface Project {
   members: any[];
   progress: number;
   healthScore: number;
+  geoFence?: {
+    enabled: boolean;
+    center: {
+      latitude: number;
+      longitude: number;
+    };
+    radiusMeters: number;
+    bufferMeters: number;
+  };
+  siteLatitude?: number; // Legacy
+  siteLongitude?: number; // Legacy
+  siteRadiusMeters?: number; // Legacy
   createdAt: string;
   updatedAt: string;
 }
@@ -66,6 +78,15 @@ export const projectsApi = {
     endDate?: string;
     engineerOffsiteIds?: string[];
     managerOffsiteIds?: string[];
+    geoFence?: {
+      enabled: boolean;
+      center: {
+        latitude: number;
+        longitude: number;
+      };
+      radiusMeters: number;
+      bufferMeters: number;
+    };
   }) => {
     const response = await apiPost<Project>('/projects', data);
     return response.data;

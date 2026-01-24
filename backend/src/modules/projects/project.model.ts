@@ -11,9 +11,18 @@ export interface IProject extends Document {
   members: mongoose.Types.ObjectId[];
   progress: number; // 0-100
   healthScore: number; // 0-100
-  siteLatitude?: number;
-  siteLongitude?: number;
-  siteRadiusMeters?: number; // Default: 100
+  siteLatitude?: number; // Deprecated: use geoFence.center.latitude
+  siteLongitude?: number; // Deprecated: use geoFence.center.longitude
+  siteRadiusMeters?: number; // Deprecated: use geoFence.radiusMeters
+  geoFence: {
+    enabled: boolean;
+    center: {
+      latitude: number;
+      longitude: number;
+    };
+    radiusMeters: number; // 50-500m
+    bufferMeters: number; // Default: 20m tolerance
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -79,6 +88,41 @@ const projectSchema = new Schema<IProject>(
       type: Number,
       default: 100,
       min: 1,
+    },
+    geoFence: {
+      enabled: {
+        type: Boolean,
+        required: true,
+        default: true,
+      },
+      center: {
+        latitude: {
+          type: Number,
+          required: true,
+          min: -90,
+          max: 90,
+        },
+        longitude: {
+          type: Number,
+          required: true,
+          min: -180,
+          max: 180,
+        },
+      },
+      radiusMeters: {
+        type: Number,
+        required: true,
+        min: 50,
+        max: 500,
+        default: 200,
+      },
+      bufferMeters: {
+        type: Number,
+        required: true,
+        default: 20,
+        min: 0,
+        max: 100,
+      },
     },
   },
   {
