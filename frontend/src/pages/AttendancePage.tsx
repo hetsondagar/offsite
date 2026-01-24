@@ -31,6 +31,8 @@ import { getMapTilerKey } from "@/lib/config";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Label } from "@/components/ui/label";
 import { validateGeoFence, getProjectGeoFence } from "@/utils/geoFence";
+import * as maptiler from "@maptiler/sdk";
+import "@maptiler/sdk/dist/maptiler-sdk.css";
 
 const MAPTILER_KEY = getMapTilerKey();
 
@@ -162,13 +164,10 @@ export default function AttendancePage() {
   // Initialize MapTiler map when location is available
   useEffect(() => {
     if (location && mapContainerRef.current && !mapInstanceRef.current) {
-      // Check if MapTiler SDK is already loaded
-      // @ts-ignore
-      const maptiler = window.maptilerSdk || window.maptiler;
-      if (maptiler && mapContainerRef.current) {
-        // @ts-ignore
+      try {
+        // Configure MapTiler API key
         maptiler.config.apiKey = MAPTILER_KEY;
-        // @ts-ignore
+
         const map = new maptiler.Map({
           container: mapContainerRef.current,
           style: 'https://api.maptiler.com/maps/streets-v2/style.json?key=' + MAPTILER_KEY,
@@ -177,61 +176,15 @@ export default function AttendancePage() {
         });
 
         // Add marker
-        // @ts-ignore
         new maptiler.Marker({ color: '#3b82f6' })
           .setLngLat([location.longitude, location.latitude])
           .addTo(map);
 
         mapInstanceRef.current = map;
-        return;
-      }
-
-      // Load MapTiler SDK from CDN (use jsDelivr for better MIME type handling)
-      const script = document.createElement('script');
-      script.type = 'text/javascript';
-      script.src = `https://cdn.jsdelivr.net/npm/@maptiler/sdk@3.10.2/dist/maptiler-sdk.umd.js`;
-      script.async = true;
-      script.crossOrigin = 'anonymous';
-      script.onload = () => {
-        // Wait a bit for SDK to initialize
-        setTimeout(() => {
-          // @ts-ignore
-          const maptiler = window.maptilerSdk || window.maptiler;
-          if (maptiler && mapContainerRef.current) {
-            // @ts-ignore
-            maptiler.config.apiKey = MAPTILER_KEY;
-            // @ts-ignore
-            const map = new maptiler.Map({
-              container: mapContainerRef.current,
-              style: 'https://api.maptiler.com/maps/streets-v2/style.json?key=' + MAPTILER_KEY,
-              center: [location.longitude, location.latitude],
-              zoom: 16,
-            });
-
-            // Add marker
-            // @ts-ignore
-            new maptiler.Marker({ color: '#3b82f6' })
-              .setLngLat([location.longitude, location.latitude])
-              .addTo(map);
-
-            mapInstanceRef.current = map;
-          }
-        }, 100);
-      };
-      script.onerror = () => {
-        console.error('Failed to load MapTiler SDK');
+      } catch (error) {
+        console.error('Failed to initialize MapTiler map:', error);
         toast.error(t('attendance.failedToLoadMapLibrary'));
-      };
-      document.head.appendChild(script);
-
-      const link = document.createElement('link');
-      link.href = 'https://cdn.jsdelivr.net/npm/@maptiler/sdk@3.10.2/dist/maptiler-sdk.css';
-      link.rel = 'stylesheet';
-      link.crossOrigin = 'anonymous';
-      link.onerror = () => {
-        console.error('Failed to load MapTiler SDK CSS');
-      };
-      document.head.appendChild(link);
+      }
     }
 
     return () => {
@@ -240,7 +193,7 @@ export default function AttendancePage() {
         mapInstanceRef.current = null;
       }
     };
-  }, [location]);
+  }, [location, t]);
 
   const updateLocationFromCoordinates = async (latitude: number, longitude: number) => {
     // Reverse geocode using MapTiler

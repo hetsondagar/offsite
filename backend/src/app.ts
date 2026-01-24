@@ -30,8 +30,43 @@ import ownerRoutes from './modules/owner/owner.routes';
 
 const app: Application = express();
 
-// Security middleware
-app.use(helmet());
+// Security middleware with CSP configured for MapTiler CDN
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'", // Required for some inline scripts
+          "'unsafe-eval'", // Required for some libraries
+          "https://cdn.jsdelivr.net", // MapTiler SDK CDN
+          "https://unpkg.com", // Fallback CDN
+          "https://api.maptiler.com", // MapTiler API
+        ],
+        styleSrc: [
+          "'self'",
+          "'unsafe-inline'", // Required for inline styles
+          "https://cdn.jsdelivr.net", // MapTiler CSS
+          "https://unpkg.com", // Fallback CDN
+        ],
+        imgSrc: [
+          "'self'",
+          "data:",
+          "blob:",
+          "https://api.maptiler.com", // MapTiler map tiles
+          "https://*.maptiler.com", // MapTiler subdomains
+        ],
+        connectSrc: [
+          "'self'",
+          "https://api.maptiler.com", // MapTiler API calls
+          "https://*.maptiler.com", // MapTiler subdomains
+        ],
+        fontSrc: ["'self'", "data:", "https://cdn.jsdelivr.net"],
+      },
+    },
+  })
+);
 
 // CORS configuration - support multiple origins
 const getAllowedOrigins = (): string[] => {

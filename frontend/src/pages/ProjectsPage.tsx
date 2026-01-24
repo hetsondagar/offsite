@@ -33,6 +33,8 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { getMapTilerKey } from "@/lib/config";
 import { getCurrentPosition } from "@/lib/capacitor-geolocation";
 import { Slider } from "@/components/ui/slider";
+import * as maptiler from "@maptiler/sdk";
+import "@maptiler/sdk/dist/maptiler-sdk.css";
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
@@ -261,45 +263,7 @@ export default function ProjectsPage() {
         // Use default if location unavailable
       }
 
-      // Load MapTiler SDK if not already loaded
-      if (!window.maptilerSdk && !window.maptiler) {
-        // Use jsDelivr CDN which has better MIME type handling
-        const script = document.createElement('script');
-        script.type = 'text/javascript';
-        script.src = `https://cdn.jsdelivr.net/npm/@maptiler/sdk@3.10.2/dist/maptiler-sdk.umd.js`;
-        script.async = true;
-        script.crossOrigin = 'anonymous';
-        
-        await new Promise<void>((resolve, reject) => {
-          script.onload = () => {
-            // Wait a bit for the SDK to initialize on window
-            setTimeout(() => {
-              if (window.maptilerSdk || window.maptiler) {
-                resolve();
-              } else {
-                reject(new Error('MapTiler SDK loaded but not available on window'));
-              }
-            }, 100);
-          };
-          script.onerror = (error) => {
-            console.error('MapTiler SDK script load error:', error);
-            reject(new Error('Failed to load MapTiler SDK script'));
-          };
-          document.head.appendChild(script);
-        });
-
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = 'https://cdn.jsdelivr.net/npm/@maptiler/sdk@3.10.2/dist/maptiler-sdk.css';
-        link.crossOrigin = 'anonymous';
-        document.head.appendChild(link);
-      }
-
-      const maptiler = window.maptilerSdk || window.maptiler;
-      if (!maptiler) {
-        throw new Error('MapTiler SDK failed to load');
-      }
-
+      // Configure MapTiler API key
       maptiler.config.apiKey = MAPTILER_KEY;
 
       const map = new maptiler.Map({
@@ -329,7 +293,6 @@ export default function ProjectsPage() {
 
   const updateMapMarker = (map: any, lat: number, lng: number) => {
     if (mapMarker) mapMarker.remove();
-    const maptiler = window.maptilerSdk || window.maptiler;
     const marker = new maptiler.Marker({ color: '#3b82f6' })
       .setLngLat([lng, lat])
       .addTo(map);
@@ -338,7 +301,6 @@ export default function ProjectsPage() {
 
   const updateMapCircle = (map: any, lat: number, lng: number, radius: number) => {
     if (mapCircle) mapCircle.remove();
-    const maptiler = window.maptilerSdk || window.maptiler;
     // Create circle using GeoJSON (MapTiler doesn't have built-in circle, use polygon approximation)
     const points = 64;
     const circleCoords: [number, number][] = [];
