@@ -1,5 +1,23 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 
+/** Generate client-side UUID for offline records. */
+export function generateOfflineId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+}
+
+/** Standard offline record metadata. All offline records MUST include these. */
+export interface OfflineRecordMeta {
+  id: string;
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
+  synced: boolean;
+  retryCount: number;
+  lastError?: string;
+}
+
 interface OffSiteDB extends DBSchema {
   dprs: {
     key: string;
@@ -19,8 +37,11 @@ interface OffSiteDB extends DBSchema {
       };
       timestamp: number;
       createdBy?: string;
-      createdAt?: string;
+      createdAt: string;
+      updatedAt: string;
       synced: boolean;
+      retryCount: number;
+      lastError?: string;
     };
   };
   attendance: {
@@ -33,9 +54,30 @@ interface OffSiteDB extends DBSchema {
       location: string;
       latitude?: number;
       longitude?: number;
+      distanceFromCenter?: number;
+      geoFenceStatus?: 'INSIDE' | 'OUTSIDE';
+      geoFenceViolation?: boolean;
       timestamp: number;
       markedAt?: string;
+      createdAt: string;
+      updatedAt: string;
       synced: boolean;
+      retryCount: number;
+      lastError?: string;
+    };
+  };
+  geoFences: {
+    key: string; // projectId
+    value: {
+      projectId: string;
+      enabled: boolean;
+      center: {
+        latitude: number;
+        longitude: number;
+      };
+      radiusMeters: number;
+      bufferMeters: number;
+      cachedAt: string; // ISO timestamp
     };
   };
   materials: {
@@ -51,7 +93,11 @@ interface OffSiteDB extends DBSchema {
       timestamp: number;
       requestedBy?: string;
       requestedAt?: string;
+      createdAt: string;
+      updatedAt: string;
       synced: boolean;
+      retryCount: number;
+      lastError?: string;
     };
   };
   aiCache: {
@@ -65,7 +111,6 @@ interface OffSiteDB extends DBSchema {
     };
     indexes: { siteId: string; type: string };
   };
-
   apiCache: {
     key: string;
     value: {
@@ -78,146 +123,361 @@ interface OffSiteDB extends DBSchema {
 
 let dbInstance: IDBPDatabase<OffSiteDB> | null = null;
 
+const DB_VERSION = 5;
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 100; // Initial delay, doubles on each retry
+
+/**
+ * Retry wrapper for IndexedDB operations with exponential backoff
+ * Android-specific: Handles storage reliability issues on low-end devices
+ */
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  retries = MAX_RETRIES,
+  delay = RETRY_DELAY_MS
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (retries <= 0) {
+      console.error('IndexedDB operation failed after retries:', error);
+      throw error;
+    }
+
+    // Check if error is retryable (QuotaExceededError, TransactionInactiveError, etc.)
+    const isRetryable = error instanceof Error && (
+      error.name === 'QuotaExceededError' ||
+      error.name === 'TransactionInactiveError' ||
+      error.name === 'InvalidStateError' ||
+      error.message?.includes('transaction') ||
+      error.message?.includes('database')
+    );
+
+    if (!isRetryable) {
+      throw error; // Don't retry non-retryable errors
+    }
+
+    // Wait before retrying (exponential backoff)
+    await new Promise(resolve => setTimeout(resolve, delay));
+
+    // Retry with doubled delay
+    return withRetry(operation, retries - 1, delay * 2);
+  }
+}
+
+/**
+ * Get database instance with retry and connection health check
+ * Android-specific: Ensures database is ready before operations
+ */
 export async function getDB(): Promise<IDBPDatabase<OffSiteDB>> {
+  if (dbInstance) {
+    // Health check: verify database is still open
+    try {
+      if (dbInstance.objectStoreNames.length === 0) {
+        // Database was closed, reset instance
+        dbInstance = null;
+      }
+    } catch {
+      // Database connection lost, reset instance
+      dbInstance = null;
+    }
+  }
+
   if (dbInstance) {
     return dbInstance;
   }
 
-  // Increment to version 3 to ensure apiCache store is created for existing databases
-  dbInstance = await openDB<OffSiteDB>('offsite-db', 3, {
-    upgrade(db, oldVersion, newVersion, transaction) {
-      // Create dprs store if it doesn't exist
-      if (!db.objectStoreNames.contains('dprs')) {
-        db.createObjectStore('dprs', { keyPath: 'id' });
-      }
-      
-      // Create attendance store if it doesn't exist
-      if (!db.objectStoreNames.contains('attendance')) {
-        db.createObjectStore('attendance', { keyPath: 'id' });
-      }
-      
-      // Create materials store if it doesn't exist
-      if (!db.objectStoreNames.contains('materials')) {
-        db.createObjectStore('materials', { keyPath: 'id' });
-      }
-      
-      // Ensure aiCache store exists (added in version 2)
-      if (!db.objectStoreNames.contains('aiCache')) {
-        const aiStore = db.createObjectStore('aiCache', { keyPath: 'id' });
-        aiStore.createIndex('siteId', 'siteId');
-        aiStore.createIndex('type', 'type');
-      }
+  return withRetry(async () => {
+    dbInstance = await openDB<OffSiteDB>('offsite-db', DB_VERSION, {
+      upgrade(db, oldVersion, newVersion, transaction) {
+        if (!db.objectStoreNames.contains('dprs')) {
+          db.createObjectStore('dprs', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('attendance')) {
+          db.createObjectStore('attendance', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('materials')) {
+          db.createObjectStore('materials', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('aiCache')) {
+          const aiStore = db.createObjectStore('aiCache', { keyPath: 'id' });
+          aiStore.createIndex('siteId', 'siteId');
+          aiStore.createIndex('type', 'type');
+        }
+        if (!db.objectStoreNames.contains('apiCache')) {
+          db.createObjectStore('apiCache', { keyPath: 'key' });
+        }
+        if (!db.objectStoreNames.contains('geoFences')) {
+          db.createObjectStore('geoFences', { keyPath: 'projectId' });
+        }
+      },
+      blocked() {
+        // Another tab/page is using the database
+        console.warn('IndexedDB upgrade blocked - another tab may be open');
+      },
+      blocking() {
+        // This tab is blocking another tab's upgrade
+        console.warn('IndexedDB upgrade blocking - close other tabs');
+        // Close database to allow upgrade
+        if (dbInstance) {
+          dbInstance.close();
+          dbInstance = null;
+        }
+      },
+    });
 
-      // Ensure apiCache store exists (added in version 3)
-      if (!db.objectStoreNames.contains('apiCache')) {
-        db.createObjectStore('apiCache', { keyPath: 'key' });
-      }
-    },
+    return dbInstance;
   });
-
-  return dbInstance;
 }
 
-// DPR operations
-export async function saveDPR(data: Omit<OffSiteDB['dprs']['value'], 'id' | 'synced'>) {
-  const db = await getDB();
-  const id = `dpr_${Date.now()}_${Math.random()}`;
-  await db.put('dprs', {
-    ...data,
-    id,
-    synced: false,
+function nowISO(): string {
+  return new Date().toISOString();
+}
+
+// ----- DPR -----
+
+export type DPRRecord = OffSiteDB['dprs']['value'];
+
+export async function saveDPR(
+  data: Omit<DPRRecord, 'id' | 'synced' | 'retryCount' | 'createdAt' | 'updatedAt'>
+): Promise<string> {
+  const id = generateOfflineId();
+  const createdAt = nowISO();
+  const updatedAt = createdAt;
+  
+  return withRetry(async () => {
+    const db = await getDB();
+    await db.put('dprs', {
+      ...data,
+      id,
+      createdAt,
+      updatedAt,
+      synced: false,
+      retryCount: 0,
+    });
+    return id;
   });
-  return id;
 }
 
-export async function getDPRs() {
-  const db = await getDB();
-  return db.getAll('dprs');
-}
-
-export async function getUnsyncedDPRs() {
-  const db = await getDB();
-  const all = await db.getAll('dprs');
-  return all.filter(dpr => !dpr.synced);
-}
-
-export async function markDPRSynced(id: string) {
-  const db = await getDB();
-  const dpr = await db.get('dprs', id);
-  if (dpr) {
-    dpr.synced = true;
-    await db.put('dprs', dpr);
-  }
-}
-
-// Attendance operations
-export async function saveAttendance(data: Omit<OffSiteDB['attendance']['value'], 'id' | 'synced'>) {
-  const db = await getDB();
-  const id = `att_${Date.now()}_${Math.random()}`;
-  await db.put('attendance', {
-    ...data,
-    id,
-    synced: false,
+export async function getDPRs(): Promise<DPRRecord[]> {
+  return withRetry(async () => {
+    const db = await getDB();
+    return db.getAll('dprs');
   });
-  return id;
 }
 
-export async function getUnsyncedAttendance() {
-  const db = await getDB();
-  const all = await db.getAll('attendance');
-  return all.filter(att => !att.synced);
-}
-
-export async function markAttendanceSynced(id: string) {
-  const db = await getDB();
-  const att = await db.get('attendance', id);
-  if (att) {
-    att.synced = true;
-    await db.put('attendance', att);
-  }
-}
-
-// Material operations
-export async function saveMaterialRequest(data: Omit<OffSiteDB['materials']['value'], 'id' | 'synced'>) {
-  const db = await getDB();
-  const id = `mat_${Date.now()}_${Math.random()}`;
-  await db.put('materials', {
-    ...data,
-    id,
-    synced: false,
+export async function getUnsyncedDPRs(): Promise<DPRRecord[]> {
+  return withRetry(async () => {
+    const db = await getDB();
+    const all = await db.getAll('dprs');
+    return all.filter((d) => !d.synced);
   });
-  return id;
 }
 
-export async function getUnsyncedMaterials() {
-  const db = await getDB();
-  const all = await db.getAll('materials');
-  return all.filter(mat => !mat.synced);
+export async function markDPRSynced(id: string): Promise<void> {
+  return withRetry(async () => {
+    const db = await getDB();
+    const dpr = await db.get('dprs', id);
+    if (dpr) {
+      dpr.synced = true;
+      dpr.updatedAt = nowISO();
+      if (dpr.lastError !== undefined) delete dpr.lastError;
+      await db.put('dprs', dpr);
+    }
+  });
 }
 
-export async function markMaterialSynced(id: string) {
-  const db = await getDB();
-  const mat = await db.get('materials', id);
-  if (mat) {
-    mat.synced = true;
-    await db.put('materials', mat);
-  }
+export async function markDPRFailed(id: string, errorMessage: string): Promise<void> {
+  return withRetry(async () => {
+    const db = await getDB();
+    const dpr = await db.get('dprs', id);
+    if (dpr) {
+      dpr.retryCount = (dpr.retryCount ?? 0) + 1;
+      dpr.lastError = errorMessage;
+      dpr.updatedAt = nowISO();
+      await db.put('dprs', dpr);
+    }
+  });
 }
 
-// AI Cache operations
+// ----- Attendance -----
+
+export type AttendanceRecord = OffSiteDB['attendance']['value'];
+
+export async function saveAttendance(
+  data: Omit<AttendanceRecord, 'id' | 'synced' | 'retryCount' | 'createdAt' | 'updatedAt'>
+): Promise<string> {
+  const id = generateOfflineId();
+  const createdAt = nowISO();
+  const updatedAt = createdAt;
+  
+  return withRetry(async () => {
+    const db = await getDB();
+    await db.put('attendance', {
+      ...data,
+      id,
+      createdAt,
+      updatedAt,
+      synced: false,
+      retryCount: 0,
+    });
+    return id;
+  });
+}
+
+export async function getAttendance(): Promise<AttendanceRecord[]> {
+  return withRetry(async () => {
+    const db = await getDB();
+    return db.getAll('attendance');
+  });
+}
+
+export interface CheckInState {
+  isCheckedIn: boolean;
+  projectId?: string;
+  checkInTime?: string;
+  checkInId?: string;
+  location?: { latitude: number; longitude: number; address: string };
+}
+
+/** Derive check-in state from unsynced attendance. Latest record wins; check-in without later checkout = checked in. */
+export async function getCheckInStateFromIndexedDB(): Promise<CheckInState> {
+  const all = await getUnsyncedAttendance();
+  if (all.length === 0) return { isCheckedIn: false };
+  const sorted = [...all].sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
+  const latest = sorted[0];
+  if (latest.type === 'checkout') return { isCheckedIn: false };
+  const time = latest.markedAt
+    ? new Date(latest.markedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    : new Date(latest.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const loc =
+    latest.latitude != null && latest.longitude != null
+      ? {
+          latitude: latest.latitude,
+          longitude: latest.longitude,
+          address: latest.location || `Coordinates: ${latest.latitude.toFixed(6)}, ${latest.longitude.toFixed(6)}`,
+        }
+      : undefined;
+  return {
+    isCheckedIn: true,
+    projectId: latest.projectId,
+    checkInTime: time,
+    checkInId: latest.id,
+    location: loc,
+  };
+}
+
+export async function getUnsyncedAttendance(): Promise<AttendanceRecord[]> {
+  return withRetry(async () => {
+    const db = await getDB();
+    const all = await db.getAll('attendance');
+    return all.filter((a) => !a.synced);
+  });
+}
+
+export async function markAttendanceSynced(id: string): Promise<void> {
+  return withRetry(async () => {
+    const db = await getDB();
+    const att = await db.get('attendance', id);
+    if (att) {
+      att.synced = true;
+      att.updatedAt = nowISO();
+      if (att.lastError !== undefined) delete att.lastError;
+      await db.put('attendance', att);
+    }
+  });
+}
+
+export async function markAttendanceFailed(id: string, errorMessage: string): Promise<void> {
+  return withRetry(async () => {
+    const db = await getDB();
+    const att = await db.get('attendance', id);
+    if (att) {
+      att.retryCount = (att.retryCount ?? 0) + 1;
+      att.lastError = errorMessage;
+      att.updatedAt = nowISO();
+      await db.put('attendance', att);
+    }
+  });
+}
+
+// ----- Materials -----
+
+export type MaterialRecord = OffSiteDB['materials']['value'];
+
+export async function saveMaterialRequest(
+  data: Omit<MaterialRecord, 'id' | 'synced' | 'retryCount' | 'createdAt' | 'updatedAt'>
+): Promise<string> {
+  const id = generateOfflineId();
+  const createdAt = nowISO();
+  const updatedAt = createdAt;
+  
+  return withRetry(async () => {
+    const db = await getDB();
+    await db.put('materials', {
+      ...data,
+      id,
+      createdAt,
+      updatedAt,
+      synced: false,
+      retryCount: 0,
+    });
+    return id;
+  });
+}
+
+export async function getMaterials(): Promise<MaterialRecord[]> {
+  return withRetry(async () => {
+    const db = await getDB();
+    return db.getAll('materials');
+  });
+}
+
+export async function getUnsyncedMaterials(): Promise<MaterialRecord[]> {
+  return withRetry(async () => {
+    const db = await getDB();
+    const all = await db.getAll('materials');
+    return all.filter((m) => !m.synced);
+  });
+}
+
+export async function markMaterialSynced(id: string): Promise<void> {
+  return withRetry(async () => {
+    const db = await getDB();
+    const mat = await db.get('materials', id);
+    if (mat) {
+      mat.synced = true;
+      mat.updatedAt = nowISO();
+      if (mat.lastError !== undefined) delete mat.lastError;
+      await db.put('materials', mat);
+    }
+  });
+}
+
+export async function markMaterialFailed(id: string, errorMessage: string): Promise<void> {
+  return withRetry(async () => {
+    const db = await getDB();
+    const mat = await db.get('materials', id);
+    if (mat) {
+      mat.retryCount = (mat.retryCount ?? 0) + 1;
+      mat.lastError = errorMessage;
+      mat.updatedAt = nowISO();
+      await db.put('materials', mat);
+    }
+  });
+}
+
+// ----- AI Cache (TTL 1 hour) -----
+
 export async function saveAICache(
   type: 'risk' | 'anomalies',
   siteId: string,
   data: any
-) {
-  const db = await getDB();
-  const id = `${type}_${siteId}`;
-  await db.put('aiCache', {
-    id,
-    type,
-    siteId,
-    data,
-    timestamp: Date.now(),
+): Promise<void> {
+  return withRetry(async () => {
+    const db = await getDB();
+    const id = `${type}_${siteId}`;
+    await db.put('aiCache', { id, type, siteId, data, timestamp: Date.now() });
   });
 }
 
@@ -225,54 +485,91 @@ export async function getAICache(
   type: 'risk' | 'anomalies',
   siteId: string
 ): Promise<any | null> {
-  const db = await getDB();
-  const id = `${type}_${siteId}`;
-  const cached = await db.get('aiCache', id);
-  
-  // Cache valid for 1 hour
-  if (cached && Date.now() - cached.timestamp < 60 * 60 * 1000) {
-    return cached.data;
-  }
-  
-  return null;
+  return withRetry(async () => {
+    const db = await getDB();
+    const id = `${type}_${siteId}`;
+    const cached = await db.get('aiCache', id);
+    const TTL_MS = 60 * 60 * 1000;
+    if (cached && Date.now() - cached.timestamp < TTL_MS) {
+      return cached.data;
+    }
+    return null;
+  });
 }
 
-// Generic API cache operations
-export async function setApiCache(key: string, response: any) {
-  try {
+// ----- API cache -----
+
+export async function setApiCache(key: string, response: any): Promise<void> {
+  return withRetry(async () => {
     const db = await getDB();
-    // Verify the store exists before using it
-    if (!db.objectStoreNames.contains('apiCache')) {
-      console.warn('apiCache store does not exist, skipping cache write');
-      return;
-    }
-    await db.put('apiCache', {
-      key,
-      response,
-      timestamp: Date.now(),
-    });
-  } catch (error) {
-    // Silently fail cache operations - they're not critical
-    console.warn('Failed to set API cache:', error);
-  }
+    if (!db.objectStoreNames.contains('apiCache')) return;
+    await db.put('apiCache', { key, response, timestamp: Date.now() });
+  }).catch((e) => {
+    // Cache failures are non-critical, log but don't throw
+    console.warn('Failed to set API cache:', e);
+  });
 }
 
 export async function getApiCache<T = any>(
   key: string
 ): Promise<{ response: T; timestamp: number } | null> {
-  try {
+  return withRetry(async () => {
     const db = await getDB();
-    // Verify the store exists before using it
-    if (!db.objectStoreNames.contains('apiCache')) {
-      return null;
-    }
+    if (!db.objectStoreNames.contains('apiCache')) return null;
     const entry = await db.get('apiCache', key);
     if (!entry) return null;
     return { response: entry.response as T, timestamp: entry.timestamp };
-  } catch (error) {
-    // Silently fail cache operations - they're not critical
-    console.warn('Failed to get API cache:', error);
+  }).catch((e) => {
+    // Cache failures are non-critical, log but don't throw
+    console.warn('Failed to get API cache:', e);
     return null;
-  }
+  });
 }
 
+// ----- Geo-Fence Cache (for offline attendance validation) -----
+
+export type GeoFenceCache = OffSiteDB['geoFences']['value'];
+
+export async function cacheGeoFence(projectId: string, geoFence: {
+  enabled: boolean;
+  center: { latitude: number; longitude: number };
+  radiusMeters: number;
+  bufferMeters: number;
+}): Promise<void> {
+  return withRetry(async () => {
+    const db = await getDB();
+    if (!db.objectStoreNames.contains('geoFences')) return;
+    await db.put('geoFences', {
+      projectId,
+      enabled: geoFence.enabled,
+      center: geoFence.center,
+      radiusMeters: geoFence.radiusMeters,
+      bufferMeters: geoFence.bufferMeters,
+      cachedAt: nowISO(),
+    });
+  }).catch((e) => {
+    console.warn('Failed to cache geo-fence:', e);
+  });
+}
+
+export async function getCachedGeoFence(projectId: string): Promise<GeoFenceCache | null> {
+  return withRetry(async () => {
+    const db = await getDB();
+    if (!db.objectStoreNames.contains('geoFences')) return null;
+    return await db.get('geoFences', projectId) || null;
+  }).catch((e) => {
+    console.warn('Failed to get cached geo-fence:', e);
+    return null;
+  });
+}
+
+export async function getAllCachedGeoFences(): Promise<GeoFenceCache[]> {
+  return withRetry(async () => {
+    const db = await getDB();
+    if (!db.objectStoreNames.contains('geoFences')) return [];
+    return await db.getAll('geoFences');
+  }).catch((e) => {
+    console.warn('Failed to get cached geo-fences:', e);
+    return [];
+  });
+}

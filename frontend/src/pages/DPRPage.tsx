@@ -24,20 +24,22 @@ import {
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { saveDPR } from "@/lib/indexeddb";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { addPendingItem } from "@/store/slices/offlineSlice";
+import { isOnline as checkOnline } from "@/lib/network";
+import { useAppSelector } from "@/store/hooks";
 import { usePermissions } from "@/hooks/usePermissions";
+import { toast } from "sonner";
 import { projectsApi } from "@/services/api/projects";
 import { tasksApi } from "@/services/api/tasks";
 import { dprApi } from "@/services/api/dpr";
 import { pickImages } from "@/lib/capacitor-camera";
 import { insightsApi } from "@/services/api/insights";
+import { PageHeader } from "@/components/common/PageHeader";
+import { Label } from "@/components/ui/label";
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 export default function DPRPage() {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const { t } = useTranslation();
   const { hasPermission } = usePermissions();
   const userId = useAppSelector((state) => state.auth.userId);
@@ -114,12 +116,12 @@ export default function DPRPage() {
     loadTasks();
   }, [selectedProject]);
 
-  const handlePhotoUpload = async () => {
+  const handlePhotoUpload = async (source: 'camera' | 'gallery' = 'gallery') => {
     try {
-      const files = await pickImages({ quality: 90 });
+      const files = await pickImages({ quality: 90, source });
       
       if (files.length + photos.length > 6) {
-        alert('Maximum 6 photos allowed');
+        toast.error(t('dpr.maxPhotos'));
         return;
       }
       
@@ -136,7 +138,12 @@ export default function DPRPage() {
       });
     } catch (error: any) {
       console.error('Photo upload error:', error);
-      // User cancelled or error occurred - silently fail
+      if (error.message?.includes('permission')) {
+        toast.error(error.message);
+      } else if (error.message && !error.message.includes('User cancelled')) {
+        toast.error('Failed to capture photo. Please try again.');
+      }
+      // User cancelled - silently fail
     }
   };
 
@@ -153,9 +160,9 @@ export default function DPRPage() {
     }
   };
 
-  const handleWorkStoppagePhotoUpload = async () => {
+  const handleWorkStoppagePhotoUpload = async (source: 'camera' | 'gallery' = 'gallery') => {
     try {
-      const files = await pickImages({ quality: 90 });
+      const files = await pickImages({ quality: 90, source });
       setWorkStoppageEvidencePhotos(prev => [...prev, ...files]);
       
       // Create previews
@@ -167,8 +174,13 @@ export default function DPRPage() {
         reader.readAsDataURL(file);
       });
     } catch (error: any) {
-      console.error('Photo upload error:', error);
-      // User cancelled or error occurred - silently fail
+      console.error('Work stoppage photo upload error:', error);
+      if (error.message?.includes('permission')) {
+        toast.error(error.message);
+      } else if (error.message && !error.message.includes('User cancelled')) {
+        toast.error('Failed to capture photo. Please try again.');
+      }
+      // User cancelled - silently fail
     }
   };
 
@@ -188,95 +200,99 @@ export default function DPRPage() {
 
   const handleSubmit = async () => {
     if (!selectedProject || !selectedTask) return;
-    
-    // Validate work stoppage if occurred
     if (workStoppageOccurred && (!workStoppageReason || workStoppageDuration <= 0)) {
       alert('Please provide reason and duration for work stoppage');
       return;
     }
-    
+
+    const workStoppage = workStoppageOccurred
+      ? {
+          occurred: true,
+          reason: workStoppageReason as any,
+          durationHours: workStoppageDuration,
+          remarks: workStoppageRemarks || undefined,
+          evidencePhotos: [] as string[],
+        }
+      : { occurred: false };
+
+    const photoBase64: string[] = [];
+    for (const photo of photos) {
+      const base64 = await new Promise<string>((resolve) => {
+        const r = new FileReader();
+        r.onload = (e: any) => resolve(e.target.result);
+        r.readAsDataURL(photo);
+      });
+      photoBase64.push(base64);
+    }
+    const stoppageEvidenceBase64: string[] = [];
+    for (const photo of workStoppageEvidencePhotos) {
+      const base64 = await new Promise<string>((resolve) => {
+        const r = new FileReader();
+        r.onload = (e: any) => resolve(e.target.result);
+        r.readAsDataURL(photo);
+      });
+      stoppageEvidenceBase64.push(base64);
+    }
+    const workStoppageData = workStoppageOccurred
+      ? {
+          occurred: true,
+          reason: workStoppageReason,
+          durationHours: workStoppageDuration,
+          remarks: workStoppageRemarks || undefined,
+          evidencePhotos: stoppageEvidenceBase64,
+        }
+      : { occurred: false };
+
     setIsSubmitting(true);
-    
     try {
-      // Prepare work stoppage data
-      const workStoppage = workStoppageOccurred ? {
-        occurred: true,
-        reason: workStoppageReason as any,
-        durationHours: workStoppageDuration,
-        remarks: workStoppageRemarks || undefined,
-        evidencePhotos: [], // Will be populated after upload
-      } : {
-        occurred: false,
-      };
+      const online = await checkOnline();
 
-      // Submit to API with actual photo files
-      const response = await dprApi.create({
-        projectId: selectedProject,
-        taskId: selectedTask,
-        notes: notes,
-        generateAISummary: true, // Always generate AI summary
-        workStoppage: workStoppage as any,
-      }, photos.length > 0 ? photos : undefined, workStoppageEvidencePhotos.length > 0 ? workStoppageEvidencePhotos : undefined);
+      if (!online) {
+        await saveDPR({
+          projectId: selectedProject,
+          taskId: selectedTask,
+          photos: photoBase64,
+          notes: notes,
+          aiSummary: aiSummary,
+          workStoppage: workStoppageData as any,
+          timestamp: Date.now(),
+          createdBy: userId || "unknown",
+        });
+        toast.success(t('dpr.savedOffline') || 'Saved offline. Will sync automatically.');
+        setShowSuccess(true);
+        setTimeout(() => navigate("/"), 2000);
+        return;
+      }
 
-      // Store the created DPR
+      const response = await dprApi.create(
+        {
+          projectId: selectedProject,
+          taskId: selectedTask,
+          notes,
+          generateAISummary: true,
+          workStoppage: workStoppage as any,
+        },
+        photos.length > 0 ? photos : undefined,
+        workStoppageEvidencePhotos.length > 0 ? workStoppageEvidencePhotos : undefined
+      );
+
       if (response?._id) {
         setSubmittedDPRId(response._id);
-        setSubmittedDPR(response); // Store the full DPR object
-        // Load AI summary if available
-        if (response.aiSummary) {
-          setDprAISummary(response.aiSummary);
-        } else {
-          // Fetch AI summary from insights API
+        setSubmittedDPR(response);
+        if (response.aiSummary) setDprAISummary(response.aiSummary);
+        else {
           try {
             const aiSummaryData = await insightsApi.getDPRSummary(selectedProject, response._id);
-            if (aiSummaryData?.summary) {
-              setDprAISummary(aiSummaryData.summary);
-            }
-          } catch (error) {
-            console.error('Error loading AI summary:', error);
+            if (aiSummaryData?.summary) setDprAISummary(aiSummaryData.summary);
+          } catch (e) {
+            console.error('Error loading AI summary:', e);
           }
         }
-        // Load old DPRs for this project
         await loadOldDPRs(selectedProject);
       }
-
       setShowSuccess(true);
-      // Don't navigate away immediately - let user see the success and view old DPRs
-    } catch (error) {
-      // If API fails, save to IndexedDB for offline sync
-      // Convert File objects to base64 for storage
-      const photoBase64: string[] = [];
-      for (const photo of photos) {
-        const reader = new FileReader();
-        const base64 = await new Promise<string>((resolve) => {
-          reader.onload = (e: any) => resolve(e.target.result);
-          reader.readAsDataURL(photo);
-        });
-        photoBase64.push(base64);
-      }
-      
-      // Convert work stoppage evidence photos to base64
-      const stoppageEvidenceBase64: string[] = [];
-      for (const photo of workStoppageEvidencePhotos) {
-        const reader = new FileReader();
-        const base64 = await new Promise<string>((resolve) => {
-          reader.onload = (e: any) => resolve(e.target.result);
-          reader.readAsDataURL(photo);
-        });
-        stoppageEvidenceBase64.push(base64);
-      }
-
-      const workStoppageData = workStoppageOccurred ? {
-        occurred: true,
-        reason: workStoppageReason,
-        durationHours: workStoppageDuration,
-        remarks: workStoppageRemarks || undefined,
-        evidencePhotos: stoppageEvidenceBase64,
-      } : {
-        occurred: false,
-      };
-      
-      const dprId = await saveDPR({
+    } catch (err) {
+      await saveDPR({
         projectId: selectedProject,
         taskId: selectedTask,
         photos: photoBase64,
@@ -285,25 +301,8 @@ export default function DPRPage() {
         workStoppage: workStoppageData as any,
         timestamp: Date.now(),
         createdBy: userId || "unknown",
-        createdAt: new Date().toISOString(),
       });
-      
-      // Add to Redux offline store
-      dispatch(addPendingItem({
-        type: 'dpr',
-        data: {
-          id: dprId,
-          projectId: selectedProject,
-          taskId: selectedTask,
-          photos: photoBase64,
-          notes: notes,
-          aiSummary: aiSummary,
-          workStoppage: workStoppageData,
-          createdBy: userId,
-          createdAt: new Date().toISOString(),
-        },
-      }));
-      
+      toast.warning(t('dpr.savedOfflineWarning') || 'Saved offline. Will sync when connection is restored.');
       setShowSuccess(true);
       setTimeout(() => navigate("/"), 2000);
     } finally {
@@ -312,12 +311,12 @@ export default function DPRPage() {
   };
 
   const stepTitles = {
-    1: "Select Project",
-    2: "Upload Photos",
-    3: "Select Task",
-    4: "Add Notes",
-    5: "Work Stoppage",
-    6: "Review & Submit",
+    1: t("dpr.step1"),
+    2: t("dpr.step3"),
+    3: t("dpr.step2"),
+    4: t("dpr.step4"),
+    5: t("dpr.step5"),
+    6: t("dpr.step6"),
   };
 
   // Permission check
@@ -347,28 +346,21 @@ export default function DPRPage() {
   return (
     <MobileLayout role="engineer">
       <div className="min-h-screen bg-background w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top w-full">
-          <div className="flex items-center gap-0 relative">
-            <div className="absolute left-0 mt-3">
-              <Logo size="md" showText={false} />
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="font-display font-semibold text-lg">{t("dpr.createDPR")}</h1>
-              <p className="text-xs text-muted-foreground">{stepTitles[step]}</p>
-            </div>
-            <div className="absolute right-0">
-              <StatusBadge status={isOnline ? "success" : "offline"} label={isOnline ? "Online" : "Offline"} />
-            </div>
-          </div>
-
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 safe-area-top">
+          <PageHeader
+            title={t("dpr.createDPR")}
+            subtitle={stepTitles[step]}
+            showBack={true}
+            rightAction={<StatusBadge status={isOnline ? "success" : "offline"} label={isOnline ? "Online" : "Offline"} />}
+          />
+          
           {/* Progress */}
-          <div className="flex gap-1 mt-4">
+          <div className="flex gap-1 px-4 pb-3">
             {[1, 2, 3, 4, 5, 6].map((s) => (
               <div
                 key={s}
                 className={cn(
-                  "flex-1 h-1 rounded-full transition-all duration-300",
+                  "flex-1 h-1.5 rounded-full transition-all duration-300",
                   s <= step ? "bg-primary" : "bg-muted"
                 )}
               />
@@ -399,18 +391,18 @@ export default function DPRPage() {
                 >
                   <Check className="w-10 h-10 text-success" />
                 </motion.div>
-                <h2 className="font-display text-2xl font-bold text-foreground">DPR Submitted!</h2>
+                <h2 className="font-display text-2xl font-bold text-foreground">{t('dpr.dprSubmitted')}</h2>
                 <p className="text-muted-foreground">
-                  {isOnline ? "Your report has been saved successfully" : "Your report has been saved offline"}
+                  {isOnline ? t('dpr.reportSavedSuccess') : t('dpr.reportSavedOffline')}
                 </p>
                 
                 {/* Show Created DPR Details */}
                 {submittedDPR && (
                   <Card className="mt-4 max-w-md mx-auto border-primary/30">
                     <CardHeader>
-                      <CardTitle className="text-base">Your DPR</CardTitle>
+                      <CardTitle className="text-base">{t('dpr.yourDPR')}</CardTitle>
                       <p className="text-xs text-muted-foreground">
-                        Created: {new Date(submittedDPR.createdAt).toLocaleString('en-US', { 
+                        {t('dpr.created')}: {new Date(submittedDPR.createdAt).toLocaleString('en-US', { 
                           weekday: 'short', 
                           month: 'short', 
                           day: 'numeric',
@@ -423,22 +415,22 @@ export default function DPRPage() {
                     <CardContent className="space-y-3">
                       {/* Project and Task */}
                       <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Project</p>
+                        <p className="text-xs text-muted-foreground">{t('dpr.project')}</p>
                         <p className="text-sm font-medium text-foreground">
-                          {typeof submittedDPR.projectId === 'object' ? submittedDPR.projectId?.name : 'Project'}
+                          {typeof submittedDPR.projectId === 'object' ? submittedDPR.projectId?.name : t('dpr.project')}
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Task</p>
+                        <p className="text-xs text-muted-foreground">{t('dpr.task')}</p>
                         <p className="text-sm font-medium text-foreground">
-                          {typeof submittedDPR.taskId === 'object' ? submittedDPR.taskId?.title : 'Task'}
+                          {typeof submittedDPR.taskId === 'object' ? submittedDPR.taskId?.title : t('dpr.task')}
                         </p>
                       </div>
                       
                       {/* Notes */}
                       {submittedDPR.notes && (
                         <div className="space-y-1">
-                          <p className="text-xs text-muted-foreground">Notes</p>
+                          <p className="text-xs text-muted-foreground">{t('dpr.notes')}</p>
                           <p className="text-sm text-foreground">{submittedDPR.notes}</p>
                         </div>
                       )}
@@ -446,7 +438,7 @@ export default function DPRPage() {
                       {/* Photos */}
                       {submittedDPR.photos && submittedDPR.photos.length > 0 && (
                         <div className="space-y-2">
-                          <p className="text-xs text-muted-foreground">Photos ({submittedDPR.photos.length})</p>
+                          <p className="text-xs text-muted-foreground">{t('dpr.addPhotos')} ({submittedDPR.photos.length})</p>
                           <div className="grid grid-cols-3 gap-2">
                             {submittedDPR.photos.slice(0, 6).map((photo: string, idx: number) => (
                               <div key={idx} className="aspect-square rounded-lg overflow-hidden border border-border">
@@ -464,12 +456,12 @@ export default function DPRPage() {
                       {/* Work Stoppage */}
                       {submittedDPR.workStoppage?.occurred && (
                         <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 space-y-2">
-                          <p className="text-xs font-medium text-warning">Work Stoppage Reported</p>
+                          <p className="text-xs font-medium text-warning">{t('dpr.workStoppageReported')}</p>
                           <div className="space-y-1 text-xs">
-                            <p><span className="text-muted-foreground">Reason:</span> {submittedDPR.workStoppage.reason?.replace('_', ' ').toLowerCase()}</p>
-                            <p><span className="text-muted-foreground">Duration:</span> {submittedDPR.workStoppage.durationHours} hours</p>
+                            <p><span className="text-muted-foreground">{t('dpr.stoppageReason')}:</span> {submittedDPR.workStoppage.reason?.replace('_', ' ').toLowerCase()}</p>
+                            <p><span className="text-muted-foreground">{t('dpr.stoppageDuration')}:</span> {submittedDPR.workStoppage.durationHours} {t('dpr.hours')}</p>
                             {submittedDPR.workStoppage.remarks && (
-                              <p><span className="text-muted-foreground">Remarks:</span> {submittedDPR.workStoppage.remarks}</p>
+                              <p><span className="text-muted-foreground">{t('dpr.stoppageRemarks')}:</span> {submittedDPR.workStoppage.remarks}</p>
                             )}
                           </div>
                         </div>
@@ -480,7 +472,7 @@ export default function DPRPage() {
                         <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
                           <div className="flex items-center gap-2 mb-2">
                             <Sparkles className="w-4 h-4 text-primary" />
-                            <p className="text-xs font-medium text-primary">AI Summary</p>
+                            <p className="text-xs font-medium text-primary">{t('dpr.aiSummary')}</p>
                           </div>
                           <p className="text-sm text-foreground">{dprAISummary}</p>
                         </div>
@@ -560,8 +552,8 @@ export default function DPRPage() {
                         <div className="flex items-start justify-between">
                           <div>
                             <div className="flex items-center gap-2 mb-1">
-                              <p className="font-medium">{typeof submittedDPR.taskId === 'object' ? submittedDPR.taskId?.title : 'Task'}</p>
-                              <StatusBadge status="success" label="Just Created" />
+                              <p className="font-medium">{typeof submittedDPR.taskId === 'object' ? submittedDPR.taskId?.title : t('dpr.task')}</p>
+                              <StatusBadge status="success" label={t('dpr.justCreated')} />
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">
                               {new Date(submittedDPR.createdAt).toLocaleDateString('en-US', { 
@@ -596,14 +588,14 @@ export default function DPRPage() {
                         )}
                         {submittedDPR.workStoppage?.occurred && (
                           <div className="p-2 rounded-lg bg-warning/10 border border-warning/30">
-                            <p className="text-xs font-medium text-warning">Work Stoppage: {submittedDPR.workStoppage.reason?.replace('_', ' ').toLowerCase()} ({submittedDPR.workStoppage.durationHours}h)</p>
+                            <p className="text-xs font-medium text-warning">{t('dpr.workStoppage')}: {submittedDPR.workStoppage.reason?.replace('_', ' ').toLowerCase()} ({submittedDPR.workStoppage.durationHours}h)</p>
                           </div>
                         )}
                         {dprAISummary && (
                           <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
                             <div className="flex items-center gap-2 mb-2">
                               <Sparkles className="w-4 h-4 text-primary" />
-                              <p className="text-xs font-medium text-primary">AI Summary</p>
+                              <p className="text-xs font-medium text-primary">{t('dpr.aiSummary')}</p>
                             </div>
                             <p className="text-sm text-foreground">{dprAISummary}</p>
                           </div>
@@ -641,7 +633,7 @@ export default function DPRPage() {
                           <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
                             <div className="flex items-center gap-2 mb-2">
                               <Sparkles className="w-4 h-4 text-primary" />
-                              <p className="text-xs font-medium text-primary">AI Summary</p>
+                              <p className="text-xs font-medium text-primary">{t('dpr.aiSummary')}</p>
                             </div>
                             <p className="text-sm text-foreground">{dpr.aiSummary}</p>
                           </div>
@@ -730,7 +722,7 @@ export default function DPRPage() {
                     ))}
                     {photos.length < 6 && (
                       <button
-                        onClick={handlePhotoUpload}
+                        onClick={() => handlePhotoUpload('camera')}
                         className="aspect-square rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors"
                       >
                         <Camera className="w-6 h-6" />
@@ -739,13 +731,13 @@ export default function DPRPage() {
                     )}
                   </div>
                   <div className="flex gap-3">
-                    <Button variant="outline" className="flex-1" onClick={handlePhotoUpload}>
+                    <Button variant="outline" className="flex-1" onClick={() => handlePhotoUpload('camera')}>
                       <Camera className="w-4 h-4 mr-2" />
-                      Camera
+                      {t('dpr.camera')}
                     </Button>
-                    <Button variant="outline" className="flex-1" onClick={handlePhotoUpload}>
+                    <Button variant="outline" className="flex-1" onClick={() => handlePhotoUpload('gallery')}>
                       <Upload className="w-4 h-4 mr-2" />
-                      Gallery
+                      {t('dpr.gallery')}
                     </Button>
                   </div>
                 </CardContent>
@@ -757,7 +749,7 @@ export default function DPRPage() {
                 onClick={() => setStep(3)}
                 disabled={photos.length === 0 || !selectedProject}
               >
-                Continue
+                {t('dpr.continue')}
               </Button>
             </div>
           )}
@@ -806,14 +798,17 @@ export default function DPRPage() {
             <div className="space-y-4 animate-fade-up">
               <Card variant="gradient">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Add Notes (Optional)</CardTitle>
+                  <CardTitle className="text-base">{t('dpr.step4')}</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">{t('dpr.notesPlaceholder')}</p>
                 </CardHeader>
                 <CardContent>
+                  <Label htmlFor="notes-textarea" className="sr-only">Notes</Label>
                   <textarea
+                    id="notes-textarea"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Enter any additional notes about today's work..."
-                    className="w-full h-32 p-3 rounded-xl bg-muted/50 border border-border/50 text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    placeholder={t('dpr.notesPlaceholder')}
+                    className="w-full h-32 p-4 rounded-xl bg-background border border-border text-foreground placeholder:text-muted-foreground/60 resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
                   />
                 </CardContent>
               </Card>
@@ -843,7 +838,7 @@ export default function DPRPage() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <Sparkles className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-medium text-primary">AI Generated Summary</span>
+                      <span className="text-sm font-medium text-primary">{t('dpr.aiSummary')}</span>
                     </div>
                     <textarea
                       value={aiSummary}
@@ -859,7 +854,7 @@ export default function DPRPage() {
                 size="lg"
                 onClick={() => setStep(5)}
               >
-                Continue
+                {t('dpr.continue')}
               </Button>
             </div>
           )}
@@ -939,12 +934,12 @@ export default function DPRPage() {
 
                       <div>
                         <label className="text-sm font-medium text-foreground mb-2 block">
-                          Remarks (Optional)
+                          {t('dpr.stoppageRemarks')} ({t('projects.optional')})
                         </label>
                         <textarea
                           value={workStoppageRemarks}
                           onChange={(e) => setWorkStoppageRemarks(e.target.value)}
-                          placeholder="Additional details about the stoppage..."
+                          placeholder={t('dpr.stoppageRemarks')}
                           className="w-full h-24 p-3 rounded-xl bg-muted/50 border border-border/50 text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
                         />
                       </div>
@@ -953,15 +948,26 @@ export default function DPRPage() {
                         <label className="text-sm font-medium text-foreground mb-2 block">
                           Evidence Photos (Optional)
                         </label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-full"
-                          onClick={handleWorkStoppagePhotoUpload}
-                        >
-                          <Camera className="w-4 h-4 mr-2" />
-                          Add Evidence Photos
-                        </Button>
+                        <div className="flex gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => handleWorkStoppagePhotoUpload('camera')}
+                          >
+                            <Camera className="w-4 h-4 mr-2" />
+                            Camera
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => handleWorkStoppagePhotoUpload('gallery')}
+                          >
+                            <Upload className="w-4 h-4 mr-2" />
+                            Gallery
+                          </Button>
+                        </div>
                         {workStoppageEvidencePreviews.length > 0 && (
                           <div className="flex gap-2 mt-3 overflow-x-auto pb-2 w-full max-w-full">
                             {workStoppageEvidencePreviews.map((preview, index) => (
@@ -1002,7 +1008,7 @@ export default function DPRPage() {
                   setStep(6);
                 }}
               >
-                Continue to Review
+                {t('dpr.continue')}
               </Button>
             </div>
           )}
@@ -1012,25 +1018,25 @@ export default function DPRPage() {
             <div className="space-y-4 animate-fade-up">
               <Card variant="gradient">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Review DPR</CardTitle>
+                  <CardTitle className="text-base">{t('dpr.reviewSubmit')}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="p-3 rounded-xl bg-muted/50">
-                    <span className="text-xs text-muted-foreground">Project</span>
+                    <span className="text-xs text-muted-foreground">{t('dpr.project')}</span>
                     <p className="font-medium text-foreground">
-                      {projects.find(p => p._id === selectedProject)?.name || "Unknown Project"}
+                      {projects.find(p => p._id === selectedProject)?.name || t('materials.unknown') + ' ' + t('dpr.project')}
                     </p>
                   </div>
                   
                   <div className="p-3 rounded-xl bg-muted/50">
-                    <span className="text-xs text-muted-foreground">Task</span>
+                    <span className="text-xs text-muted-foreground">{t('dpr.task')}</span>
                     <p className="font-medium text-foreground">
-                      {tasks.find(t => t._id === selectedTask)?.title || "Unknown Task"}
+                      {tasks.find(t => t._id === selectedTask)?.title || t('materials.unknown') + ' ' + t('dpr.task')}
                     </p>
                   </div>
 
                   <div className="p-3 rounded-xl bg-muted/50 w-full overflow-x-hidden">
-                    <span className="text-xs text-muted-foreground mb-2 block">Photos ({photos.length})</span>
+                    <span className="text-xs text-muted-foreground mb-2 block">{t('dpr.addPhotos')} ({photos.length})</span>
                     <div className="flex gap-2 overflow-x-auto pb-2 w-full max-w-full">
                       {photoPreviews.map((preview, index) => (
                         <img 
@@ -1045,7 +1051,7 @@ export default function DPRPage() {
 
                   {(notes || aiSummary) && (
                     <div className="p-3 rounded-xl bg-muted/50">
-                      <span className="text-xs text-muted-foreground">Summary</span>
+                      <span className="text-xs text-muted-foreground">{t('dpr.aiSummary')}</span>
                       <p className="text-sm text-foreground mt-1">
                         {aiSummary || notes}
                       </p>
@@ -1093,12 +1099,12 @@ export default function DPRPage() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Submitting...
+                    {t('dpr.submitting')}
                   </>
                 ) : (
                   <>
                     <Check className="w-5 h-5" />
-                    Submit DPR
+                    {t('dpr.submit')}
                   </>
                 )}
               </Button>

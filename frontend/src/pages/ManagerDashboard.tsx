@@ -33,6 +33,7 @@ import { Loader2, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationBell } from "@/components/common/NotificationBell";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useTranslation } from "react-i18next";
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
@@ -332,7 +333,7 @@ export default function ManagerDashboard() {
   const handleAcceptInvitation = async (invitationId: string) => {
     try {
       await notificationsApi.acceptInvitation(invitationId);
-      toast.success('Project invitation accepted!');
+      toast.success(t('projects.projectInvitationAccepted'));
       // Reload dashboard data
       loadDashboardData();
     } catch (error: any) {
@@ -344,7 +345,7 @@ export default function ManagerDashboard() {
   const handleRejectInvitation = async (invitationId: string) => {
     try {
       await notificationsApi.rejectInvitation(invitationId);
-      toast.success('Invitation rejected');
+      toast.success(t('projects.invitationRejected'));
       // Reload dashboard data
       loadDashboardData();
     } catch (error: any) {
@@ -466,6 +467,7 @@ export default function ManagerDashboard() {
             trend="up"
             trendValue="+1 this month"
             delay={100}
+            onClick={() => navigate("/projects")}
           />
           <KPICard
             title="Today's Attendance"
@@ -479,6 +481,7 @@ export default function ManagerDashboard() {
               : "Same as avg"
             }
             delay={200}
+            onClick={() => navigate("/attendance-details")}
           />
           <KPICard
             title="Pending Approvals"
@@ -486,6 +489,7 @@ export default function ManagerDashboard() {
             icon={Clock}
             variant="warning"
             delay={300}
+            onClick={() => navigate("/pending-approvals")}
           />
           <KPICard
             title="Delay Risks"
@@ -493,6 +497,7 @@ export default function ManagerDashboard() {
             icon={AlertTriangle}
             variant="destructive"
             delay={400}
+            onClick={() => navigate("/insights")}
           />
         </div>
 
@@ -562,8 +567,7 @@ export default function ManagerDashboard() {
                   key={dpr._id} 
                   className="p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
                   onClick={() => {
-                    setSelectedDPR(dpr);
-                    setIsDPRModalOpen(true);
+                    navigate(`/dpr/${dpr._id}`, { state: { dpr } });
                   }}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -575,7 +579,7 @@ export default function ManagerDashboard() {
                         {dpr.projectName || 'Project'}
                       </p>
                       <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                        <span>By: {dpr.createdBy?.name || 'Unknown'}</span>
+                        <span>By: {dpr.createdBy?.name || t('materials.unknown')}</span>
                         <span>{new Date(dpr.createdAt).toLocaleDateString('en-US', { 
                           month: 'short', 
                           day: 'numeric',
@@ -672,17 +676,17 @@ export default function ManagerDashboard() {
               <div className="space-y-4">
                 <div className="p-3 rounded-xl bg-muted/50">
                   <span className="text-xs text-muted-foreground">Project</span>
-                  <p className="font-medium text-foreground">{selectedDPR.projectName || 'Unknown Project'}</p>
+                  <p className="font-medium text-foreground">{selectedDPR.projectName || t('materials.unknown') + ' ' + t('dpr.project')}</p>
                 </div>
                 
                 <div className="p-3 rounded-xl bg-muted/50">
-                  <span className="text-xs text-muted-foreground">Task</span>
-                  <p className="font-medium text-foreground">{selectedDPR.taskId?.title || 'Unknown Task'}</p>
+                  <span className="text-xs text-muted-foreground">{t('dpr.task')}</span>
+                  <p className="font-medium text-foreground">{selectedDPR.taskId?.title || t('materials.unknown') + ' ' + t('dpr.task')}</p>
                 </div>
 
                 <div className="p-3 rounded-xl bg-muted/50">
-                  <span className="text-xs text-muted-foreground">Created By</span>
-                  <p className="font-medium text-foreground">{selectedDPR.createdBy?.name || 'Unknown'}</p>
+                  <span className="text-xs text-muted-foreground">{t('dpr.createdBy')}</span>
+                  <p className="font-medium text-foreground">{selectedDPR.createdBy?.name || t('materials.unknown')}</p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {new Date(selectedDPR.createdAt).toLocaleString('en-US', {
                       month: 'short',

@@ -28,8 +28,13 @@ export default defineConfig(({ mode }) => ({
   build: {
     target: "es2020",
     chunkSizeWarningLimit: 1000,
+    assetsDir: 'assets',
     rollupOptions: {
       output: {
+        // Ensure consistent chunk file names
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
         manualChunks: {
           // Vendor chunks
           "react-vendor": ["react", "react-dom", "react-router-dom"],

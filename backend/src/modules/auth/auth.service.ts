@@ -23,8 +23,11 @@ export const login = async (
     offsiteId?: string;
   };
 }> => {
-  // Find user by email and include password field
-  const user = await User.findOne({ email }).select('+password');
+  const normalizedEmail = (email || '').toString().toLowerCase().trim();
+  if (!normalizedEmail) {
+    throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
+  }
+  const user = await User.findOne({ email: normalizedEmail }).select('+password');
   
   if (!user) {
     throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
@@ -83,9 +86,14 @@ export const signup = async (
   };
 }> => {
   try {
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    
+    const normalizedEmail = (email || '').toString().toLowerCase().trim();
+    if (!normalizedEmail || !/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      throw new AppError('Please provide a valid email address', 400, 'VALIDATION_ERROR');
+    }
+
+    // Check if user already exists (use normalized email to match stored lowercase)
+    const existingUser = await User.findOne({ email: normalizedEmail });
+
     if (existingUser) {
       throw new AppError('User with this email already exists. Please login instead.', 409, 'USER_EXISTS');
     }
@@ -108,7 +116,7 @@ export const signup = async (
     // Create new user with offsiteId
     // Only include phone if it's provided and not empty
     const userData: any = {
-      email: email.toLowerCase().trim(),
+      email: normalizedEmail,
       password,
       name: name.trim(),
       role,
@@ -162,7 +170,7 @@ export const signup = async (
               // Not as null, not as undefined, not as empty string - completely omit it
               const userDoc: any = {
                 _id: new mongoose.default.Types.ObjectId(),
-                email: email.toLowerCase().trim(),
+                email: normalizedEmail,
                 password: hashedPassword,
                 name: name.trim(),
                 role,
@@ -291,7 +299,8 @@ export const signup = async (
  */
 
 export const forgotPassword = async (email: string): Promise<void> => {
-  const user = await User.findOne({ email });
+  const normalizedEmail = (email || '').toString().toLowerCase().trim();
+  const user = await User.findOne({ email: normalizedEmail });
 
   // Always return success to caller; do not reveal existence of user
   if (!user) {

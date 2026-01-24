@@ -6,7 +6,7 @@ import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 import { reverseGeocode } from '../../services/maptiler.service';
 import { logger } from '../../utils/logger';
-import { calculateDistance } from '../../utils/calculateDistance';
+import { validateGeoFence, getProjectGeoFence } from '../../utils/geoFence';
 
 const checkInSchema = z.object({
   projectId: z.string(),
@@ -33,19 +33,27 @@ export const checkIn = async (
 
     const { projectId, latitude, longitude, location: fallbackLocation } = checkInSchema.parse(req.body);
 
-    // Validate geofence if project has geofence data
+    // Validate geo-fence (server is authoritative)
     const project = await Project.findById(projectId);
-    if (project && project.siteLatitude && project.siteLongitude && project.siteRadiusMeters) {
-      const distance = calculateDistance(
-        latitude,
-        longitude,
-        project.siteLatitude,
-        project.siteLongitude
-      );
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
 
-      if (distance > project.siteRadiusMeters) {
+    const geoFence = getProjectGeoFence(project);
+    let geoFenceStatus: 'INSIDE' | 'OUTSIDE' | undefined;
+    let distanceFromCenter: number | undefined;
+    let geoFenceViolation = false;
+
+    if (geoFence) {
+      const validation = validateGeoFence(latitude, longitude, geoFence);
+      distanceFromCenter = validation.distanceFromCenter;
+      geoFenceStatus = validation.status;
+      geoFenceViolation = validation.violation;
+
+      // Server enforces: block attendance if outside geo-fence (strict enforcement)
+      if (validation.violation) {
         throw new AppError(
-          `You are ${Math.round(distance)} meters away from the project site. Please be within ${project.siteRadiusMeters} meters to check in.`,
+          `You are ${validation.distanceFromCenter} meters away from the project site. Please be within ${geoFence.radiusMeters + geoFence.bufferMeters} meters to check in.`,
           400,
           'OUTSIDE_GEOFENCE'
         );
@@ -87,6 +95,9 @@ export const checkIn = async (
       location: locationAddress,
       latitude,
       longitude,
+      distanceFromCenter,
+      geoFenceStatus,
+      geoFenceViolation,
       timestamp: new Date(),
       synced: true,
     });
@@ -135,19 +146,23 @@ export const checkOut = async (
       }
     }
 
-    // Validate geofence if project has geofence data and coordinates are provided
-    if (latitude && longitude) {
-      if (project.siteLatitude && project.siteLongitude && project.siteRadiusMeters) {
-        const distance = calculateDistance(
-          latitude,
-          longitude,
-          project.siteLatitude,
-          project.siteLongitude
-        );
+    // Validate geo-fence if coordinates are provided (checkout can use check-in location)
+    let geoFenceStatus: 'INSIDE' | 'OUTSIDE' | undefined;
+    let distanceFromCenter: number | undefined;
+    let geoFenceViolation = false;
 
-        if (distance > project.siteRadiusMeters) {
+    if (latitude && longitude) {
+      const geoFence = getProjectGeoFence(project);
+      if (geoFence) {
+        const validation = validateGeoFence(latitude, longitude, geoFence);
+        distanceFromCenter = validation.distanceFromCenter;
+        geoFenceStatus = validation.status;
+        geoFenceViolation = validation.violation;
+
+        // Server enforces: block checkout if outside geo-fence
+        if (validation.violation) {
           throw new AppError(
-            `You are ${Math.round(distance)} meters away from the project site. Please be within ${project.siteRadiusMeters} meters to check out.`,
+            `You are ${validation.distanceFromCenter} meters away from the project site. Please be within ${geoFence.radiusMeters + geoFence.bufferMeters} meters to check out.`,
             400,
             'OUTSIDE_GEOFENCE'
           );
@@ -190,6 +205,13 @@ export const checkOut = async (
       checkoutLongitude = todayCheckIn.longitude;
     }
 
+    // If using check-in location, inherit geo-fence status from check-in
+    if (!latitude && !longitude && todayCheckIn) {
+      distanceFromCenter = todayCheckIn.distanceFromCenter;
+      geoFenceStatus = todayCheckIn.geoFenceStatus;
+      geoFenceViolation = todayCheckIn.geoFenceViolation || false;
+    }
+
     const attendance = new Attendance({
       userId: req.user.userId,
       projectId,
@@ -197,6 +219,9 @@ export const checkOut = async (
       location: locationAddress,
       latitude: checkoutLatitude,
       longitude: checkoutLongitude,
+      distanceFromCenter,
+      geoFenceStatus,
+      geoFenceViolation,
       timestamp: new Date(),
       synced: true,
     });
@@ -291,8 +316,12 @@ export const getAttendanceByProject = async (
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
 
-    // Authorization: Owners can access any project, others must be members
-    if (req.user.role !== 'owner') {
+    const projectOwnerId = (project as any).owner?.toString?.() ?? (project as any).owner;
+    if (req.user.role === 'owner') {
+      if (projectOwnerId !== req.user!.userId) {
+        throw new AppError('Access denied. You can only access attendance for your own projects.', 403, 'FORBIDDEN');
+      }
+    } else {
       const isMember = project.members.some(
         (memberId) => memberId.toString() === req.user!.userId
       );

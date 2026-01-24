@@ -103,14 +103,20 @@ export const invoicesApi = {
 
   downloadPDF: async (id: string): Promise<Blob> => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    const token = localStorage.getItem('accessToken');
     const response = await fetch(`${apiUrl}/invoices/${id}/pdf`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        ...(token && token.trim() ? { Authorization: `Bearer ${token.trim()}` } : {}),
       },
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('accessToken');
+        window.location.href = '/';
+        throw new Error('Session expired. Please log in again.');
+      }
       throw new Error('Failed to download invoice PDF');
     }
 

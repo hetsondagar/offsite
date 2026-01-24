@@ -17,6 +17,32 @@ export interface LocationData {
 }
 
 /**
+ * Request location permissions (Android/iOS)
+ * Returns true if permission is granted, false otherwise
+ */
+async function requestLocationPermissions(): Promise<boolean> {
+  if (!isNative()) {
+    return true; // Browser handles permissions automatically
+  }
+
+  try {
+    // Check current permission status
+    const permissionStatus = await Geolocation.checkPermissions();
+    
+    if (permissionStatus.location === 'granted') {
+      return true;
+    }
+
+    // Request permission if not granted
+    const requestResult = await Geolocation.requestPermissions();
+    return requestResult.location === 'granted';
+  } catch (error) {
+    console.error('Error requesting location permissions:', error);
+    return false;
+  }
+}
+
+/**
  * Get current position
  * Uses Capacitor Geolocation on native, falls back to browser API on web
  */
@@ -24,22 +50,52 @@ export async function getCurrentPosition(
   options?: PositionOptions
 ): Promise<LocationData> {
   if (isNative()) {
-    // Use Capacitor Geolocation on native
-    const position = await Geolocation.getCurrentPosition({
-      enableHighAccuracy: options?.enableHighAccuracy ?? true,
-      timeout: options?.timeout ?? 30000,
-      maximumAge: options?.maximumAge ?? 60000,
-    });
+    // Request permissions first on native platforms
+    const hasPermission = await requestLocationPermissions();
+    if (!hasPermission) {
+      const error = new Error('Location permission denied. Please enable location permissions in app settings.') as any;
+      error.code = 1; // PERMISSION_DENIED
+      throw error;
+    }
 
-    return {
-      latitude: position.coords.latitude,
-      longitude: position.coords.longitude,
-      accuracy: position.coords.accuracy,
-      altitude: position.coords.altitude ?? null,
-      altitudeAccuracy: position.coords.altitudeAccuracy ?? null,
-      heading: position.coords.heading ?? null,
-      speed: position.coords.speed ?? null,
-    };
+    try {
+      // Use Capacitor Geolocation on native
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: options?.enableHighAccuracy ?? true,
+        timeout: options?.timeout ?? 30000,
+        maximumAge: options?.maximumAge ?? 60000,
+      });
+
+      if (!position || !position.coords) {
+        throw new Error('Invalid position data received');
+      }
+
+      return {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+        altitude: position.coords.altitude ?? null,
+        altitudeAccuracy: position.coords.altitudeAccuracy ?? null,
+        heading: position.coords.heading ?? null,
+        speed: position.coords.speed ?? null,
+      };
+    } catch (error: any) {
+      // Re-throw with proper error code
+      if (error.message?.includes('permission') || error.message?.includes('Permission')) {
+        const permError = new Error(error.message || 'Location permission denied') as any;
+        permError.code = 1; // PERMISSION_DENIED
+        throw permError;
+      } else if (error.message?.includes('timeout') || error.message?.includes('Timeout')) {
+        const timeoutError = new Error(error.message || 'Location request timed out') as any;
+        timeoutError.code = 3; // TIMEOUT
+        throw timeoutError;
+      } else if (error.message?.includes('unavailable') || error.message?.includes('Unavailable')) {
+        const unavailError = new Error(error.message || 'Location unavailable') as any;
+        unavailError.code = 2; // POSITION_UNAVAILABLE
+        throw unavailError;
+      }
+      throw error;
+    }
   } else {
     // Fallback to browser geolocation on web
     return new Promise<LocationData>((resolve, reject) => {
@@ -77,6 +133,15 @@ export async function watchPosition(
   options?: PositionOptions
 ): Promise<number | string> {
   if (isNative()) {
+    // Request permissions first on native platforms
+    const hasPermission = await requestLocationPermissions();
+    if (!hasPermission) {
+      const error = new Error('Location permission denied. Please enable location permissions in app settings.') as any;
+      error.code = 1; // PERMISSION_DENIED
+      errorCallback?.(error as GeolocationPositionError);
+      return '';
+    }
+
     // Use Capacitor Geolocation on native
     // Capacitor's watchPosition returns a Promise<CallbackID>
     try {

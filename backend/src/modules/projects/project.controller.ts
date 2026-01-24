@@ -20,11 +20,30 @@ const createProjectSchema = z.object({
   location: z.string().min(1).max(500),
   startDate: z.string().transform((str) => new Date(str)),
   endDate: z.string().transform((str) => new Date(str)).optional(),
-  engineerOffsiteIds: z.array(z.string()).optional(), // Array of OffSite IDs for engineers
-  managerOffsiteIds: z.array(z.string()).optional(), // Array of OffSite IDs for managers
+  engineerOffsiteIds: z.array(z.string()).optional(),
+  managerOffsiteIds: z.array(z.string()).optional(),
+  // New geo-fence structure (mandatory for new projects)
+  geoFence: z.object({
+    enabled: z.boolean().default(true),
+    center: z.object({
+      latitude: z.number().min(-90).max(90),
+      longitude: z.number().min(-180).max(180),
+    }),
+    radiusMeters: z.number().min(50).max(500).default(200),
+    bufferMeters: z.number().min(0).max(100).default(20),
+  }).optional(),
+  // Legacy fields (for backward compatibility, will be migrated to geoFence)
   siteLatitude: z.number().min(-90).max(90).optional(),
   siteLongitude: z.number().min(-180).max(180).optional(),
   siteRadiusMeters: z.number().min(1).optional(),
+}).refine((data) => {
+  // Require either new geoFence OR legacy siteLatitude/siteLongitude
+  const hasNewGeoFence = data.geoFence && data.geoFence.center;
+  const hasLegacyGeo = data.siteLatitude && data.siteLongitude;
+  return hasNewGeoFence || hasLegacyGeo;
+}, {
+  message: 'Geo-fence is required. Provide either geoFence.center or siteLatitude/siteLongitude',
+  path: ['geoFence'],
 });
 
 export const createProject = async (
@@ -39,19 +58,49 @@ export const createProject = async (
 
     const data = createProjectSchema.parse(req.body);
     
-    // Create project with owner as initial member
+    // Build geo-fence: prefer new structure, fallback to legacy
+    let geoFence: any;
+    if (data.geoFence && data.geoFence.center) {
+      geoFence = {
+        enabled: data.geoFence.enabled !== false,
+        center: {
+          latitude: data.geoFence.center.latitude,
+          longitude: data.geoFence.center.longitude,
+        },
+        radiusMeters: data.geoFence.radiusMeters || 200,
+        bufferMeters: data.geoFence.bufferMeters || 20,
+      };
+    } else if (data.siteLatitude && data.siteLongitude) {
+      // Migrate legacy fields to new structure
+      geoFence = {
+        enabled: true,
+        center: {
+          latitude: data.siteLatitude,
+          longitude: data.siteLongitude,
+        },
+        radiusMeters: data.siteRadiusMeters || 200,
+        bufferMeters: 20,
+      };
+    } else {
+      throw new AppError('Geo-fence is required. Please provide geoFence.center or siteLatitude/siteLongitude', 400, 'VALIDATION_ERROR');
+    }
+    
+    // Create project: creator is owner and initial member. Only this owner sees/manages it.
     const project = new Project({
       name: data.name,
       location: data.location,
       startDate: data.startDate,
       endDate: data.endDate,
+      owner: req.user.userId,
       members: [req.user.userId], // Owner is automatically a member
       status: 'active',
       progress: 0,
       healthScore: 0,
-      siteLatitude: data.siteLatitude,
-      siteLongitude: data.siteLongitude,
-      siteRadiusMeters: data.siteRadiusMeters || 100,
+      geoFence,
+      // Keep legacy fields for backward compatibility
+      siteLatitude: data.siteLatitude || geoFence.center.latitude,
+      siteLongitude: data.siteLongitude || geoFence.center.longitude,
+      siteRadiusMeters: data.siteRadiusMeters || geoFence.radiusMeters,
     });
 
     await project.save();
@@ -177,18 +226,17 @@ export const getProjects = async (
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    // Security: Only owners can see all projects, engineers and managers only see projects they are members of
+    // Security: Owner sees only their projects; PM/SE see only projects they are members of
     const query: any = {};
     if (req.user.role === 'owner') {
-      // Owners can see all projects
-      // No filter needed
+      query.owner = new mongoose.Types.ObjectId(req.user.userId);
     } else {
-      // Engineers and managers can only see projects they are members of
       query.members = new mongoose.Types.ObjectId(req.user.userId);
     }
 
     const [projects, total] = await Promise.all([
       Project.find(query)
+        .populate('owner', 'name phone role offsiteId')
         .populate('members', 'name phone role offsiteId')
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -230,6 +278,7 @@ export const getProjectById = async (
     const { id } = req.params;
 
     const project = await Project.findById(id)
+      .populate('owner', 'name phone role offsiteId')
       .populate('members', 'name phone role offsiteId')
       .select('-__v');
 
@@ -237,14 +286,23 @@ export const getProjectById = async (
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
 
-    // Security: Only team members (or owners) can access project details
+    // Security: Project owner can access; PM/SE only if they are members
     const userId = req.user.userId.toString();
-    const isOwner = req.user.role === 'owner';
+    const projectOwnerId = (project as any).owner?._id?.toString() ?? (project as any).owner?.toString();
+    const isProjectOwner = projectOwnerId === userId;
     const isMember = project.members.some(
-      (member: any) => member._id.toString() === userId || member.toString() === userId
+      (member: any) => member._id?.toString() === userId || member.toString() === userId
     );
 
-    if (!isOwner && !isMember) {
+    if (req.user.role === 'owner') {
+      if (!isProjectOwner) {
+        throw new AppError(
+          'Access denied. You can only view your own projects.',
+          403,
+          'FORBIDDEN'
+        );
+      }
+    } else if (!isMember) {
       throw new AppError(
         'Access denied. You must be a team member to view this project.',
         403,
@@ -407,7 +465,7 @@ export const addProjectMembers = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    // Only owners can add members
+    // Only project owner can add members (not any owner)
     if (req.user.role !== 'owner') {
       throw new AppError('Only owners can add members to projects', 403, 'FORBIDDEN');
     }
@@ -418,6 +476,11 @@ export const addProjectMembers = async (
     const project = await Project.findById(id);
     if (!project) {
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    const projectOwnerId = (project as any).owner?.toString?.() ?? (project as any).owner;
+    if (projectOwnerId !== req.user.userId) {
+      throw new AppError('Only the project owner can add members to this project', 403, 'FORBIDDEN');
     }
 
     const invitations: any[] = [];

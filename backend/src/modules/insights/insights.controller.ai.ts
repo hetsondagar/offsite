@@ -38,8 +38,12 @@ export const getDPRSummary = async (
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
 
-    // Authorization: Owners can access any project, others must be members
-    if (req.user.role !== 'owner') {
+    const projectOwnerId = (project as any).owner?.toString?.() ?? (project as any).owner;
+    if (req.user.role === 'owner') {
+      if (projectOwnerId !== req.user!.userId) {
+        throw new AppError('Access denied. You can only access insights for your own projects.', 403, 'FORBIDDEN');
+      }
+    } else {
       const isMember = project.members.some(
         (memberId) => memberId.toString() === req.user!.userId
       );
@@ -92,8 +96,12 @@ export const getHealthExplanation = async (
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
 
-    // Authorization: Owners can access any project, others must be members
-    if (req.user.role !== 'owner') {
+    const projectOwnerId = (project as any).owner?.toString?.() ?? (project as any).owner;
+    if (req.user.role === 'owner') {
+      if (projectOwnerId !== req.user!.userId) {
+        throw new AppError('Access denied. You can only access insights for your own projects.', 403, 'FORBIDDEN');
+      }
+    } else {
       const isMember = project.members.some(
         (memberId) => memberId.toString() === req.user!.userId
       );
@@ -140,6 +148,24 @@ export const getDelayRiskExplanation = async (
       throw new AppError('projectId is required', 400, 'VALIDATION_ERROR');
     }
 
+    const project = await Project.findById(projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+    const projectOwnerId = (project as any).owner?.toString?.() ?? (project as any).owner;
+    if (req.user.role === 'owner') {
+      if (projectOwnerId !== req.user!.userId) {
+        throw new AppError('Access denied. You can only access insights for your own projects.', 403, 'FORBIDDEN');
+      }
+    } else {
+      const isMember = project.members.some(
+        (memberId) => memberId.toString() === req.user!.userId
+      );
+      if (!isMember) {
+        throw new AppError('Access denied. You must be a member of this project.', 403, 'FORBIDDEN');
+      }
+    }
+
     const explanation = await generateDelayRiskExplanation(projectId as string);
 
     if (!explanation) {
@@ -184,8 +210,12 @@ export const getMaterialAnomalyExplanation = async (
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
 
-    // Authorization: Owners can access any project, others must be members
-    if (req.user.role !== 'owner') {
+    const projectOwnerId = (project as any).owner?.toString?.() ?? (project as any).owner;
+    if (req.user.role === 'owner') {
+      if (projectOwnerId !== req.user!.userId) {
+        throw new AppError('Access denied. You can only access insights for your own projects.', 403, 'FORBIDDEN');
+      }
+    } else {
       const isMember = project.members.some(
         (memberId) => memberId.toString() === req.user!.userId
       );

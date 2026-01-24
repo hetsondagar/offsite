@@ -29,6 +29,12 @@ import { usersApi } from "@/services/api/users";
 import { notificationsApi, ProjectInvitation } from "@/services/api/notifications";
 import { toast } from "sonner";
 import { Search, X, UserPlus } from "lucide-react";
+import { PageHeader } from "@/components/common/PageHeader";
+import { getMapTilerKey } from "@/lib/config";
+import { getCurrentPosition } from "@/lib/capacitor-geolocation";
+import { Slider } from "@/components/ui/slider";
+import * as maptiler from "@maptiler/sdk";
+import "@maptiler/sdk/dist/maptiler-sdk.css";
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
@@ -47,6 +53,15 @@ export default function ProjectsPage() {
     startDate: "",
     endDate: "",
   });
+  const [geoFenceCenter, setGeoFenceCenter] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [geoFenceRadius, setGeoFenceRadius] = useState<number>(200);
+  const [createStep, setCreateStep] = useState<'details' | 'geofence'>('details');
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapInstance, setMapInstance] = useState<any>(null);
+  const [mapMarker, setMapMarker] = useState<any>(null);
+  const [mapCircle, setMapCircle] = useState<any>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const MAPTILER_KEY = getMapTilerKey();
   const [engineerSearch, setEngineerSearch] = useState("");
   const [managerSearch, setManagerSearch] = useState("");
   const [selectedEngineers, setSelectedEngineers] = useState<Array<{ offsiteId: string; name: string }>>([]);
@@ -65,8 +80,25 @@ export default function ProjectsPage() {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
+      if (mapInstance) {
+        mapInstance.remove();
+      }
     };
   }, []);
+
+  // Cleanup map when dialog closes
+  useEffect(() => {
+    if (!isCreateDialogOpen && mapInstance) {
+      mapInstance.remove();
+      setMapInstance(null);
+      setMapMarker(null);
+      setMapCircle(null);
+      setMapLoaded(false);
+      setCreateStep('details');
+      setGeoFenceCenter(null);
+      setGeoFenceRadius(200);
+    }
+  }, [isCreateDialogOpen]);
 
   const loadProjects = async () => {
     try {
@@ -75,7 +107,7 @@ export default function ProjectsPage() {
       setProjects(data?.projects || []);
     } catch (error) {
       console.error('Error loading projects:', error);
-      toast.error('Failed to load projects');
+      toast.error(t('projects.failedToLoadProjects'));
     } finally {
       setIsLoading(false);
     }
@@ -97,7 +129,7 @@ export default function ProjectsPage() {
   const handleAcceptInvitation = async (invitationId: string) => {
     try {
       await notificationsApi.acceptInvitation(invitationId);
-      toast.success('Invitation accepted. You have been added to the project.');
+      toast.success(t('projects.invitationAcceptedAdded'));
       await Promise.all([loadInvitations(), loadProjects()]);
     } catch (error: any) {
       console.error('Error accepting invitation:', error);
@@ -157,7 +189,7 @@ export default function ProjectsPage() {
       const isManagerSelected = selectedManagers.some(m => m.offsiteId.toUpperCase() === user.offsiteId.toUpperCase());
       
       if (isEngineerSelected || isManagerSelected) {
-        toast.error('This user is already added');
+        toast.error(t('projects.userAlreadyAdded'));
         setSearchResults([]);
         return;
       }
@@ -206,9 +238,136 @@ export default function ProjectsPage() {
     setSelectedManagers(selectedManagers.filter(m => m.offsiteId !== offsiteId));
   };
 
+  const handleDetailsNext = () => {
+    if (!newProject.name || !newProject.location || !newProject.startDate) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    setCreateStep('geofence');
+    // Initialize map when moving to geo-fence step
+    setTimeout(() => initializeGeoFenceMap(), 100);
+  };
+
+  const initializeGeoFenceMap = async () => {
+    if (!mapContainerRef.current || mapInstance) return;
+
+    try {
+      // Try to get user's current location for initial map center
+      let initialLat = 19.0760; // Default: Mumbai
+      let initialLon = 72.8777;
+      try {
+        const position = await getCurrentPosition({ enableHighAccuracy: false, timeout: 5000 });
+        initialLat = position.latitude;
+        initialLon = position.longitude;
+      } catch {
+        // Use default if location unavailable
+      }
+
+      // Configure MapTiler API key
+      maptiler.config.apiKey = MAPTILER_KEY;
+
+      const map = new maptiler.Map({
+        container: mapContainerRef.current,
+        style: 'https://api.maptiler.com/maps/streets-v2/style.json?key=' + MAPTILER_KEY,
+        center: [initialLon, initialLat],
+        zoom: 15,
+      });
+
+      map.on('load', () => {
+        setMapLoaded(true);
+        // Add click handler to drop pin
+        map.on('click', (e: any) => {
+          const { lng, lat } = e.lngLat;
+          setGeoFenceCenter({ latitude: lat, longitude: lng });
+          updateMapMarker(map, lat, lng);
+          updateMapCircle(map, lat, lng, geoFenceRadius);
+        });
+      });
+
+      setMapInstance(map);
+    } catch (error: any) {
+      console.error('Failed to initialize map:', error);
+      toast.error('Failed to load map. Please ensure you have internet connection.');
+    }
+  };
+
+  const updateMapMarker = (map: any, lat: number, lng: number) => {
+    if (mapMarker) mapMarker.remove();
+    const marker = new maptiler.Marker({ color: '#3b82f6' })
+      .setLngLat([lng, lat])
+      .addTo(map);
+    setMapMarker(marker);
+  };
+
+  const updateMapCircle = (map: any, lat: number, lng: number, radius: number) => {
+    if (mapCircle) mapCircle.remove();
+    // Create circle using GeoJSON (MapTiler doesn't have built-in circle, use polygon approximation)
+    const points = 64;
+    const circleCoords: [number, number][] = [];
+    for (let i = 0; i <= points; i++) {
+      const angle = (i * 360) / points;
+      const dx = (radius / 111320) * Math.cos((angle * Math.PI) / 180);
+      const dy = (radius / 111320) * Math.sin((angle * Math.PI) / 180);
+      circleCoords.push([lng + dx, lat + dy]);
+    }
+    circleCoords.push(circleCoords[0]); // Close the polygon
+
+    if (map.getSource('geofence-circle')) {
+      map.getSource('geofence-circle').setData({
+        type: 'Feature',
+        geometry: {
+          type: 'Polygon',
+          coordinates: [circleCoords],
+        },
+      });
+    } else {
+      map.addSource('geofence-circle', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [circleCoords],
+          },
+        },
+      });
+      map.addLayer({
+        id: 'geofence-circle',
+        type: 'fill',
+        source: 'geofence-circle',
+        paint: {
+          'fill-color': '#3b82f6',
+          'fill-opacity': 0.2,
+        },
+      });
+      map.addLayer({
+        id: 'geofence-circle-border',
+        type: 'line',
+        source: 'geofence-circle',
+        paint: {
+          'line-color': '#3b82f6',
+          'line-width': 2,
+        },
+      });
+    }
+    setMapCircle(true);
+  };
+
+  useEffect(() => {
+    if (geoFenceCenter && mapInstance && mapLoaded) {
+      updateMapMarker(mapInstance, geoFenceCenter.latitude, geoFenceCenter.longitude);
+      updateMapCircle(mapInstance, geoFenceCenter.latitude, geoFenceCenter.longitude, geoFenceRadius);
+    }
+  }, [geoFenceRadius, geoFenceCenter, mapInstance, mapLoaded]);
+
   const handleCreateProject = async () => {
     if (!newProject.name || !newProject.location || !newProject.startDate) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+
+    if (!geoFenceCenter) {
+      toast.error('Please set the project site location on the map');
       return;
     }
 
@@ -221,11 +380,17 @@ export default function ProjectsPage() {
         endDate: newProject.endDate ? new Date(newProject.endDate).toISOString() : undefined,
         engineerOffsiteIds: selectedEngineers.map(e => e.offsiteId),
         managerOffsiteIds: selectedManagers.map(m => m.offsiteId),
+        geoFence: {
+          enabled: true,
+          center: geoFenceCenter,
+          radiusMeters: geoFenceRadius,
+          bufferMeters: 20,
+        },
       };
 
       await projectsApi.create(projectData);
       
-      toast.success('Project created successfully! Invitations sent to selected members.');
+      toast.success(t('projects.projectCreatedSuccess'));
       setIsCreateDialogOpen(false);
       setNewProject({
         name: "",
@@ -237,6 +402,16 @@ export default function ProjectsPage() {
       setSelectedManagers([]);
       setEngineerSearch("");
       setManagerSearch("");
+      setGeoFenceCenter(null);
+      setGeoFenceRadius(200);
+      setCreateStep('details');
+      if (mapInstance) {
+        mapInstance.remove();
+        setMapInstance(null);
+        setMapMarker(null);
+        setMapCircle(null);
+        setMapLoaded(false);
+      }
       
       // Reload projects
       await loadProjects();
@@ -251,20 +426,11 @@ export default function ProjectsPage() {
   return (
     <MobileLayout role={role || "manager"}>
       <div className="bg-background w-full overflow-x-hidden min-h-screen max-w-full" style={{ maxWidth: '100vw' }}>
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top w-full">
-          <div className="flex items-center gap-0 relative">
-            <div className="absolute left-0 mt-3">
-              <Logo size="md" showText={false} />
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="font-display font-semibold text-lg">Projects</h1>
-              <p className="text-xs text-muted-foreground">
-                {isLoading ? "Loading..." : `${projects.length} active projects`}
-              </p>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title={t('projects.title')}
+          subtitle={isLoading ? t('common.loading') : `${projects.length} ${projects.length !== 1 ? t('projects.activeProjectsPlural') : t('projects.activeProjects')}`}
+          showBack={false}
+        />
 
         {/* Content */}
         <div className="p-4 space-y-4 pb-6">
@@ -444,13 +610,19 @@ export default function ProjectsPage() {
                 <Plus className="w-6 h-6" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] bg-card text-foreground max-h-[90vh] flex flex-col overflow-hidden">
+            <DialogContent className="sm:max-w-[425px] bg-card text-foreground max-h-[90vh] flex flex-col overflow-hidden rounded-2xl">
               <DialogHeader className="flex-shrink-0">
-                <DialogTitle className="text-foreground">Create New Project</DialogTitle>
+                <DialogTitle className="text-foreground">
+                  {createStep === 'details' ? t('projects.createProject') : 'Set Site Location'}
+                </DialogTitle>
               </DialogHeader>
-              <div className="grid gap-4 py-4 overflow-y-auto flex-1 min-h-0 pr-2 -mr-2">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Project Name *</Label>
+              <div className="grid gap-5 py-4 overflow-y-auto flex-1 min-h-0 pr-2 -mr-2">
+                {createStep === 'details' ? (
+                  <>
+                <div className="space-y-2.5">
+                  <Label htmlFor="name" className="text-sm font-medium text-foreground">
+                    {t('projects.projectName')} <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="name"
                     placeholder="e.g., Riverside Apartments"
@@ -459,8 +631,10 @@ export default function ProjectsPage() {
                     className="bg-background text-foreground"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="location">Location *</Label>
+                <div className="space-y-2.5">
+                  <Label htmlFor="location" className="text-sm font-medium text-foreground">
+                    Location <span className="text-destructive">*</span>
+                  </Label>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
@@ -472,8 +646,10 @@ export default function ProjectsPage() {
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="startDate">Start Date *</Label>
+                <div className="space-y-2.5">
+                  <Label htmlFor="startDate" className="text-sm font-medium text-foreground">
+                    {t('projects.startDate')} <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="startDate"
                     type="date"
@@ -482,8 +658,10 @@ export default function ProjectsPage() {
                     className="bg-background text-foreground"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="endDate">End Date (Optional)</Label>
+                <div className="space-y-2.5">
+                  <Label htmlFor="endDate" className="text-sm font-medium text-foreground">
+                    End Date <span className="text-muted-foreground text-xs font-normal">(Optional)</span>
+                  </Label>
                   <Input
                     id="endDate"
                     type="date"
@@ -495,8 +673,10 @@ export default function ProjectsPage() {
                 </div>
 
                 {/* Site Engineers Section */}
-                <div className="space-y-2">
-                  <Label>Site Engineers (Optional)</Label>
+                <div className="space-y-2.5">
+                  <Label className="text-sm font-medium text-foreground">
+                    {t('projects.siteEngineers')} <span className="text-muted-foreground text-xs font-normal">({t('projects.optional')})</span>
+                  </Label>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -600,8 +780,10 @@ export default function ProjectsPage() {
                 </div>
 
                 {/* Project Managers Section */}
-                <div className="space-y-2">
-                  <Label>Project Managers (Optional)</Label>
+                <div className="space-y-2.5">
+                  <Label className="text-sm font-medium text-foreground">
+                    {t('projects.projectManagers')} <span className="text-muted-foreground text-xs font-normal">({t('projects.optional')})</span>
+                  </Label>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -703,33 +885,117 @@ export default function ProjectsPage() {
                     </div>
                   )}
                 </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        Click on the map to set the project site center. This defines the geo-fence for attendance.
+                      </p>
+                      
+                      {/* Map Container */}
+                      <div className="relative w-full h-64 rounded-lg overflow-hidden border border-border">
+                        <div ref={mapContainerRef} className="w-full h-full" />
+                        {!mapLoaded && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Radius Selector */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-foreground">
+                          Geo-fence Radius: {geoFenceRadius}m
+                        </Label>
+                        <Slider
+                          value={[geoFenceRadius]}
+                          onValueChange={(vals) => setGeoFenceRadius(vals[0])}
+                          min={50}
+                          max={500}
+                          step={10}
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>50m</span>
+                          <span>500m</span>
+                        </div>
+                      </div>
+
+                      {geoFenceCenter && (
+                        <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+                          <p className="text-sm font-medium text-foreground">Site Location Set</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Lat: {geoFenceCenter.latitude.toFixed(6)}, Lng: {geoFenceCenter.longitude.toFixed(6)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Radius: {geoFenceRadius}m (with {20}m buffer)
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
               <div className="flex gap-3 flex-shrink-0 pt-2 border-t border-border/50">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsCreateDialogOpen(false)}
-                  className="flex-1"
-                  disabled={isCreating}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleCreateProject}
-                  className="flex-1"
-                  disabled={isCreating || !newProject.name || !newProject.location || !newProject.startDate}
-                >
-                  {isCreating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create Project
-                    </>
-                  )}
-                </Button>
+                {createStep === 'details' ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsCreateDialogOpen(false)}
+                      className="flex-1"
+                      disabled={isCreating}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleDetailsNext}
+                      className="flex-1"
+                      disabled={!newProject.name || !newProject.location || !newProject.startDate}
+                    >
+                      Next: Set Location
+                      <ChevronRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setCreateStep('details');
+                        if (mapInstance) {
+                          mapInstance.remove();
+                          setMapInstance(null);
+                          setMapMarker(null);
+                          setMapCircle(null);
+                          setMapLoaded(false);
+                        }
+                      }}
+                      className="flex-1"
+                      disabled={isCreating}
+                    >
+                      <ArrowLeft className="w-4 h-4 mr-2" />
+                      Back
+                    </Button>
+                    <Button
+                      onClick={handleCreateProject}
+                      className="flex-1"
+                      disabled={isCreating || !geoFenceCenter}
+                    >
+                      {isCreating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create Project
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
               </div>
             </DialogContent>
           </Dialog>

@@ -220,8 +220,8 @@ export default function InsightsPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {pendingMaterials.map((request: any, index: number) => {
-                  const projectName = typeof request.projectId === 'object' ? request.projectId?.name : 'Unknown Project';
-                  const requesterName = typeof request.requestedBy === 'object' ? request.requestedBy?.name : 'Unknown';
+                  const projectName = typeof request.projectId === 'object' ? request.projectId?.name : t('materials.unknown') + ' ' + t('dpr.project');
+                  const requesterName = typeof request.requestedBy === 'object' ? request.requestedBy?.name : t('materials.unknown');
                   const isAnomaly = request.anomalyDetected;
                   const delaySeverity = request.delaySeverity || 'normal';
                   
@@ -292,7 +292,7 @@ export default function InsightsPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {materialAnomalies.map((anomaly: any, index: number) => {
-                  const projectName = typeof anomaly.projectId === 'object' ? anomaly.projectId?.name : 'Unknown Project';
+                  const projectName = typeof anomaly.projectId === 'object' ? anomaly.projectId?.name : t('materials.unknown') + ' ' + t('dpr.project');
                   return (
                     <div key={anomaly._id || index} className="p-3 rounded-xl bg-warning/10 border border-warning/30">
                       <div className="flex items-center justify-between mb-2">

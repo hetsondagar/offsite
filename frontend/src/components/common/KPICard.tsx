@@ -12,6 +12,7 @@ interface KPICardProps {
   trendValue?: string;
   variant?: "default" | "success" | "warning" | "destructive";
   delay?: number;
+  onClick?: () => void;
 }
 
 export function KPICard({ 
@@ -22,7 +23,8 @@ export function KPICard({
   trend,
   trendValue,
   variant = "default",
-  delay = 0 
+  delay = 0,
+  onClick
 }: KPICardProps) {
   const [displayValue, setDisplayValue] = useState(typeof value === "number" ? 0 : value);
   const [isVisible, setIsVisible] = useState(false);
@@ -69,8 +71,10 @@ export function KPICard({
       className={cn(
         "opacity-0 translate-y-4 transition-all duration-500",
         isVisible && "opacity-100 translate-y-0",
-        variantStyles[variant]
+        variantStyles[variant],
+        onClick && "cursor-pointer hover:shadow-lg transition-shadow"
       )}
+      onClick={onClick}
     >
       <CardContent className="p-3 sm:p-4">
         <div className="flex items-start justify-between gap-2">

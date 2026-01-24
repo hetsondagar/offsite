@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { invoicesApi, Invoice } from "@/services/api/invoices";
+import { UnauthorizedError } from "@/lib/api";
 import { toast } from "sonner";
 import { InvoiceForm } from "@/components/invoicing/InvoiceForm";
 import { InvoiceCard } from "@/components/invoicing/InvoiceCard";
@@ -26,7 +27,7 @@ export default function InvoicingPage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadInvoices();
+    if (role) loadInvoices();
   }, [role]);
 
   const loadInvoices = async () => {
@@ -36,6 +37,7 @@ export default function InvoicingPage() {
       setInvoices(data?.invoices || []);
     } catch (error: any) {
       console.error("Error loading invoices:", error);
+      if (error instanceof UnauthorizedError) return; // api.ts already redirected to login
       toast.error(error?.message || "Failed to load invoices");
     } finally {
       setIsLoading(false);
@@ -45,7 +47,7 @@ export default function InvoicingPage() {
   const handleFinalize = async (invoiceId: string) => {
     try {
       const updated = await invoicesApi.finalize(invoiceId);
-      toast.success('Invoice finalized successfully');
+      toast.success(t('invoices.invoiceFinalizedSuccess'));
       setInvoices((prev) =>
         prev.map((inv) => (inv._id === invoiceId ? updated : inv))
       );
@@ -58,7 +60,7 @@ export default function InvoicingPage() {
   const handleDelete = async (invoiceId: string) => {
     try {
       await invoicesApi.delete(invoiceId);
-      toast.success('Invoice deleted successfully');
+      toast.success(t('invoices.invoiceDeletedSuccess'));
       setInvoices((prev) => prev.filter((inv) => inv._id !== invoiceId));
       setSelectedInvoice(null);
     } catch (error: any) {
@@ -78,7 +80,7 @@ export default function InvoicingPage() {
       prev.map((inv) => (inv._id === updated._id ? updated : inv))
     );
     setEditingInvoice(null);
-    toast.success('Invoice updated successfully');
+    toast.success(t('invoices.invoiceUpdatedSuccess'));
   };
 
   const handleDownload = async (invoiceId: string) => {
@@ -98,7 +100,7 @@ export default function InvoicingPage() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      toast.success("Invoice downloaded successfully");
+      toast.success(t('invoices.invoiceDownloadedSuccess'));
     } catch (error: any) {
       toast.error(error?.message || "Failed to download invoice");
     } finally {
@@ -169,7 +171,7 @@ export default function InvoicingPage() {
                   setInvoices((prev) => [invoice, ...prev]);
                   setShowCreateForm(false);
                   setSelectedInvoice(null);
-                  toast.success("Invoice created successfully");
+                  toast.success(t('invoices.invoiceCreatedSuccess'));
                 }}
                 onCancel={() => setShowCreateForm(false)}
               />

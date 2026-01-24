@@ -125,7 +125,8 @@ export const acceptInvitation = async (
 
     // Send notification to project owner (optional)
     try {
-      const projectOwner = await User.findById(project.members[0]); // Assuming first member is owner, or find by role
+      const ownerId = (project as any).owner ?? project.members[0];
+      const projectOwner = ownerId ? await User.findById(ownerId) : null;
       if (projectOwner && projectOwner._id.toString() !== userId.toString()) {
         await createNotification({
           userId: projectOwner._id.toString(),

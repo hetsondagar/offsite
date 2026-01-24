@@ -92,9 +92,22 @@ export const getTasks = async (
         query.projectId = { $in: projectIds };
       }
     } else {
-      // Owners can see all tasks
-      if (projectId) {
-        query.projectId = new mongoose.Types.ObjectId(projectId as string);
+      // Owners can only see tasks from projects they own
+      const ownedProjects = await Project.find({
+        owner: new mongoose.Types.ObjectId(req.user!.userId),
+      }).select('_id');
+      const projectIds = ownedProjects.map((p) => p._id);
+      if (projectIds.length === 0) {
+        query.projectId = { $in: [] };
+      } else if (projectId) {
+        const requestedId = new mongoose.Types.ObjectId(projectId as string);
+        const hasAccess = projectIds.some((id) => id.equals(requestedId));
+        if (!hasAccess) {
+          throw new AppError('Access denied. You can only view tasks in your own projects.', 403, 'FORBIDDEN');
+        }
+        query.projectId = requestedId;
+      } else {
+        query.projectId = { $in: projectIds };
       }
     }
 
@@ -139,13 +152,17 @@ export const createTask = async (
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
 
-    // Verify user is a member of the project (for managers) or is owner
+    const projectOwnerId = (project as any).owner?.toString?.() ?? (project as any).owner;
     if (req.user!.role === 'manager') {
       const isMember = project.members.some(
         (memberId) => memberId.toString() === req.user!.userId
       );
       if (!isMember) {
         throw new AppError('You are not a member of this project', 403, 'FORBIDDEN');
+      }
+    } else if (req.user!.role === 'owner') {
+      if (projectOwnerId !== req.user!.userId) {
+        throw new AppError('You can only create tasks in your own projects', 403, 'FORBIDDEN');
       }
     }
 
@@ -240,15 +257,18 @@ export const updateTaskStatus = async (
         throw new AppError('You are not a member of this project', 403, 'FORBIDDEN');
       }
     } else if (req.user.role === 'manager') {
-      // Managers can only update tasks from projects they are members of
       const isMember = project.members.some(
         (memberId) => memberId.toString() === req.user!.userId
       );
       if (!isMember) {
         throw new AppError('You are not a member of this project', 403, 'FORBIDDEN');
       }
+    } else if (req.user.role === 'owner') {
+      const projectOwnerId = (project as any).owner?.toString?.() ?? (project as any).owner;
+      if (projectOwnerId !== req.user!.userId) {
+        throw new AppError('You can only update tasks in your own projects', 403, 'FORBIDDEN');
+      }
     }
-    // Owners can update any task (no additional check needed)
 
     task.status = status;
     await task.save();

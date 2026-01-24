@@ -10,8 +10,9 @@ import { store } from "./store/store";
 import { useAppDispatch } from "./store/hooks";
 import { initializeAuth } from "./store/slices/authSlice";
 import { setOnlineStatus } from "./store/slices/offlineSlice";
-import { syncOfflineStores } from "@/lib/offlineSync";
-import { getNetworkStatus, addNetworkListener } from "@/lib/capacitor-network";
+import { getNetworkStatus, addNetworkListener } from "@/lib/network";
+import { scheduleSync } from "@/lib/syncEngine";
+import { initAppLifecycle } from "@/lib/appLifecycle";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -31,6 +32,9 @@ import EventsPage from "./pages/EventsPage";
 import AICommandCenter from "./pages/AICommandCenter";
 import TasksPage from "./pages/TasksPage";
 import AllDPRsPage from "./pages/AllDPRsPage";
+import PendingApprovalsDetailPage from "./pages/PendingApprovalsDetailPage";
+import AttendanceDetailPage from "./pages/AttendanceDetailPage";
+import DPRDetailPage from "./pages/DPRDetailPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -106,93 +110,31 @@ function AppContent() {
   const dispatch = useAppDispatch();
 
   useEffect(() => {
-    // Initialize auth from localStorage
     dispatch(initializeAuth());
-    
-    // Function to check actual connectivity by pinging the API
-    const checkConnectivity = async () => {
-      try {
-        // Create an AbortController for timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
-        
-        // Use health check endpoint that doesn't require authentication
-        const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-        // Remove /api suffix for health check endpoint
-        const apiUrl = apiBaseUrl.replace('/api', '');
-        const response = await fetch(`${apiUrl}/health`, {
-          method: 'GET',
-          signal: controller.signal,
-        });
-        
-        clearTimeout(timeoutId);
-        
-        // If we get a successful response, we're online
-        if (response.ok) {
-          dispatch(setOnlineStatus(true));
-        } else {
-          // Even if not 200, if we got a response, server is reachable
-          dispatch(setOnlineStatus(true));
-        }
-      } catch (error: unknown) {
-        const err = error as { name?: string; message?: string };
 
-        // If fetch fails or times out, we're offline
-        if (err?.name === 'AbortError') {
-          // Timeout - assume offline
-          dispatch(setOnlineStatus(false));
-        } else {
-          // Network errors mean we're offline
-          const message = err?.message || '';
-          if (message.includes('Failed to fetch') || message.includes('NetworkError') || err?.name === 'TypeError') {
-            dispatch(setOnlineStatus(false));
-          } else {
-            // Other errors might still mean we're online
-            dispatch(setOnlineStatus(true));
-          }
-        }
-      }
+    const applyOnline = (online: boolean) => {
+      dispatch(setOnlineStatus(online));
     };
 
-    // Set initial online status
     const initialCheck = async () => {
-      const networkStatus = await getNetworkStatus();
-      if (networkStatus.connected) {
-        // If network says online, verify with actual API call
-        await checkConnectivity();
-      } else {
-        // If network says offline, trust it
-        dispatch(setOnlineStatus(false));
-      }
+      const status = await getNetworkStatus();
+      applyOnline(status.online);
     };
-    
+
     initialCheck();
 
-    // Listen for network status changes using Capacitor
-    const removeNetworkListener = addNetworkListener((status) => {
-      if (status.connected) {
-        dispatch(setOnlineStatus(true));
-        // Fire-and-forget: if user is authenticated, sync offline data.
-        // This keeps all pages consistent without requiring manual Sync button.
-        syncOfflineStores().catch((error) => {
-          console.error('Auto-sync failed:', error);
-        });
-      } else {
-        dispatch(setOnlineStatus(false));
-      }
+    const removeNetworkListener = addNetworkListener((online) => {
+      applyOnline(online);
+      if (online) scheduleSync();
     });
 
-    // Periodically check connectivity (every 30 seconds)
-    const connectivityInterval = setInterval(async () => {
-      const networkStatus = await getNetworkStatus();
-      if (networkStatus.connected) {
-        checkConnectivity();
-      }
-    }, 30000);
+    const interval = setInterval(initialCheck, 30000);
+    const cleanupLifecycle = initAppLifecycle();
 
     return () => {
       removeNetworkListener();
-      clearInterval(connectivityInterval);
+      clearInterval(interval);
+      cleanupLifecycle();
     };
   }, [dispatch]);
 
@@ -224,6 +166,9 @@ function AppContent() {
             <Route path="/ai-command" element={<AICommandCenter />} />
             <Route path="/tasks" element={<TasksPage />} />
             <Route path="/all-dprs" element={<AllDPRsPage />} />
+            <Route path="/pending-approvals" element={<PendingApprovalsDetailPage />} />
+            <Route path="/attendance-details" element={<AttendanceDetailPage />} />
+            <Route path="/dpr/:id" element={<DPRDetailPage />} />
             <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

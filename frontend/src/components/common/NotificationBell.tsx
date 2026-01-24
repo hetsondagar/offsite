@@ -12,8 +12,10 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { UserPlus, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 export function NotificationBell() {
+  const { t } = useTranslation();
   const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -42,7 +44,7 @@ export function NotificationBell() {
   const handleAcceptInvitation = async (invitationId: string) => {
     try {
       const result = await notificationsApi.acceptInvitation(invitationId);
-      toast.success('Project invitation accepted! You have been added to the project.');
+      toast.success(t('projects.invitationAcceptedAdded'));
       await loadInvitations();
       setIsOpen(false);
       // Refresh the page to show updated projects
@@ -58,7 +60,7 @@ export function NotificationBell() {
   const handleRejectInvitation = async (invitationId: string) => {
     try {
       await notificationsApi.rejectInvitation(invitationId);
-      toast.success('Invitation rejected');
+      toast.success(t('projects.invitationRejected'));
       await loadInvitations();
     } catch (error: any) {
       console.error('Error rejecting invitation:', error);
@@ -86,7 +88,7 @@ export function NotificationBell() {
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
         <div className="p-4 border-b">
-          <h3 className="font-semibold text-sm">Project Invitations</h3>
+          <h3 className="font-semibold text-sm">{t('dashboard.projectInvitations')}</h3>
           <p className="text-xs text-muted-foreground">
             {unreadCount > 0 ? `${unreadCount} pending invitation${unreadCount > 1 ? 's' : ''}` : 'No pending invitations'}
           </p>
@@ -111,10 +113,10 @@ export function NotificationBell() {
                         <p className="font-medium text-sm">
                           {typeof invitation.projectId === 'object' 
                             ? invitation.projectId.name 
-                            : 'Project'}
+                            : t('dpr.project')}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Invited as {invitation.role === 'engineer' ? 'Site Engineer' : 'Project Manager'}
+                          {t('projects.invitedAs')} {invitation.role === 'engineer' ? t('auth.engineer') : t('auth.manager')}
                         </p>
                         {typeof invitation.projectId === 'object' && invitation.projectId.location && (
                           <p className="text-xs text-muted-foreground mt-1">
@@ -129,7 +131,7 @@ export function NotificationBell() {
                           onClick={() => handleAcceptInvitation(invitation._id)}
                         >
                           <UserPlus className="w-3 h-3 mr-1" />
-                          Accept
+                          {t('common.accept')}
                         </Button>
                         <Button
                           size="sm"
@@ -138,7 +140,7 @@ export function NotificationBell() {
                           onClick={() => handleRejectInvitation(invitation._id)}
                         >
                           <X className="w-3 h-3 mr-1" />
-                          Reject
+                          {t('common.reject')}
                         </Button>
                       </div>
                     </div>

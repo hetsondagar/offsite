@@ -8,7 +8,6 @@ import { Logo } from "@/components/common/Logo";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAppSelector } from "@/store/hooks";
 import { motion } from "framer-motion";
-import { AlertCircle } from "lucide-react";
 import { 
   ArrowLeft, 
   MapPin, 
@@ -17,19 +16,25 @@ import {
   Loader2,
   Navigation,
   WifiOff,
-  RefreshCw
+  RefreshCw,
+  AlertCircle
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { saveAttendance } from "@/lib/indexeddb";
-import { useAppDispatch } from "@/store/hooks";
-import { addPendingItem } from "@/store/slices/offlineSlice";
+import { saveAttendance, getCheckInStateFromIndexedDB, cacheGeoFence, getCachedGeoFence } from "@/lib/indexeddb";
+import { isOnline as checkOnline } from "@/lib/network";
 import { attendanceApi } from "@/services/api/attendance";
 import { projectsApi } from "@/services/api/projects";
 import { toast } from "sonner";
 import { getCurrentPosition, watchPosition, clearWatch } from "@/lib/capacitor-geolocation";
+import { getMapTilerKey } from "@/lib/config";
+import { PageHeader } from "@/components/common/PageHeader";
+import { Label } from "@/components/ui/label";
+import { validateGeoFence, getProjectGeoFence } from "@/utils/geoFence";
+import * as maptiler from "@maptiler/sdk";
+import "@maptiler/sdk/dist/maptiler-sdk.css";
 
-const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || 'g51nNpCPKcQQstInYAW2';
+const MAPTILER_KEY = getMapTilerKey();
 
 interface LocationData {
   latitude: number;
@@ -39,7 +44,6 @@ interface LocationData {
 
 export default function AttendancePage() {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const { t } = useTranslation();
   const { hasPermission } = usePermissions();
   const userId = useAppSelector((state) => state.auth.userId);
@@ -51,16 +55,29 @@ export default function AttendancePage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [geoFenceStatus, setGeoFenceStatus] = useState<'INSIDE' | 'OUTSIDE' | null>(null);
+  const [distanceFromCenter, setDistanceFromCenter] = useState<number | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const watchIdRef = useRef<number | string | null>(null);
 
-  // Load projects and check existing check-in status
+  // Load projects and cache geo-fences for offline use
   useEffect(() => {
     const loadProjects = async () => {
       try {
         const data = await projectsApi.getAll(1, 100);
         setProjects(data?.projects || []);
+        
+        // Cache geo-fence data for offline attendance validation
+        if (data?.projects) {
+          for (const project of data.projects) {
+            const geoFence = getProjectGeoFence(project);
+            if (geoFence) {
+              await cacheGeoFence(project._id, geoFence);
+            }
+          }
+        }
+        
         if (data?.projects && data.projects.length > 0) {
           setSelectedProject(data.projects[0]._id);
         } else {
@@ -70,42 +87,61 @@ export default function AttendancePage() {
         console.error('Error loading projects:', error);
         const errorMessage = error?.message || t("attendance.failedToLoadProjects");
         toast.error(errorMessage);
-        // Set empty projects array to prevent further errors
         setProjects([]);
       }
     };
     loadProjects();
   }, []);
 
-  // Check for existing check-in status on page load
+  // Restore check-in state from API (when online) or IndexedDB (offline). No localStorage.
   useEffect(() => {
-    const checkExistingCheckIn = async () => {
+    const restoreCheckInState = async () => {
+      const online = await checkOnline();
       try {
-        const todayStatus = await attendanceApi.getTodayCheckIn();
-        if (todayStatus.isCheckedIn && todayStatus.checkIn) {
-          setIsCheckedIn(true);
-          setCheckInTime(new Date(todayStatus.checkIn.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
-          setSelectedProject(todayStatus.checkIn.projectId);
-          
-          // Set location from check-in data
-          if (todayStatus.checkIn.latitude && todayStatus.checkIn.longitude) {
-            setLocation({
-              latitude: todayStatus.checkIn.latitude,
-              longitude: todayStatus.checkIn.longitude,
-              address: todayStatus.checkIn.location,
-            });
-            
-            // Start GPS watching for continuous tracking
-            startLocationWatching();
+        if (online) {
+          const todayStatus = await attendanceApi.getTodayCheckIn();
+          if (todayStatus.isCheckedIn && todayStatus.checkIn) {
+            setIsCheckedIn(true);
+            const checkInTimeStr = new Date(todayStatus.checkIn.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            setCheckInTime(checkInTimeStr);
+            setSelectedProject(todayStatus.checkIn.projectId);
+            if (todayStatus.checkIn.latitude != null && todayStatus.checkIn.longitude != null) {
+              setLocation({
+                latitude: todayStatus.checkIn.latitude,
+                longitude: todayStatus.checkIn.longitude,
+                address: todayStatus.checkIn.location || '',
+              });
+              startLocationWatching();
+            }
+            return;
           }
         }
-      } catch (error: any) {
-        console.error('Error checking existing check-in:', error);
-        // Don't show error to user, just continue
+      } catch (e) {
+        console.error('Error checking existing check-in:', e);
+      }
+      const idbState = await getCheckInStateFromIndexedDB();
+      if (idbState.isCheckedIn && idbState.projectId) {
+        setIsCheckedIn(true);
+        setCheckInTime(idbState.checkInTime ?? null);
+        setSelectedProject(idbState.projectId);
+        if (idbState.location) {
+          setLocation(idbState.location);
+          startLocationWatching();
+        } else {
+          handleGetLocation().catch(() => {});
+        }
+      } else {
+        setIsCheckedIn(false);
+        setCheckInTime(null);
+        if (watchIdRef.current != null) {
+          clearWatch(watchIdRef.current);
+          watchIdRef.current = null;
+        }
       }
     };
-    
-    checkExistingCheckIn();
+    restoreCheckInState();
+    const intervalId = setInterval(restoreCheckInState, 30000);
+    return () => clearInterval(intervalId);
   }, []);
 
   // Cleanup GPS watch on unmount
@@ -128,13 +164,10 @@ export default function AttendancePage() {
   // Initialize MapTiler map when location is available
   useEffect(() => {
     if (location && mapContainerRef.current && !mapInstanceRef.current) {
-      // Check if MapTiler SDK is already loaded
-      // @ts-ignore
-      const maptiler = window.maptilerSdk || window.maptiler;
-      if (maptiler && mapContainerRef.current) {
-        // @ts-ignore
+      try {
+        // Configure MapTiler API key
         maptiler.config.apiKey = MAPTILER_KEY;
-        // @ts-ignore
+
         const map = new maptiler.Map({
           container: mapContainerRef.current,
           style: 'https://api.maptiler.com/maps/streets-v2/style.json?key=' + MAPTILER_KEY,
@@ -143,54 +176,15 @@ export default function AttendancePage() {
         });
 
         // Add marker
-        // @ts-ignore
         new maptiler.Marker({ color: '#3b82f6' })
           .setLngLat([location.longitude, location.latitude])
           .addTo(map);
 
         mapInstanceRef.current = map;
-        return;
+      } catch (error) {
+        console.error('Failed to initialize MapTiler map:', error);
+        toast.error(t('attendance.failedToLoadMapLibrary'));
       }
-
-      // Load MapTiler SDK from CDN (more reliable than GL JS)
-      const script = document.createElement('script');
-      script.src = `https://unpkg.com/@maptiler/sdk@latest/dist/maptiler-sdk.umd.js`;
-      script.onload = () => {
-        // @ts-ignore
-        const maptiler = window.maptilerSdk || window.maptiler;
-        if (maptiler && mapContainerRef.current) {
-          // @ts-ignore
-          maptiler.config.apiKey = MAPTILER_KEY;
-          // @ts-ignore
-          const map = new maptiler.Map({
-            container: mapContainerRef.current,
-            style: 'https://api.maptiler.com/maps/streets-v2/style.json?key=' + MAPTILER_KEY,
-            center: [location.longitude, location.latitude],
-            zoom: 16,
-          });
-
-          // Add marker
-          // @ts-ignore
-          new maptiler.Marker({ color: '#3b82f6' })
-            .setLngLat([location.longitude, location.latitude])
-            .addTo(map);
-
-          mapInstanceRef.current = map;
-        }
-      };
-      script.onerror = () => {
-        console.error('Failed to load MapTiler SDK');
-        toast.error('Failed to load map library');
-      };
-      document.head.appendChild(script);
-
-      const link = document.createElement('link');
-      link.href = 'https://unpkg.com/@maptiler/sdk@latest/dist/maptiler-sdk.css';
-      link.rel = 'stylesheet';
-      link.onerror = () => {
-        console.error('Failed to load MapTiler SDK CSS');
-      };
-      document.head.appendChild(link);
     }
 
     return () => {
@@ -199,7 +193,7 @@ export default function AttendancePage() {
         mapInstanceRef.current = null;
       }
     };
-  }, [location]);
+  }, [location, t]);
 
   const updateLocationFromCoordinates = async (latitude: number, longitude: number) => {
     // Reverse geocode using MapTiler
@@ -240,17 +234,31 @@ export default function AttendancePage() {
     // Clear any existing watch
     if (watchIdRef.current !== null) {
       clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
     }
 
     // Start watching position
     try {
-      watchIdRef.current = await watchPosition(
-        (locationData) => {
-          updateLocationFromCoordinates(locationData.latitude, locationData.longitude);
+      watchIdRef.current = await         watchPosition(
+        async (locationData) => {
+          if (locationData && locationData.latitude && locationData.longitude) {
+            await updateLocationFromCoordinates(locationData.latitude, locationData.longitude);
+            // Validate geo-fence on location update
+            if (selectedProject) {
+              await validateLocationAgainstGeoFence(
+                locationData.latitude,
+                locationData.longitude,
+                selectedProject
+              );
+            }
+          }
         },
         (error) => {
           console.error('Location watch error:', error);
-          // Don't show error to user for watch errors, just log
+          // If watch fails, try to get location once manually
+          handleGetLocation().catch(() => {
+            // Silent fail - user can manually retry
+          });
         },
         {
           enableHighAccuracy: true,
@@ -258,8 +266,10 @@ export default function AttendancePage() {
           maximumAge: 10000, // Update every 10 seconds
         }
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to start location watching:', error);
+      // If watching fails, location can still be obtained manually
+      // Don't show error to user - they can use "Get Location" button
     }
   };
 
@@ -268,28 +278,41 @@ export default function AttendancePage() {
     setLocationError(null);
 
     try {
+      // Request permissions first (especially important for Android)
       const locationData = await getCurrentPosition({
         enableHighAccuracy: true,
-        timeout: 30000, // Increased to 30 seconds
+        timeout: 30000, // 30 seconds timeout
         maximumAge: 60000, // Accept cached position up to 1 minute old
       });
 
+      if (!locationData || !locationData.latitude || !locationData.longitude) {
+        throw new Error('Invalid location data received');
+      }
+
       const { latitude, longitude } = locationData;
       await updateLocationFromCoordinates(latitude, longitude);
-      toast.success('Location captured successfully');
+      
+      // Validate geo-fence client-side (offline-safe)
+      if (selectedProject) {
+        await validateLocationAgainstGeoFence(latitude, longitude, selectedProject);
+      }
+      
+      toast.success(t('attendance.locationCapturedSuccess'));
     } catch (error: any) {
       console.error('Location error:', error);
       
       // Provide user-friendly error messages based on error code
-      let errorMessage = 'Failed to get location. ';
-      if (error.code === 1) {
-        errorMessage += 'Please enable location permissions in your browser settings.';
-      } else if (error.code === 2) {
-        errorMessage += 'Location unavailable. Please check your GPS settings.';
-      } else if (error.code === 3) {
-        errorMessage += 'Location request timed out. Please try again or check your GPS signal.';
-      } else {
-        errorMessage += error.message || 'Please enable location permissions.';
+      let errorMessage = t('attendance.failedToGetLocation');
+      
+      // Handle different error types
+      if (error.message?.includes('permission denied') || error.code === 1 || error.message?.includes('Permission denied')) {
+        errorMessage = t('attendance.locationPermissionDenied');
+      } else if (error.message?.includes('position unavailable') || error.code === 2 || error.message?.includes('Position unavailable')) {
+        errorMessage = t('attendance.locationUnavailable');
+      } else if (error.message?.includes('timeout') || error.code === 3 || error.message?.includes('Timeout')) {
+        errorMessage = t('attendance.locationTimeout');
+      } else if (error.message?.includes('not supported') || error.message?.includes('Geolocation not supported')) {
+        errorMessage = t('attendance.geolocationNotSupported');
       }
       
       setLocationError(errorMessage);
@@ -299,69 +322,119 @@ export default function AttendancePage() {
     }
   };
 
+  const validateLocationAgainstGeoFence = async (lat: number, lng: number, projectId: string) => {
+    // Try to get geo-fence from cache (offline-first)
+    let geoFence = await getCachedGeoFence(projectId);
+    
+    // If not in cache, try to get from current projects list
+    if (!geoFence) {
+      const project = projects.find(p => p._id === projectId);
+      if (project) {
+        const projectGeoFence = getProjectGeoFence(project);
+        if (projectGeoFence) {
+          await cacheGeoFence(projectId, projectGeoFence);
+          geoFence = {
+            enabled: projectGeoFence.enabled,
+            center: projectGeoFence.center,
+            radiusMeters: projectGeoFence.radiusMeters,
+            bufferMeters: projectGeoFence.bufferMeters,
+            cachedAt: new Date().toISOString(),
+          };
+        }
+      }
+    }
+    
+    if (geoFence && geoFence.enabled) {
+      const validation = validateGeoFence(lat, lng, {
+        enabled: geoFence.enabled,
+        center: geoFence.center,
+        radiusMeters: geoFence.radiusMeters,
+        bufferMeters: geoFence.bufferMeters,
+      });
+      
+      setGeoFenceStatus(validation.status);
+      setDistanceFromCenter(validation.distanceFromCenter);
+      
+      return validation;
+    }
+    
+    setGeoFenceStatus(null);
+    setDistanceFromCenter(null);
+    return null;
+  };
+
   const handleCheckIn = async () => {
     if (!selectedProject) {
       toast.error("Please select a project first");
       return;
     }
-    
     if (!location) {
-      toast.error("Please get your location first");
+      toast.error(t("attendance.pleaseGetLocation"));
       return;
     }
-
-    setIsLoading(true);
     
-    try {
-      // Try to submit to API first
-      const result = await attendanceApi.checkIn(
-        selectedProject, 
-        location.latitude, 
-        location.longitude,
-        location.address
+    // Client-side geo-fence validation (offline-safe)
+    const validation = await validateLocationAgainstGeoFence(
+      location.latitude,
+      location.longitude,
+      selectedProject
+    );
+    
+    if (validation && validation.violation) {
+      // Show warning but allow attendance (offline realism - flag for server validation)
+      toast.warning(
+        `⚠️ Outside site boundary (${validation.distanceFromCenter}m from center). Attendance will be flagged.`,
+        { duration: 5000 }
       );
-      setIsCheckedIn(true);
-      setCheckInTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
-      
-      // Start GPS watching for continuous tracking
-      startLocationWatching();
-      
+    }
+    
+    setIsLoading(true);
+    const checkInTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    try {
+      const online = await checkOnline();
+      if (!online) {
+        await saveAttendance({
+          projectId: selectedProject,
+          type: 'checkin',
+          location: location.address,
+          latitude: location.latitude,
+          longitude: location.longitude,
+          distanceFromCenter: validation?.distanceFromCenter,
+          geoFenceStatus: validation?.status,
+          geoFenceViolation: validation?.violation || false,
+          timestamp: Date.now(),
+          userId: userId || "unknown",
+          markedAt: new Date().toISOString(),
+        });
+        toast.success(t('attendance.savedOffline') || 'Saved offline. Will sync automatically.');
+        setIsCheckedIn(true);
+        setCheckInTime(checkInTimeStr);
+        startLocationWatching();
+        return;
+      }
+      await attendanceApi.checkIn(selectedProject, location.latitude, location.longitude, location.address);
       toast.success('Checked in successfully!');
-    } catch (error: any) {
-      // If API fails, save to IndexedDB for offline sync
-      const attId = await saveAttendance({
+      setIsCheckedIn(true);
+      setCheckInTime(checkInTimeStr);
+      startLocationWatching();
+    } catch (err: any) {
+      await saveAttendance({
         projectId: selectedProject,
         type: 'checkin',
         location: location.address,
         latitude: location.latitude,
         longitude: location.longitude,
+        distanceFromCenter: validation?.distanceFromCenter,
+        geoFenceStatus: validation?.status,
+        geoFenceViolation: validation?.violation || false,
         timestamp: Date.now(),
         userId: userId || "unknown",
         markedAt: new Date().toISOString(),
       });
-      
-      // Add to Redux offline store
-      dispatch(addPendingItem({
-        type: 'attendance',
-        data: {
-          id: attId,
-          type: 'checkin',
-          location: location.address,
-          latitude: location.latitude,
-          longitude: location.longitude,
-          userId: userId,
-          projectId: selectedProject,
-          timestamp: new Date().toISOString(),
-        },
-      }));
-      
+      toast.warning(t('attendance.savedOfflineWarning') || 'Saved offline. Will sync when connection is restored.');
       setIsCheckedIn(true);
-      setCheckInTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
-      
-      // Start GPS watching for continuous tracking even in offline mode
+      setCheckInTime(checkInTimeStr);
       startLocationWatching();
-      
-      toast.success('Checked in (offline mode)');
     } finally {
       setIsLoading(false);
     }
@@ -372,78 +445,88 @@ export default function AttendancePage() {
       toast.error("Please select a project first");
       return;
     }
-    
     setIsLoading(true);
-    
-    // Stop GPS watching
     if (watchIdRef.current !== null) {
       clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
+    let checkoutLocation: LocationData | null = location;
+    try {
+      const loc = await getCurrentPosition({ enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }).catch(() => null);
+      if (loc) {
+        await updateLocationFromCoordinates(loc.latitude, loc.longitude);
+        checkoutLocation = {
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          address: location?.address || `Coordinates: ${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}`,
+        };
+        // Validate geo-fence for checkout
+        if (selectedProject) {
+          const validation = await validateLocationAgainstGeoFence(loc.latitude, loc.longitude, selectedProject);
+          if (validation && validation.violation) {
+            toast.warning(
+              `⚠️ Outside site boundary (${validation.distanceFromCenter}m). Checkout will be flagged.`,
+              { duration: 5000 }
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Checkout location not available, using current:', e);
+    }
+    const addr = checkoutLocation?.address || location?.address || 'Unknown';
+    const lat = checkoutLocation?.latitude ?? location?.latitude;
+    const lng = checkoutLocation?.longitude ?? location?.longitude;
+    
+    // Validate geo-fence for checkout if coordinates available
+    let checkoutValidation = null;
+    if (lat && lng && selectedProject) {
+      checkoutValidation = await validateLocationAgainstGeoFence(lat, lng, selectedProject);
+    }
     
     try {
-      // Use current location if available, otherwise use check-in location
-      let checkoutLocation: LocationData | null = location;
+      const online = await checkOnline();
       
-      // Try to get fresh location for checkout
-      try {
-        const locationData = await getCurrentPosition({
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 60000,
+      if (!online) {
+        await saveAttendance({
+          projectId: selectedProject,
+          type: 'checkout',
+          location: addr,
+          latitude: lat,
+          longitude: lng,
+          distanceFromCenter: checkoutValidation?.distanceFromCenter,
+          geoFenceStatus: checkoutValidation?.status,
+          geoFenceViolation: checkoutValidation?.violation || false,
+          timestamp: Date.now(),
+          userId: userId || "unknown",
+          markedAt: new Date().toISOString(),
         });
-        
-        await updateLocationFromCoordinates(locationData.latitude, locationData.longitude);
-        checkoutLocation = {
-          latitude: locationData.latitude,
-          longitude: locationData.longitude,
-          address: location?.address || `Coordinates: ${locationData.latitude.toFixed(6)}, ${locationData.longitude.toFixed(6)}`,
-        };
-      } catch (error) {
-        // Location not available, will use existing location
-        console.warn('Checkout location not available, using current location:', error);
+        toast.success(t('attendance.savedOffline') || 'Saved offline. Will sync automatically.');
+        setIsCheckedIn(false);
+        setCheckInTime(null);
+        return;
       }
-
-      // Try to submit to API first
-      await attendanceApi.checkOut(
-        selectedProject,
-        checkoutLocation?.latitude,
-        checkoutLocation?.longitude
-      );
+      await attendanceApi.checkOut(selectedProject, lat, lng);
+      toast.success('Checked out successfully!');
       setIsCheckedIn(false);
       setCheckInTime(null);
-      toast.success('Checked out successfully!');
-    } catch (error: any) {
-      // If API fails, save to IndexedDB for offline sync
-      const attId = await saveAttendance({
+    } catch (err: any) {
+      await saveAttendance({
         projectId: selectedProject,
         type: 'checkout',
-        location: checkoutLocation?.address || location?.address || 'Unknown',
-        latitude: checkoutLocation?.latitude || location?.latitude,
-        longitude: checkoutLocation?.longitude || location?.longitude,
+        location: addr,
+        latitude: lat,
+        longitude: lng,
+        distanceFromCenter: checkoutValidation?.distanceFromCenter,
+        geoFenceStatus: checkoutValidation?.status,
+        geoFenceViolation: checkoutValidation?.violation || false,
         timestamp: Date.now(),
         userId: userId || "unknown",
         markedAt: new Date().toISOString(),
       });
-      
-      // Add to Redux offline store
-      dispatch(addPendingItem({
-        type: 'attendance',
-        data: {
-          id: attId,
-          type: 'checkout',
-          location: checkoutLocation?.address || location?.address || 'Unknown',
-          latitude: checkoutLocation?.latitude || location?.latitude,
-          longitude: checkoutLocation?.longitude || location?.longitude,
-          userId: userId,
-          projectId: selectedProject,
-          timestamp: new Date().toISOString(),
-        },
-      }));
-      
+      toast.warning(t('attendance.savedOfflineWarning') || 'Saved offline. Will sync when connection is restored.');
       setIsCheckedIn(false);
       setCheckInTime(null);
-      toast.success('Checked out (offline mode)');
     } finally {
       setIsLoading(false);
     }
@@ -479,18 +562,11 @@ export default function AttendancePage() {
   return (
     <MobileLayout role="engineer">
       <div className="min-h-screen bg-background w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top">
-          <div className="flex items-center gap-0 relative">
-            <div className="absolute left-0 mt-2 sm:mt-3">
-              <Logo size="md" showText={false} />
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="font-display font-semibold text-base sm:text-lg">{t("attendance.title")}</h1>
-              <p className="text-xs text-muted-foreground">{t("attendance.checkIn")} / {t("attendance.checkOut")}</p>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title={t("attendance.title")}
+          subtitle={`${t("attendance.checkIn")} / ${t("attendance.checkOut")}`}
+          showBack={true}
+        />
 
         {/* Content */}
         <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 max-w-2xl mx-auto w-full">
@@ -510,10 +586,24 @@ export default function AttendancePage() {
                 <CardTitle className="text-base">{t("attendance.selectProject")}</CardTitle>
               </CardHeader>
               <CardContent>
+                <Label htmlFor="project-select-attendance" className="sr-only">
+                  {t("attendance.selectProject")}
+                </Label>
                 <select
+                  id="project-select-attendance"
                   value={selectedProject || ''}
-                  onChange={(e) => setSelectedProject(e.target.value)}
-                  className="w-full p-2 rounded-lg bg-background border border-border text-foreground"
+                  onChange={async (e) => {
+                    setSelectedProject(e.target.value);
+                    // Re-validate geo-fence when project changes
+                    if (location && e.target.value) {
+                      await validateLocationAgainstGeoFence(
+                        location.latitude,
+                        location.longitude,
+                        e.target.value
+                      );
+                    }
+                  }}
+                  className="w-full h-12 px-4 rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
                 >
                   {projects.map((project) => (
                     <option key={project._id} value={project._id}>
@@ -531,7 +621,7 @@ export default function AttendancePage() {
               <CardTitle className="flex items-center justify-between text-base">
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-primary" />
-                  Your Location
+                  {t('attendance.yourLocation')}
                 </div>
                 <Button
                   variant="ghost"
@@ -548,6 +638,39 @@ export default function AttendancePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Geo-fence Status Indicator */}
+              {geoFenceStatus && location && (
+                <div className={cn(
+                  "p-3 rounded-lg border-2",
+                  geoFenceStatus === 'INSIDE' 
+                    ? "bg-green-500/10 border-green-500/30" 
+                    : "bg-yellow-500/10 border-yellow-500/30"
+                )}>
+                  <div className="flex items-center gap-2">
+                    {geoFenceStatus === 'INSIDE' ? (
+                      <Check className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-yellow-500" />
+                    )}
+                    <div className="flex-1">
+                      <p className={cn(
+                        "text-sm font-medium",
+                        geoFenceStatus === 'INSIDE' ? "text-green-600 dark:text-green-400" : "text-yellow-600 dark:text-yellow-400"
+                      )}>
+                        {geoFenceStatus === 'INSIDE' 
+                          ? '✓ Inside Site Boundary' 
+                          : `⚠️ Outside Site Boundary (${distanceFromCenter}m away)`}
+                      </p>
+                      {geoFenceStatus === 'OUTSIDE' && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Attendance will be flagged for review
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               {locationError && (
                 <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
                   {locationError}
@@ -607,6 +730,29 @@ export default function AttendancePage() {
             </CardContent>
           </Card>
 
+          {/* Status Card - Show when checked in */}
+          {isCheckedIn && (
+            <Card variant="glow" className="animate-bounce-in">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-success/20">
+                      <Check className="w-5 h-5 text-success" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">{t("attendance.checkIn")}</p>
+                      <p className="text-xs text-muted-foreground">{t("attendance.checkInTime")} {checkInTime}</p>
+                      {location && (
+                        <p className="text-xs text-muted-foreground mt-1">{location.address}</p>
+                      )}
+                    </div>
+                  </div>
+                  <StatusBadge status="success" label={t("status.active")} pulse />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Check In/Out Button */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -643,6 +789,7 @@ export default function AttendancePage() {
                 </Button>
               </motion.div>
             ) : (
+              /* Checkout Button - Always visible when checked in */
               <motion.div
                 initial={{ scale: 0.9 }}
                 animate={{ scale: 1 }}
@@ -670,34 +817,6 @@ export default function AttendancePage() {
             )}
           </motion.div>
 
-          {/* Status Card */}
-          {isCheckedIn && (
-            <Card variant="glow" className="animate-bounce-in">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-success/20">
-                      <Check className="w-5 h-5 text-success" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">{t("attendance.checkIn")}</p>
-                      <p className="text-xs text-muted-foreground">{t("attendance.checkInTime")} {checkInTime}</p>
-                      {location && (
-                        <p className="text-xs text-muted-foreground mt-1">{location.address}</p>
-                      )}
-                    </div>
-                  </div>
-                  <StatusBadge status="success" label={t("status.active")} pulse />
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Offline Notice */}
-          <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 text-muted-foreground animate-fade-up stagger-3">
-            <WifiOff className="w-4 h-4" />
-            <span className="text-xs">{t("common.offline")}</span>
-          </div>
         </div>
       </div>
     </MobileLayout>

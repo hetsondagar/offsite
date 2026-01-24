@@ -190,20 +190,23 @@ export const getPendingRequests = async (
     const skip = (page - 1) * limit;
 
     const query: any = { status: 'pending' };
-    
+    const { Project } = await import('../projects/project.model');
+
     if (req.user.role === 'engineer') {
-      // Engineers can only see their own requests
       query.requestedBy = req.user.userId;
     } else if (req.user.role === 'manager') {
-      // Managers can see requests from projects they are members of
-      const { Project } = await import('../projects/project.model');
       const userProjects = await Project.find({
         members: req.user.userId,
       }).select('_id');
       const projectIds = userProjects.map((p) => p._id);
       query.projectId = { $in: projectIds };
+    } else if (req.user.role === 'owner') {
+      const ownedProjects = await Project.find({
+        owner: req.user.userId,
+      }).select('_id');
+      const projectIds = ownedProjects.map((p) => p._id);
+      query.projectId = { $in: projectIds };
     }
-    // Owners can see all requests (no filter)
 
     const [requests, total] = await Promise.all([
       MaterialRequest.find(query)
@@ -276,13 +279,17 @@ export const approveRequest = async (
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
 
-    // Verify user is a member of the project (for managers) or is owner
+    const projectOwnerId = project.owner?.toString?.() ?? project.owner;
     if (req.user!.role === 'manager') {
       const isMember = project.members?.some(
         (memberId: any) => memberId.toString() === req.user!.userId
       );
       if (!isMember) {
         throw new AppError('You are not a member of this project', 403, 'FORBIDDEN');
+      }
+    } else if (req.user!.role === 'owner') {
+      if (projectOwnerId !== req.user!.userId) {
+        throw new AppError('You can only approve requests for your own projects', 403, 'FORBIDDEN');
       }
     }
 
@@ -387,13 +394,17 @@ export const rejectRequest = async (
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
 
-    // Verify user is a member of the project (for managers) or is owner
+    const projectOwnerId = project.owner?.toString?.() ?? project.owner;
     if (req.user!.role === 'manager') {
       const isMember = project.members?.some(
         (memberId: any) => memberId.toString() === req.user!.userId
       );
       if (!isMember) {
         throw new AppError('You are not a member of this project', 403, 'FORBIDDEN');
+      }
+    } else if (req.user!.role === 'owner') {
+      if (projectOwnerId !== req.user!.userId) {
+        throw new AppError('You can only reject requests for your own projects', 403, 'FORBIDDEN');
       }
     }
 

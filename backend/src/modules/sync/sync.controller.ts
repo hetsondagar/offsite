@@ -4,9 +4,11 @@ import { DPR } from '../dpr/dpr.model';
 import { Attendance } from '../attendance/attendance.model';
 import { MaterialRequest } from '../materials/material.model';
 import { Invoice } from '../invoices/invoice.model';
+import { Project } from '../projects/project.model';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 import { logger } from '../../utils/logger';
+import { validateGeoFence, getProjectGeoFence } from '../../utils/geoFence';
 
 const syncBatchSchema = z.object({
   dprs: z.array(z.any()).optional().default([]),
@@ -98,11 +100,43 @@ export const syncBatch = async (
       }
     }
 
-    // Sync Attendance
+    // Sync Attendance with server-side geo-fence re-validation
     for (const attData of attendance) {
       try {
         const clientId = attData.clientId || attData.id;
         if (!clientId) continue;
+
+        // Server is authoritative: re-validate geo-fence for all attendance records
+        let geoFenceStatus: 'INSIDE' | 'OUTSIDE' | undefined;
+        let distanceFromCenter: number | undefined;
+        let geoFenceViolation = false;
+
+        if (attData.latitude && attData.longitude && attData.projectId) {
+          const project = await Project.findById(attData.projectId);
+          if (project) {
+            const geoFence = getProjectGeoFence(project);
+            if (geoFence) {
+              const validation = validateGeoFence(
+                attData.latitude,
+                attData.longitude,
+                geoFence
+              );
+              distanceFromCenter = validation.distanceFromCenter;
+              geoFenceStatus = validation.status;
+              geoFenceViolation = validation.violation;
+
+              // Log violations for audit
+              if (validation.violation) {
+                logger.warn(`Geo-fence violation detected for attendance ${clientId}: ${validation.distanceFromCenter}m from center (radius: ${geoFence.radiusMeters}m)`, {
+                  userId: req.user.userId,
+                  projectId: attData.projectId,
+                  distance: validation.distanceFromCenter,
+                  radius: geoFence.radiusMeters,
+                });
+              }
+            }
+          }
+        }
 
         const existing = await Attendance.findOne({
           clientId,
@@ -117,6 +151,9 @@ export const syncBatch = async (
               ...attData,
               userId: req.user.userId,
               clientId,
+              distanceFromCenter,
+              geoFenceStatus,
+              geoFenceViolation,
               synced: true,
             });
             if (attData.timestamp) {
@@ -125,6 +162,10 @@ export const syncBatch = async (
             await existing.save();
             syncedIds.attendance.push(clientId);
           } else {
+            // Update geo-fence status even if keeping existing record (server re-validation)
+            existing.distanceFromCenter = distanceFromCenter ?? existing.distanceFromCenter;
+            existing.geoFenceStatus = geoFenceStatus ?? existing.geoFenceStatus;
+            existing.geoFenceViolation = geoFenceViolation || existing.geoFenceViolation || false;
             existing.synced = true;
             await existing.save();
             syncedIds.attendance.push(clientId);
@@ -134,6 +175,9 @@ export const syncBatch = async (
             ...attData,
             userId: req.user.userId,
             clientId,
+            distanceFromCenter,
+            geoFenceStatus,
+            geoFenceViolation,
             timestamp: new Date(incomingTimestamp),
             synced: true,
           });

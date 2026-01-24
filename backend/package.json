@@ -10,7 +10,8 @@
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts",
     "test": "jest",
-    "seed:materials": "tsx scripts/seedMaterialCatalog.ts"
+    "seed:materials": "tsx scripts/seedMaterialCatalog.ts",
+    "migrate:project-owner": "tsx scripts/migrate-project-owner.ts"
   },
   "keywords": [
     "construction",

@@ -3,7 +3,7 @@
  * Falls back to file input on web
  */
 
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Camera, CameraResultType, CameraSource, CameraPermissionStatus } from '@capacitor/camera';
 import { isNative } from './capacitor';
 
 export interface CameraOptions {
@@ -13,11 +13,45 @@ export interface CameraOptions {
 }
 
 /**
+ * Request camera permissions (Android/iOS)
+ * Returns true if permission is granted, false otherwise
+ */
+async function requestCameraPermissions(): Promise<boolean> {
+  if (!isNative()) {
+    return true; // Browser handles permissions automatically
+  }
+
+  try {
+    // Check current permission status
+    const permissionStatus = await Camera.checkPermissions();
+    
+    if (permissionStatus.camera === 'granted') {
+      return true;
+    }
+
+    // Request permission if not granted
+    const requestResult = await Camera.requestPermissions({ permissions: ['camera'] });
+    return requestResult.camera === 'granted';
+  } catch (error) {
+    console.error('Error requesting camera permissions:', error);
+    return false;
+  }
+}
+
+/**
  * Take a photo or pick from gallery
  * Uses Capacitor Camera on native, falls back to file input on web
  */
 export async function pickImage(options: CameraOptions = {}): Promise<File[]> {
   if (isNative()) {
+    // Request camera permissions if using camera source
+    if (options.source === 'camera') {
+      const hasPermission = await requestCameraPermissions();
+      if (!hasPermission) {
+        throw new Error('Camera permission denied. Please enable camera permissions in app settings.');
+      }
+    }
+
     // Use Capacitor Camera on native
     const source = options.source === 'gallery' 
       ? CameraSource.Photos 
@@ -55,13 +89,15 @@ export async function pickImage(options: CameraOptions = {}): Promise<File[]> {
 
 /**
  * Pick multiple images
+ * On native, picks one image at a time (user can call multiple times)
+ * Respects the source option ('camera' or 'gallery')
  */
 export async function pickImages(options: CameraOptions = {}): Promise<File[]> {
   if (isNative()) {
-    // On native, we can only pick one at a time, so we'll use Photos source
-    // and let the user pick multiple times if needed
-    // For now, return single image in array (can be enhanced later)
-    return pickImage({ ...options, source: 'gallery' });
+    // On native, we can only pick one at a time
+    // Use the source option if provided, otherwise default to gallery for multiple picks
+    const source = options.source || 'gallery';
+    return pickImage({ ...options, source });
   } else {
     // On web, use file input with multiple
     return new Promise<File[]>((resolve, reject) => {

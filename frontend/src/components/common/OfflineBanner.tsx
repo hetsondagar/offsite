@@ -16,7 +16,7 @@ export function OfflineBanner({ pendingItems = 0, onSync, isSyncing = false }: O
           <WifiOff className="w-4 h-4 text-warning" />
         </div>
         <div>
-          <p className="text-sm font-medium text-foreground">Offline Mode</p>
+          <p className="text-sm font-medium text-foreground">Offline mode — changes will sync automatically</p>
           {pendingItems > 0 && (
             <p className="text-xs text-muted-foreground">
               {pendingItems} item{pendingItems !== 1 ? 's' : ''} pending sync

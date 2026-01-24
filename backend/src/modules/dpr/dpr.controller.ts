@@ -335,8 +335,14 @@ export const getDPRsByProject = async (
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
 
-    // Authorization: Owners can access any project, others must be members
-    if (req.user.role !== 'owner') {
+    const projectOwnerId = (project as any).owner?.toString?.() ?? (project as any).owner;
+    const isProjectOwner = projectOwnerId === req.user!.userId;
+
+    if (req.user.role === 'owner') {
+      if (!isProjectOwner) {
+        throw new AppError('Access denied. You can only access DPRs for your own projects.', 403, 'FORBIDDEN');
+      }
+    } else {
       const isMember = project.members.some(
         (memberId) => memberId.toString() === req.user!.userId
       );

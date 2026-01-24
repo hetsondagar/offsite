@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,16 +22,18 @@ import {
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { saveMaterialRequest } from "@/lib/indexeddb";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { addPendingItem } from "@/store/slices/offlineSlice";
+import { isOnline as checkOnline } from "@/lib/network";
+import { useAppSelector } from "@/store/hooks";
 import { usePermissions } from "@/hooks/usePermissions";
+import { toast } from "sonner";
 import { materialsApi } from "@/services/api/materials";
 import { projectsApi } from "@/services/api/projects";
 import { usersApi } from "@/services/api/users";
+import { PageHeader } from "@/components/common/PageHeader";
+import { Label } from "@/components/ui/label";
 
 export default function MaterialsPage() {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const { t } = useTranslation();
   const { hasPermission } = usePermissions();
   const userId = useAppSelector((state) => state.auth.userId);
@@ -48,6 +50,28 @@ export default function MaterialsPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const projectDropdownRef = useRef<HTMLDivElement>(null);
+  const materialDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (projectDropdownRef.current && !projectDropdownRef.current.contains(event.target as Node)) {
+        setShowProjectDropdown(false);
+      }
+      if (materialDropdownRef.current && !materialDropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+
+    if (showProjectDropdown || showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProjectDropdown, showDropdown]);
 
   // Check permission
   useEffect(() => {
@@ -65,12 +89,20 @@ export default function MaterialsPage() {
         // Load materials catalog from API
         try {
           const catalog = await materialsApi.getCatalog();
-          setMaterials(catalog.map((mat: any) => ({
-            id: mat._id,
-            name: mat.name,
-            unit: mat.unit,
-            anomalyThreshold: mat.defaultAnomalyThreshold || 1.3,
-          })));
+          
+          // Ensure catalog is an array
+          if (Array.isArray(catalog)) {
+            const mappedMaterials = catalog.map((mat: any) => ({
+              id: mat._id || mat.id,
+              name: mat.name,
+              unit: mat.unit,
+              anomalyThreshold: mat.defaultAnomalyThreshold || 1.3,
+            }));
+            setMaterials(mappedMaterials);
+          } else {
+            console.warn('Materials catalog is not an array:', catalog);
+            setMaterials([]);
+          }
         } catch (catalogError) {
           console.error('Error loading materials catalog:', catalogError);
           setMaterials([]);
@@ -152,114 +184,84 @@ export default function MaterialsPage() {
 
   const handleSubmit = async () => {
     if (!selectedMaterial || !selectedMaterialData) return;
-    
-    // Validate project selection
     if (!selectedProject) {
-      alert("Please select a project for this material request.");
+      toast.error("Please select a project for this material request.");
       return;
     }
-    
     setIsSubmitting(true);
-    
+    const resetForm = () => {
+      setTimeout(() => {
+        setShowSuccess(false);
+        setSelectedMaterial(null);
+        setSelectedProject(null);
+        setQuantity(0);
+        setReason("");
+      }, 2000);
+    };
+    const reloadPending = async () => {
+      try {
+        const data = await materialsApi.getPending(1, 100);
+        const requests = data?.requests || [];
+        const userReqs = requests
+          .filter((r: any) => (typeof r.requestedBy === 'object' ? r.requestedBy._id : r.requestedBy) === userId)
+          .map((r: any) => ({
+            id: r._id,
+            material: r.materialName,
+            quantity: `${r.quantity} ${r.unit}`,
+            date: new Date(r.createdAt).toLocaleDateString(),
+            status: r.status,
+          }));
+        setPendingRequests(userReqs);
+      } catch (e) {
+        console.error('Error reloading requests:', e);
+      }
+    };
     try {
-      // Try to submit to API first
+      const online = await checkOnline();
+      if (!online) {
+        await saveMaterialRequest({
+          projectId: selectedProject,
+          materialId: selectedMaterial,
+          materialName: selectedMaterialData.name,
+          quantity,
+          unit: selectedMaterialData.unit,
+          reason,
+          timestamp: Date.now(),
+          requestedBy: userId || "unknown",
+          requestedAt: new Date().toISOString(),
+        });
+        toast.success(t('materials.savedOffline') || 'Saved offline. Will sync automatically.');
+        setShowSuccess(true);
+        resetForm();
+        return;
+      }
       await materialsApi.createRequest({
         projectId: selectedProject,
         materialId: selectedMaterial,
         materialName: selectedMaterialData.name,
-        quantity: quantity,
+        quantity,
         unit: selectedMaterialData.unit,
-        reason: reason,
+        reason,
       });
-
       setShowSuccess(true);
-      
-      // Reload pending requests
-      try {
-        const requestsData = await materialsApi.getPending(1, 100);
-        const requests = requestsData?.requests || [];
-        const userRequests = requests
-          .filter((r: any) => {
-            const requestedBy = typeof r.requestedBy === 'object' ? r.requestedBy._id : r.requestedBy;
-            return requestedBy === userId;
-          })
-          .map((r: any) => ({
-            id: r._id,
-            material: r.materialName,
-            quantity: `${r.quantity} ${r.unit}`,
-            date: new Date(r.createdAt).toLocaleDateString(),
-            status: r.status,
-          }));
-        setPendingRequests(userRequests);
-      } catch (error) {
-        console.error('Error reloading requests:', error);
-      }
-      
-      setTimeout(() => {
-        setShowSuccess(false);
-        setSelectedMaterial(null);
-        setSelectedProject(null);
-        setQuantity(0);
-        setReason("");
-      }, 2000);
-    } catch (error) {
-      // If API fails, save to IndexedDB for offline sync
-      const matId = await saveMaterialRequest({
-      projectId: selectedProject,
+      await reloadPending();
+      resetForm();
+    } catch (err) {
+      await saveMaterialRequest({
+        projectId: selectedProject,
         materialId: selectedMaterial,
         materialName: selectedMaterialData.name,
-        quantity: quantity,
+        quantity,
         unit: selectedMaterialData.unit,
-        reason: reason,
+        reason,
         timestamp: Date.now(),
-      requestedBy: userId || "unknown",
-      requestedAt: new Date().toISOString(),
+        requestedBy: userId || "unknown",
+        requestedAt: new Date().toISOString(),
       });
-      
-      // Add to Redux offline store
-      dispatch(addPendingItem({
-        type: 'material',
-        data: {
-          id: matId,
-          projectId: selectedProject,
-          materialId: selectedMaterial,
-          quantity: quantity,
-          reason: reason,
-          requestedBy: userId,
-          requestedAt: new Date().toISOString(),
-        },
-      }));
-      
+      toast.warning(t('materials.savedOfflineWarning') || 'Saved offline. Will sync when connection is restored.');
       setShowSuccess(true);
-      
-      // Reload pending requests
-      try {
-        const requestsData = await materialsApi.getPending(1, 100);
-        const requests = requestsData?.requests || [];
-        const userRequests = requests
-          .filter((r: any) => {
-            const requestedBy = typeof r.requestedBy === 'object' ? r.requestedBy._id : r.requestedBy;
-            return requestedBy === userId;
-          })
-          .map((r: any) => ({
-            id: r._id,
-            material: r.materialName,
-            quantity: `${r.quantity} ${r.unit}`,
-            date: new Date(r.createdAt).toLocaleDateString(),
-            status: r.status,
-          }));
-        setPendingRequests(userRequests);
-      } catch (error) {
-        console.error('Error reloading requests:', error);
-      }
-      
-      setTimeout(() => {
-        setShowSuccess(false);
-        setSelectedMaterial(null);
-        setSelectedProject(null);
-        setQuantity(0);
-        setReason("");
-      }, 2000);
+      await reloadPending();
+      resetForm();
     } finally {
       setIsSubmitting(false);
     }
@@ -292,18 +294,11 @@ export default function MaterialsPage() {
   return (
     <MobileLayout role="engineer">
       <div className="min-h-screen bg-background w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/50 py-3 sm:py-4 pl-0 pr-3 sm:pr-4 safe-area-top">
-          <div className="flex items-center gap-0 relative">
-            <div className="absolute left-0 mt-2 sm:mt-3">
-              <Logo size="md" showText={false} />
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="font-display font-semibold text-base sm:text-lg">Materials</h1>
-              <p className="text-xs text-muted-foreground">Request & track materials</p>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title={t('materials.title')}
+          subtitle={t('materials.requestAndTrack')}
+          showBack={true}
+        />
 
         {/* Success Overlay */}
         <AnimatePresence>
@@ -345,211 +340,229 @@ export default function MaterialsPage() {
             <>
               {/* New Request */}
               <Card variant="gradient" className="animate-fade-up">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Package className="w-4 h-4 text-primary" />
-                New Material Request
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Project Selection */}
-              <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">Project *</label>
-                <div className="relative">
-                  <button
-                    onClick={() => setShowProjectDropdown(!showProjectDropdown)}
-                    className="w-full p-4 rounded-xl bg-muted/50 border border-border/50 flex items-center justify-between text-left"
-                  >
-                    <span className={cn(
-                      "text-sm",
-                      selectedProject ? "text-foreground" : "text-muted-foreground"
-                    )}>
-                      {selectedProject 
-                        ? projects.find(p => p._id === selectedProject)?.name || "Select Project"
-                        : "Select Project"}
-                    </span>
-                    <ChevronDown className={cn(
-                      "w-5 h-5 text-muted-foreground transition-transform",
-                      showProjectDropdown && "rotate-180"
-                    )} />
-                  </button>
-                  
-                  {showProjectDropdown && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-40 animate-scale-in max-h-60 overflow-y-auto">
-                      {projects.length === 0 ? (
-                        <div className="p-4 text-sm text-muted-foreground text-center">
-                          No projects available
-                        </div>
-                      ) : (
-                        projects.map((project) => (
-                          <button
-                            key={project._id}
-                            className="w-full p-4 text-left text-sm hover:bg-muted/50 transition-colors border-b border-border/30 last:border-0"
-                            onClick={() => {
-                              setSelectedProject(project._id);
-                              setShowProjectDropdown(false);
-                            }}
-                          >
-                            <div>
-                              <p className="font-medium">{project.name}</p>
-                              <p className="text-xs text-muted-foreground">{project.location}</p>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Package className="w-4 h-4 text-primary" />
+                    New Material Request
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Project Selection */}
+                  <div className="space-y-2.5">
+                    <Label htmlFor="project-select" className="text-sm font-medium text-foreground">
+                      Project <span className="text-destructive">*</span>
+                    </Label>
+                    <div className="relative" ref={projectDropdownRef}>
+                      <button
+                        id="project-select"
+                        onClick={() => setShowProjectDropdown(!showProjectDropdown)}
+                        className="w-full h-12 px-4 rounded-xl bg-background border border-border flex items-center justify-between text-left transition-colors hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      >
+                        <span className={cn(
+                          "text-sm",
+                          selectedProject ? "text-foreground" : "text-muted-foreground"
+                        )}>
+                          {selectedProject 
+                            ? projects.find(p => p._id === selectedProject)?.name || "Select Project"
+                            : "Select Project"}
+                        </span>
+                        <ChevronDown className={cn(
+                          "w-5 h-5 text-muted-foreground transition-transform",
+                          showProjectDropdown && "rotate-180"
+                        )} />
+                      </button>
+                      
+                      {showProjectDropdown && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-40 animate-scale-in max-h-60 overflow-y-auto">
+                          {projects.length === 0 ? (
+                            <div className="p-4 text-sm text-muted-foreground text-center">
+                              No projects available
                             </div>
-                          </button>
-                        ))
+                          ) : (
+                            projects.map((project) => (
+                              <button
+                                key={project._id}
+                                className="w-full p-4 text-left text-sm hover:bg-muted/50 transition-colors border-b border-border/30 last:border-0"
+                                onClick={() => {
+                                  setSelectedProject(project._id);
+                                  setShowProjectDropdown(false);
+                                }}
+                              >
+                                <div>
+                                  <p className="font-medium">{project.name}</p>
+                                  <p className="text-xs text-muted-foreground">{project.location}</p>
+                                </div>
+                              </button>
+                            ))
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Material Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowDropdown(!showDropdown)}
-                  className="w-full p-4 rounded-xl bg-muted/50 border border-border/50 flex items-center justify-between text-left"
-                >
-                  <span className={cn(
-                    "text-sm",
-                    selectedMaterial ? "text-foreground" : "text-muted-foreground"
-                  )}>
-                    {selectedMaterialData?.name || "Select Material"}
-                  </span>
-                  <ChevronDown className={cn(
-                    "w-5 h-5 text-muted-foreground transition-transform",
-                    showDropdown && "rotate-180"
-                  )} />
-                </button>
-                
-                {showDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-20 animate-scale-in">
-                    {materials.map((material) => (
-                      <button
-                        key={material.id}
-                        className="w-full p-4 text-left text-sm hover:bg-muted/50 transition-colors border-b border-border/30 last:border-0"
-                        onClick={() => {
-                          setSelectedMaterial(material.id);
-                          setShowDropdown(false);
-                        }}
-                      >
-                        {material.name}
-                      </button>
-                    ))}
                   </div>
-                )}
-              </div>
 
-              {/* Quantity Selector */}
-              <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">Quantity</label>
-                <div className="flex items-center gap-4">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setQuantity(Math.max(0, quantity - 10))}
-                  >
-                    <Minus className="w-4 h-4" />
-                  </Button>
-                  <Input
-                    type="number"
-                    value={quantity}
-                    onChange={(e) => setQuantity(Number(e.target.value))}
-                    className="text-center text-2xl font-display font-bold h-14 bg-muted/50"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setQuantity(quantity + 10)}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-                {selectedMaterialData && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    {selectedMaterialData.unit}
-                  </p>
-                )}
-              </div>
-
-              {/* Anomaly Warning */}
-              <AnimatePresence>
-                {isAnomaly && (
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    className="flex items-start gap-3 p-3 rounded-xl bg-destructive/10 border border-destructive/30"
-                  >
-                    <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-destructive">Unusual Quantity</p>
-                      <p className="text-xs text-muted-foreground">
-                        This exceeds typical usage. Please provide a reason.
-                      </p>
+                  {/* Material Dropdown */}
+                  <div className="space-y-2.5">
+                    <Label htmlFor="material-select" className="text-sm font-medium text-foreground">
+                      Material <span className="text-destructive">*</span>
+                    </Label>
+                    <div className="relative" ref={materialDropdownRef}>
+                      <button
+                        id="material-select"
+                        onClick={() => setShowDropdown(!showDropdown)}
+                        className="w-full h-12 px-4 rounded-xl bg-background border border-border flex items-center justify-between text-left transition-colors hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      >
+                        <span className={cn(
+                          "text-sm",
+                          selectedMaterial ? "text-foreground" : "text-muted-foreground"
+                        )}>
+                          {selectedMaterialData?.name || "Select Material"}
+                        </span>
+                        <ChevronDown className={cn(
+                          "w-5 h-5 text-muted-foreground transition-transform",
+                          showDropdown && "rotate-180"
+                        )} />
+                      </button>
+                      
+                      {showDropdown && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-20 animate-scale-in max-h-60 overflow-y-auto">
+                          {materials.length === 0 ? (
+                            <div className="p-4 text-sm text-muted-foreground text-center">
+                              No materials available
+                            </div>
+                          ) : (
+                            materials.map((material) => (
+                              <button
+                                key={material.id}
+                                className="w-full p-4 text-left text-sm hover:bg-muted/50 transition-colors border-b border-border/30 last:border-0"
+                                onClick={() => {
+                                  setSelectedMaterial(material.id);
+                                  setShowDropdown(false);
+                                }}
+                              >
+                                {material.name}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  </div>
 
-              {/* Reason */}
-              <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">
-                  Reason {isAnomaly && <span className="text-destructive">*</span>}
-                </label>
-                <Input
-                  placeholder="Enter reason for request..."
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  className="bg-muted/50 border-border/50"
-                />
-              </div>
-
-              {/* Submit */}
-              <Button
-                className="w-full"
-                size="lg"
-                onClick={handleSubmit}
-                disabled={!selectedMaterial || !selectedProject || quantity === 0 || (isAnomaly && !reason) || isSubmitting}
-              >
-                {isSubmitting ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    <Send className="w-5 h-5" />
-                    Submit Request
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Pending Requests */}
-          <Card variant="gradient" className="animate-fade-up stagger-1">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Your Requests</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {pendingRequests.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">{t('materials.noPendingRequests')}</p>
-                ) : (
-                  pendingRequests.map((request) => (
-                    <div key={request.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
-                      <div>
-                        <p className="font-medium text-sm text-foreground">{request.material}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {request.quantity} · {request.date}
-                        </p>
-                      </div>
-                      <StatusBadge 
-                        status={request.status === "approved" ? "success" : request.status === "rejected" ? "error" : "pending"}
-                        label={request.status}
+                  {/* Quantity Selector */}
+                  <div className="space-y-2.5">
+                    <Label htmlFor="quantity-input" className="text-sm font-medium text-foreground">
+                      Quantity <span className="text-destructive">*</span>
+                    </Label>
+                    <div className="flex items-center gap-4">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setQuantity(Math.max(0, quantity - 10))}
+                      >
+                        <Minus className="w-4 h-4" />
+                      </Button>
+                      <Input
+                        id="quantity-input"
+                        type="number"
+                        value={quantity}
+                        onChange={(e) => setQuantity(Number(e.target.value))}
+                        className="text-center text-2xl font-display font-bold h-14"
                       />
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setQuantity(quantity + 10)}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
                     </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                    {selectedMaterialData && (
+                      <p className="text-xs text-muted-foreground text-center">
+                        {selectedMaterialData.unit}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Anomaly Warning */}
+                  <AnimatePresence>
+                    {isAnomaly && (
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        className="flex items-start gap-3 p-3 rounded-xl bg-destructive/10 border border-destructive/30"
+                      >
+                        <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-destructive">Unusual Quantity</p>
+                          <p className="text-xs text-muted-foreground">
+                            This exceeds typical usage. Please provide a reason.
+                          </p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Reason */}
+                  <div className="space-y-2.5">
+                    <Label htmlFor="reason-input" className="text-sm font-medium text-foreground">
+                      Reason {isAnomaly && <span className="text-destructive">*</span>}
+                    </Label>
+                    <Input
+                      id="reason-input"
+                      placeholder="Enter reason for request..."
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Submit */}
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    onClick={handleSubmit}
+                    disabled={!selectedMaterial || !selectedProject || quantity === 0 || (isAnomaly && !reason) || isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <Send className="w-5 h-5" />
+                        Submit Request
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Pending Requests */}
+              <Card variant="gradient" className="animate-fade-up stagger-1">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Your Requests</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {pendingRequests.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">{t('materials.noPendingRequests')}</p>
+                    ) : (
+                      pendingRequests.map((request) => (
+                        <div key={request.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
+                          <div>
+                            <p className="font-medium text-sm text-foreground">{request.material}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {request.quantity} · {request.date}
+                            </p>
+                          </div>
+                          <StatusBadge 
+                            status={request.status === "approved" ? "success" : request.status === "rejected" ? "error" : "pending"}
+                            label={request.status}
+                          />
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </>
           )}
         </div>

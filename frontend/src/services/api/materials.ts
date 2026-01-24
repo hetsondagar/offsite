@@ -30,8 +30,9 @@ export interface MaterialRequest {
 
 export const materialsApi = {
   getCatalog: async () => {
-    const response = await apiGet<MaterialCatalog[]>('/materials/catalog');
-    return response.data || [];
+    const response = await apiGet<{ materials: MaterialCatalog[]; grouped: Record<string, MaterialCatalog[]> }>('/materials/catalog');
+    // Backend returns { materials: [...], grouped: {...} }, so we need to extract the materials array
+    return response.data?.materials || [];
   },
 
   getPending: async (page = 1, limit = 10) => {

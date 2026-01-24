@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useTranslation } from 'react-i18next';
 import { invoicesApi, Invoice, BillingPeriod, Supplier, Client } from '@/services/api/invoices';
 import { projectsApi } from '@/services/api/projects';
 import { toast } from 'sonner';
@@ -40,6 +41,7 @@ interface InvoiceFormProps {
 }
 
 export function InvoiceForm({ onInvoiceCreated, onCancel, editInvoice }: InvoiceFormProps) {
+  const { t } = useTranslation();
   const isEditMode = !!editInvoice;
   const [step, setStep] = useState<FormStep>('select-project');
   const [projects, setProjects] = useState<Project[]>([]);
@@ -89,7 +91,7 @@ export function InvoiceForm({ onInvoiceCreated, onCancel, editInvoice }: Invoice
 
   const handleBillingPeriod = (from: string, to: string) => {
     if (new Date(from) >= new Date(to)) {
-      toast.error('End date must be after start date');
+      toast.error(t('invoices.endDateMustBeAfterStartDate'));
       return;
     }
     setFormData((prev) => ({
@@ -111,7 +113,7 @@ export function InvoiceForm({ onInvoiceCreated, onCancel, editInvoice }: Invoice
 
   const handleSubmit = async () => {
     if (!formData.projectId || !formData.billingPeriod || !formData.supplier || !formData.client) {
-      toast.error('Please fill all required fields');
+      toast.error(t('invoices.pleaseFillAllRequiredFields'));
       return;
     }
 
@@ -128,7 +130,7 @@ export function InvoiceForm({ onInvoiceCreated, onCancel, editInvoice }: Invoice
           client: formData.client,
           notes: formData.notes,
         });
-        toast.success('Invoice updated successfully');
+        toast.success(t('invoices.invoiceUpdatedSuccess'));
       } else {
         invoice = await invoicesApi.create({
           projectId: formData.projectId,
@@ -138,7 +140,7 @@ export function InvoiceForm({ onInvoiceCreated, onCancel, editInvoice }: Invoice
           client: formData.client,
           notes: formData.notes,
         });
-        toast.success('Invoice created successfully');
+        toast.success(t('invoices.invoiceCreatedSuccess'));
       }
       
       onInvoiceCreated(invoice);
@@ -356,7 +358,7 @@ function BillingPeriodForm({
 
   const handleSubmit = () => {
     if (!from || !to) {
-      toast.error('Please select both start and end dates');
+      toast.error(t('invoices.pleaseSelectBothDates'));
       return;
     }
     onSubmit(from, to);
@@ -408,7 +410,7 @@ function SupplierForm({
 
   const handleSubmit = () => {
     if (!companyName || !address || !gstin || !state) {
-      toast.error('Please fill all required fields');
+      toast.error(t('invoices.pleaseFillAllRequiredFields'));
       return;
     }
     onSubmit({ companyName, address, gstin, state });
@@ -484,7 +486,7 @@ function ClientForm({
 
   const handleSubmit = () => {
     if (!name || !address || !state) {
-      toast.error('Please fill all required fields');
+      toast.error(t('invoices.pleaseFillAllRequiredFields'));
       return;
     }
     onSubmit({ name, address, gstin: gstin || undefined, state });
