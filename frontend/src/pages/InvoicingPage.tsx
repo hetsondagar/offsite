@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { invoicesApi, Invoice } from "@/services/api/invoices";
+import { UnauthorizedError } from "@/lib/api";
 import { toast } from "sonner";
 import { InvoiceForm } from "@/components/invoicing/InvoiceForm";
 import { InvoiceCard } from "@/components/invoicing/InvoiceCard";
@@ -26,7 +27,7 @@ export default function InvoicingPage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadInvoices();
+    if (role) loadInvoices();
   }, [role]);
 
   const loadInvoices = async () => {
@@ -36,6 +37,7 @@ export default function InvoicingPage() {
       setInvoices(data?.invoices || []);
     } catch (error: any) {
       console.error("Error loading invoices:", error);
+      if (error instanceof UnauthorizedError) return; // api.ts already redirected to login
       toast.error(error?.message || "Failed to load invoices");
     } finally {
       setIsLoading(false);

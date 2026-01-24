@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useTranslation } from 'react-i18next';
 import { invoicesApi, Invoice, BillingPeriod, Supplier, Client } from '@/services/api/invoices';
 import { projectsApi } from '@/services/api/projects';
 import { toast } from 'sonner';

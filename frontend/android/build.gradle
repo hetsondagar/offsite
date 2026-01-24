@@ -36,11 +36,10 @@ allprojects {
     }
     
     // Also configure Java compilation tasks
-    tasks.withType(JavaCompile).configureEach {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-        options.release = 17
-    }
+    // tasks.withType(JavaCompile).configureEach {
+    //     sourceCompatibility = JavaVersion.VERSION_17
+    //     targetCompatibility = JavaVersion.VERSION_17
+    // }
 }
 
 subprojects {

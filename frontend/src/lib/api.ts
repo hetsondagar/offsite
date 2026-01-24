@@ -59,6 +59,14 @@ export interface ApiResponse<T = unknown> {
   code?: string;
 }
 
+/** Thrown on 401; api.ts redirects to login before throwing. Do not substitute cache. */
+export class UnauthorizedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnauthorizedError';
+  }
+}
+
 /**
  * Get access token from localStorage
  */
@@ -139,7 +147,18 @@ export const apiRequest = async <T = unknown>(
         headers,
       });
 
-      const data = (await response.json()) as ApiResponse<T>;
+      let data: ApiResponse<T>;
+      try {
+        data = (await response.json()) as ApiResponse<T>;
+      } catch {
+        data = { success: false, message: 'Invalid response' };
+      }
+
+      if (response.status === 401) {
+        localStorage.removeItem('accessToken');
+        window.location.href = '/';
+        throw new UnauthorizedError(data?.message || 'Session expired. Please log in again.');
+      }
 
       if (!response.ok) {
         throw new Error(data?.message || 'Request failed');
@@ -152,6 +171,7 @@ export const apiRequest = async <T = unknown>(
 
       return data;
     } catch (error) {
+      if (error instanceof UnauthorizedError) throw error;
       // If request fails, fall back to cached GET response (if present)
       if (isGet && cacheKey) {
         const cached = await getApiCache<ApiResponse<T>>(cacheKey);
