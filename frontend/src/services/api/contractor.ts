@@ -21,6 +21,7 @@ export interface Labour {
   name: string;
   code: string;
   faceImageUrl?: string;
+  faceEmbedding?: number[]; // Face embedding for recognition
   projectId: any;
   isActive: boolean;
 }
@@ -72,6 +73,7 @@ export const contractorApi = {
   registerLabour: async (data: {
     name: string;
     faceImageUrl?: string;
+    faceEmbedding?: number[]; // Face embedding for recognition
     projectId: string;
   }) => {
     const response = await apiPost<Labour>('/contractor/labour', data);
@@ -91,6 +93,9 @@ export const contractorApi = {
     date: string;
     groupPhotoUrl: string;
     presentLabourIds: string[];
+    detectedFaces?: string[]; // Labour IDs whose faces were detected
+    latitude?: number; // GPS latitude
+    longitude?: number; // GPS longitude
   }) => {
     const response = await apiPost<any>('/contractor/attendance', data);
     return response.data;

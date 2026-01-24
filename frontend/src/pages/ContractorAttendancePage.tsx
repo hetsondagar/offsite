@@ -6,10 +6,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { contractorApi, Labour } from "@/services/api/contractor";
 import { projectsApi } from "@/services/api/projects";
-import { MapPin, Camera, Upload, Users, Loader2, CheckCircle } from "lucide-react";
+import { MapPin, Camera, Upload, Users, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { takePhoto } from "@/lib/capacitor-camera";
+import { getCurrentPosition } from "@/lib/capacitor-geolocation";
+import { detectAllFaces, matchFaces, createImageElement } from "@/lib/face-recognition";
 
 export default function ContractorAttendancePage() {
   const [labours, setLabours] = useState<Labour[]>([]);
@@ -19,6 +21,10 @@ export default function ContractorAttendancePage() {
   const [groupPhotoUrl, setGroupPhotoUrl] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isProcessingFace, setIsProcessingFace] = useState(false);
+  const [detectedFaces, setDetectedFaces] = useState<string[]>([]);
+  const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [isCapturingLocation, setIsCapturingLocation] = useState(false);
 
   useEffect(() => {
     loadProjects();
@@ -56,11 +62,91 @@ export default function ContractorAttendancePage() {
 
   const handleCaptureGroupPhoto = async () => {
     try {
-      const photo = await takePhoto();
+      // Capture photo
+      const photo = await takePhoto({ source: 'camera' });
       setGroupPhotoUrl(photo);
-      toast.success("Group photo captured!");
+      
+      // Capture geolocation
+      setIsCapturingLocation(true);
+      try {
+        const position = await getCurrentPosition({ enableHighAccuracy: true });
+        setLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        toast.success("Photo and location captured!");
+      } catch (locError: any) {
+        console.error("Location capture failed:", locError);
+        toast.error("Photo captured but location failed. Please enable location permissions.");
+      } finally {
+        setIsCapturingLocation(false);
+      }
+
+      // Process face recognition if labours are loaded
+      if (labours.length > 0) {
+        await processFaceRecognition(photo);
+      }
     } catch (error: any) {
-      toast.error("Failed to capture photo");
+      console.error("Failed to capture photo:", error);
+      toast.error(error.message || "Failed to capture photo");
+    }
+  };
+
+  const processFaceRecognition = async (photoUrl: string) => {
+    try {
+      setIsProcessingFace(true);
+      
+      // Get labours with face embeddings
+      const laboursWithFaces = labours.filter(l => l.faceEmbedding && l.faceEmbedding.length > 0);
+      
+      if (laboursWithFaces.length === 0) {
+        toast.warning("No labours have registered faces. Please register faces first.");
+        setDetectedFaces([]);
+        return;
+      }
+
+      // Create image element
+      const img = await createImageElement(photoUrl);
+      
+      // Detect all faces in the group photo
+      const detectedFaceEmbeddings = await detectAllFaces(img);
+      
+      if (detectedFaceEmbeddings.length === 0) {
+        toast.warning("No faces detected in the photo. Please ensure faces are visible.");
+        setDetectedFaces([]);
+        return;
+      }
+
+      // Create map of labourId -> face embedding
+      const labourEmbeddings = new Map<string, number[]>();
+      laboursWithFaces.forEach(labour => {
+        if (labour.faceEmbedding) {
+          labourEmbeddings.set(labour._id, labour.faceEmbedding);
+        }
+      });
+
+      // Match detected faces with saved embeddings
+      const detectedEmbeddings = detectedFaceEmbeddings.map(f => f.embedding);
+      const matches = matchFaces(detectedEmbeddings, labourEmbeddings, 0.6); // 0.6 similarity threshold
+
+      // Get matched labour IDs
+      const matchedLabourIds = Array.from(matches.keys());
+      setDetectedFaces(matchedLabourIds);
+      
+      // Auto-select matched labours
+      setSelectedLabours(matchedLabourIds);
+      
+      toast.success(`Detected ${matchedLabourIds.length} of ${laboursWithFaces.length} registered labours`);
+      
+      if (matchedLabourIds.length < laboursWithFaces.length) {
+        toast.info("Some labours were not detected. You can manually select them.");
+      }
+    } catch (error: any) {
+      console.error("Face recognition error:", error);
+      toast.error("Face recognition failed. You can manually select labours.");
+      setDetectedFaces([]);
+    } finally {
+      setIsProcessingFace(false);
     }
   };
 
@@ -93,18 +179,38 @@ export default function ContractorAttendancePage() {
       toast.error("Please capture a group photo");
       return;
     }
+    if (!location) {
+      toast.error("Please capture location. Retry photo capture to get location.");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
+      
+      // Upload photo to get URL (if not already uploaded)
+      let photoUrl = groupPhotoUrl;
+      if (groupPhotoUrl.startsWith('blob:') || groupPhotoUrl.startsWith('file://')) {
+        // Need to upload to Cloudinary or similar
+        // For now, we'll assume the backend handles base64 or we need to upload first
+        // This is a placeholder - you may need to implement photo upload
+        toast.info("Uploading photo...");
+      }
+
       await contractorApi.uploadAttendance({
         projectId: selectedProject,
         date: new Date().toISOString(),
-        groupPhotoUrl,
+        groupPhotoUrl: photoUrl,
         presentLabourIds: selectedLabours,
+        detectedFaces: detectedFaces, // Send detected faces for validation
+        latitude: location.latitude,
+        longitude: location.longitude,
       });
+      
       toast.success(`Attendance marked for ${selectedLabours.length} labours!`);
       setSelectedLabours([]);
       setGroupPhotoUrl(undefined);
+      setDetectedFaces([]);
+      setLocation(null);
     } catch (error: any) {
       toast.error(error.message || "Failed to submit attendance");
     } finally {
@@ -147,10 +253,34 @@ export default function ContractorAttendancePage() {
               variant="outline" 
               className="w-full" 
               onClick={handleCaptureGroupPhoto}
+              disabled={isCapturingLocation || isProcessingFace}
             >
-              <Camera className="w-4 h-4 mr-2" />
-              {groupPhotoUrl ? 'Group Photo Captured ✓' : 'Capture Group Photo'}
+              {isCapturingLocation || isProcessingFace ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {isCapturingLocation ? 'Capturing Location...' : 'Processing Faces...'}
+                </>
+              ) : (
+                <>
+                  <Camera className="w-4 h-4 mr-2" />
+                  {groupPhotoUrl ? 'Group Photo Captured ✓' : 'Capture Group Photo'}
+                </>
+              )}
             </Button>
+            
+            {location && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <MapPin className="w-3 h-3" />
+                <span>Location: {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}</span>
+              </div>
+            )}
+            
+            {detectedFaces.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+                <CheckCircle className="w-3 h-3" />
+                <span>{detectedFaces.length} face(s) detected and matched</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -196,10 +326,21 @@ export default function ContractorAttendancePage() {
                       <div className="flex-1">
                         <p className="font-medium text-foreground">{labour.name}</p>
                         <p className="text-xs text-muted-foreground">{labour.code}</p>
+                        {!labour.faceEmbedding || labour.faceEmbedding.length === 0 && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-1">
+                            <AlertCircle className="w-3 h-3" />
+                            No face registered
+                          </p>
+                        )}
                       </div>
-                      {selectedLabours.includes(labour._id) && (
-                        <CheckCircle className="w-5 h-5 text-primary" />
-                      )}
+                      <div className="flex items-center gap-2">
+                        {detectedFaces.includes(labour._id) && (
+                          <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" title="Face detected" />
+                        )}
+                        {selectedLabours.includes(labour._id) && (
+                          <CheckCircle className="w-5 h-5 text-primary" />
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

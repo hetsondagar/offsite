@@ -7,10 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { contractorApi, Labour } from "@/services/api/contractor";
 import { projectsApi } from "@/services/api/projects";
-import { Users, Plus, Camera, Loader2 } from "lucide-react";
+import { Users, Plus, Camera, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { takePhoto } from "@/lib/capacitor-camera";
+import { extractFaceEmbedding, createImageElement } from "@/lib/face-recognition";
 
 export default function ContractorLaboursPage() {
   const [labours, setLabours] = useState<Labour[]>([]);
@@ -23,6 +24,8 @@ export default function ContractorLaboursPage() {
   const [name, setName] = useState("");
   const [selectedProject, setSelectedProject] = useState("");
   const [faceImageUrl, setFaceImageUrl] = useState<string | undefined>();
+  const [faceEmbedding, setFaceEmbedding] = useState<number[] | null>(null);
+  const [isProcessingFace, setIsProcessingFace] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -46,11 +49,34 @@ export default function ContractorLaboursPage() {
 
   const handleCapturePhoto = async () => {
     try {
-      const photo = await takePhoto();
+      // Capture photo
+      const photo = await takePhoto({ source: 'camera' });
       setFaceImageUrl(photo);
-      toast.success("Photo captured!");
+      
+      // Extract face embedding
+      setIsProcessingFace(true);
+      try {
+        const img = await createImageElement(photo);
+        const embedding = await extractFaceEmbedding(img);
+        
+        if (embedding) {
+          setFaceEmbedding(embedding);
+          toast.success("Photo captured and face registered!");
+        } else {
+          toast.warning("Photo captured but no face detected. Please ensure face is clearly visible.");
+          setFaceEmbedding(null);
+        }
+      } catch (error: any) {
+        console.error("Face extraction error:", error);
+        toast.error("Failed to extract face. Please try again.");
+        setFaceEmbedding(null);
+      } finally {
+        setIsProcessingFace(false);
+      }
     } catch (error: any) {
-      toast.error("Failed to capture photo");
+      console.error("Photo capture error:", error);
+      toast.error(error.message || "Failed to capture photo");
+      setFaceEmbedding(null);
     }
   };
 
@@ -60,18 +86,25 @@ export default function ContractorLaboursPage() {
       return;
     }
 
+    if (!faceImageUrl || !faceEmbedding) {
+      toast.warning("Please capture a face photo with a detectable face");
+      return;
+    }
+
     try {
       setIsAdding(true);
       await contractorApi.registerLabour({
         name,
         faceImageUrl,
+        faceEmbedding, // Send face embedding
         projectId: selectedProject,
       });
-      toast.success("Labour registered successfully!");
+      toast.success("Labour registered successfully with face recognition!");
       setShowAddForm(false);
       setName("");
       setSelectedProject("");
       setFaceImageUrl(undefined);
+      setFaceEmbedding(null);
       loadData();
     } catch (error: any) {
       toast.error(error.message || "Failed to register labour");
@@ -134,16 +167,49 @@ export default function ContractorLaboursPage() {
                 </div>
 
                 <div>
-                  <Label>Face Photo (Optional)</Label>
+                  <Label>Face Photo *</Label>
                   <div className="flex gap-2 mt-2">
-                    <Button variant="outline" onClick={handleCapturePhoto} className="flex-1">
-                      <Camera className="w-4 h-4 mr-2" />
-                      {faceImageUrl ? 'Photo Captured ✓' : 'Capture Face'}
+                    <Button 
+                      variant="outline" 
+                      onClick={handleCapturePhoto} 
+                      className="flex-1"
+                      disabled={isProcessingFace}
+                    >
+                      {isProcessingFace ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <Camera className="w-4 h-4 mr-2" />
+                          {faceImageUrl ? 'Photo Captured ✓' : 'Capture Face'}
+                        </>
+                      )}
                     </Button>
                   </div>
+                  {faceImageUrl && (
+                    <div className="mt-2">
+                      {faceEmbedding ? (
+                        <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+                          <CheckCircle className="w-3 h-3" />
+                          <span>Face detected and registered</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+                          <AlertCircle className="w-3 h-3" />
+                          <span>No face detected in photo</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                <Button className="w-full" onClick={handleAddLabour} disabled={isAdding}>
+                <Button 
+                  className="w-full" 
+                  onClick={handleAddLabour} 
+                  disabled={isAdding || !faceEmbedding}
+                >
                   {isAdding && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   Register Labour
                 </Button>
@@ -196,6 +262,17 @@ export default function ContractorLaboursPage() {
                       <p className="text-xs text-muted-foreground">
                         Project: {labour.projectId?.name || 'N/A'}
                       </p>
+                      {labour.faceEmbedding && labour.faceEmbedding.length > 0 ? (
+                        <div className="flex items-center gap-1 mt-1">
+                          <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400" />
+                          <span className="text-xs text-green-600 dark:text-green-400">Face registered</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 mt-1">
+                          <AlertCircle className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                          <span className="text-xs text-amber-600 dark:text-amber-400">No face registered</span>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 ))}
