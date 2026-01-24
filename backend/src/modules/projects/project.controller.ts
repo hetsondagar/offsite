@@ -39,12 +39,13 @@ export const createProject = async (
 
     const data = createProjectSchema.parse(req.body);
     
-    // Create project with owner as initial member
+    // Create project: creator is owner and initial member. Only this owner sees/manages it.
     const project = new Project({
       name: data.name,
       location: data.location,
       startDate: data.startDate,
       endDate: data.endDate,
+      owner: req.user.userId,
       members: [req.user.userId], // Owner is automatically a member
       status: 'active',
       progress: 0,
@@ -177,18 +178,17 @@ export const getProjects = async (
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    // Security: Only owners can see all projects, engineers and managers only see projects they are members of
+    // Security: Owner sees only their projects; PM/SE see only projects they are members of
     const query: any = {};
     if (req.user.role === 'owner') {
-      // Owners can see all projects
-      // No filter needed
+      query.owner = new mongoose.Types.ObjectId(req.user.userId);
     } else {
-      // Engineers and managers can only see projects they are members of
       query.members = new mongoose.Types.ObjectId(req.user.userId);
     }
 
     const [projects, total] = await Promise.all([
       Project.find(query)
+        .populate('owner', 'name phone role offsiteId')
         .populate('members', 'name phone role offsiteId')
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -230,6 +230,7 @@ export const getProjectById = async (
     const { id } = req.params;
 
     const project = await Project.findById(id)
+      .populate('owner', 'name phone role offsiteId')
       .populate('members', 'name phone role offsiteId')
       .select('-__v');
 
@@ -237,14 +238,23 @@ export const getProjectById = async (
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
 
-    // Security: Only team members (or owners) can access project details
+    // Security: Project owner can access; PM/SE only if they are members
     const userId = req.user.userId.toString();
-    const isOwner = req.user.role === 'owner';
+    const projectOwnerId = (project as any).owner?._id?.toString() ?? (project as any).owner?.toString();
+    const isProjectOwner = projectOwnerId === userId;
     const isMember = project.members.some(
-      (member: any) => member._id.toString() === userId || member.toString() === userId
+      (member: any) => member._id?.toString() === userId || member.toString() === userId
     );
 
-    if (!isOwner && !isMember) {
+    if (req.user.role === 'owner') {
+      if (!isProjectOwner) {
+        throw new AppError(
+          'Access denied. You can only view your own projects.',
+          403,
+          'FORBIDDEN'
+        );
+      }
+    } else if (!isMember) {
       throw new AppError(
         'Access denied. You must be a team member to view this project.',
         403,
@@ -407,7 +417,7 @@ export const addProjectMembers = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    // Only owners can add members
+    // Only project owner can add members (not any owner)
     if (req.user.role !== 'owner') {
       throw new AppError('Only owners can add members to projects', 403, 'FORBIDDEN');
     }
@@ -418,6 +428,11 @@ export const addProjectMembers = async (
     const project = await Project.findById(id);
     if (!project) {
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    const projectOwnerId = (project as any).owner?.toString?.() ?? (project as any).owner;
+    if (projectOwnerId !== req.user.userId) {
+      throw new AppError('Only the project owner can add members to this project', 403, 'FORBIDDEN');
     }
 
     const invitations: any[] = [];

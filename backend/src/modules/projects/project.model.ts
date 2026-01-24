@@ -7,6 +7,7 @@ export interface IProject extends Document {
   startDate: Date;
   endDate?: Date;
   status: ProjectStatus;
+  owner?: mongoose.Types.ObjectId; // Creator; only this owner sees/manages the project
   members: mongoose.Types.ObjectId[];
   progress: number; // 0-100
   healthScore: number; // 0-100
@@ -40,6 +41,11 @@ const projectSchema = new Schema<IProject>(
       type: String,
       enum: ['planning', 'active', 'on-hold', 'completed', 'archived'],
       default: 'active',
+    },
+    owner: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: false, // Migration sets owner = members[0] for existing projects
     },
     members: [
       {
@@ -82,6 +88,7 @@ const projectSchema = new Schema<IProject>(
 
 projectSchema.index({ status: 1 });
 projectSchema.index({ members: 1 });
+projectSchema.index({ owner: 1 });
 
 export const Project =
   (mongoose.models.Project as mongoose.Model<IProject>) ||

@@ -25,13 +25,13 @@ export const getSiteHealth = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    // Role-based project filtering
     let projects;
     if (req.user.role === 'owner') {
-      // Owners can see all active projects
-      projects = await Project.find({ status: 'active' });
+      projects = await Project.find({
+        status: 'active',
+        owner: new mongoose.Types.ObjectId(req.user.userId),
+      });
     } else {
-      // Managers and engineers can only see projects they are members of
       projects = await Project.find({
         status: 'active',
         members: new mongoose.Types.ObjectId(req.user.userId),
@@ -82,13 +82,13 @@ export const getDelayRisks = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    // Role-based project filtering
     let projects;
     if (req.user.role === 'owner') {
-      // Owners can see all active projects
-      projects = await Project.find({ status: 'active' });
+      projects = await Project.find({
+        status: 'active',
+        owner: new mongoose.Types.ObjectId(req.user.userId),
+      });
     } else {
-      // Managers and engineers can only see projects they are members of
       projects = await Project.find({
         status: 'active',
         members: new mongoose.Types.ObjectId(req.user.userId),
@@ -130,18 +130,22 @@ export const getMaterialAnomalies = async (
     };
 
     if (req.user.role === 'engineer') {
-      // Engineers can only see their own requests
       query.requestedBy = new mongoose.Types.ObjectId(req.user.userId);
     } else if (req.user.role === 'manager') {
-      // Managers can see anomalies from projects they are members of
       const userProjects = await Project.find({
         members: new mongoose.Types.ObjectId(req.user.userId),
         status: 'active',
       }).select('_id');
       const projectIds = userProjects.map((p) => p._id);
       query.projectId = { $in: projectIds };
+    } else if (req.user.role === 'owner') {
+      const ownedProjects = await Project.find({
+        owner: new mongoose.Types.ObjectId(req.user.userId),
+        status: 'active',
+      }).select('_id');
+      const projectIds = ownedProjects.map((p) => p._id);
+      query.projectId = { $in: projectIds };
     }
-    // Owners can see all anomalies (no filter)
 
     const anomalies = await MaterialRequest.find(query)
       .populate('projectId', 'name')
@@ -175,18 +179,22 @@ export const getPendingMaterialRequests = async (
     const query: any = { status: 'pending' };
     
     if (req.user.role === 'engineer') {
-      // Engineers can only see their own requests
       query.requestedBy = req.user.userId;
     } else if (req.user.role === 'manager') {
-      // Managers can see requests from projects they are members of
       const userProjects = await Project.find({
         members: new mongoose.Types.ObjectId(req.user.userId),
         status: 'active',
       }).select('_id');
       const projectIds = userProjects.map((p) => p._id);
       query.projectId = { $in: projectIds };
+    } else if (req.user.role === 'owner') {
+      const ownedProjects = await Project.find({
+        owner: new mongoose.Types.ObjectId(req.user.userId),
+        status: 'active',
+      }).select('_id');
+      const projectIds = ownedProjects.map((p) => p._id);
+      query.projectId = { $in: projectIds };
     }
-    // Owners can see all requests (no filter)
 
     const { calculateApprovalDelay } = await import('../../services/approvalDelay.service');
     
@@ -238,7 +246,23 @@ export const getLabourGap = async (
     const threshold = parseFloat(req.query.threshold as string) || 20;
 
     if (projectId) {
-      // Get gap for specific project
+      const project = await Project.findById(projectId);
+      if (!project) {
+        throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+      }
+      const projectOwnerId = (project as any).owner?.toString?.() ?? (project as any).owner;
+      if (req.user.role === 'owner') {
+        if (projectOwnerId !== req.user!.userId) {
+          throw new AppError('Access denied. You can only view labour gap for your own projects.', 403, 'FORBIDDEN');
+        }
+      } else {
+        const isMember = project.members.some(
+          (m: any) => m.toString() === req.user!.userId
+        );
+        if (!isMember) {
+          throw new AppError('Access denied. You must be a member of this project.', 403, 'FORBIDDEN');
+        }
+      }
       const gap = await getProjectLabourGap(projectId as string, days, threshold);
       if (!gap) {
         throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
@@ -256,7 +280,10 @@ export const getLabourGap = async (
       let projectIds: string[] = [];
 
       if (req.user.role === 'owner') {
-        const projects = await Project.find({ status: 'active' }).select('_id');
+        const projects = await Project.find({
+          owner: new mongoose.Types.ObjectId(req.user.userId),
+          status: 'active',
+        }).select('_id');
         projectIds = projects.map(p => p._id.toString());
       } else if (req.user.role === 'manager') {
         const projects = await Project.find({
@@ -265,7 +292,6 @@ export const getLabourGap = async (
         }).select('_id');
         projectIds = projects.map(p => p._id.toString());
       } else {
-        // Engineers can only see their assigned projects
         const projects = await Project.find({
           members: new mongoose.Types.ObjectId(req.user.userId),
           status: 'active',
@@ -311,8 +337,12 @@ export const getApprovalDelays = async (
         throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
       }
 
-      // Authorization: Owners can access any project, others must be members
-      if (req.user.role !== 'owner') {
+      const projectOwnerId = (project as any).owner?.toString?.() ?? (project as any).owner;
+      if (req.user.role === 'owner') {
+        if (projectOwnerId !== req.user!.userId) {
+          throw new AppError('Access denied. You can only view approval delays for your own projects.', 403, 'FORBIDDEN');
+        }
+      } else {
         const isMember = project.members.some(
           (memberId) => memberId.toString() === req.user!.userId
         );
@@ -336,7 +366,10 @@ export const getApprovalDelays = async (
       let projectIds: string[] = [];
 
       if (req.user.role === 'owner') {
-        const projects = await Project.find({ status: 'active' }).select('_id');
+        const projects = await Project.find({
+          owner: new mongoose.Types.ObjectId(req.user.userId),
+          status: 'active',
+        }).select('_id');
         projectIds = projects.map(p => p._id.toString());
       } else if (req.user.role === 'manager') {
         const projects = await Project.find({
@@ -345,7 +378,6 @@ export const getApprovalDelays = async (
         }).select('_id');
         projectIds = projects.map(p => p._id.toString());
       } else {
-        // Engineers can only see their assigned projects
         const projects = await Project.find({
           members: new mongoose.Types.ObjectId(req.user.userId),
           status: 'active',

@@ -106,6 +106,16 @@ npm run build
 npm start
 ```
 
+### Migrations
+
+If you have existing projects **before** the owner-scoped data isolation update, run once:
+
+```bash
+npm run migrate:project-owner
+```
+
+This sets `owner = members[0]` for projects missing `owner`. Owners then see only their own projects; PMs and SEs see only projects they belong to.
+
 ---
 
 ## Local single-server mode (recommended)

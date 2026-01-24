@@ -66,13 +66,15 @@ export const createInvoice = async (
 
     const data = createInvoiceSchema.parse(req.body);
 
-    // Verify project exists
     const project = await Project.findById(data.projectId);
     if (!project) {
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
+    const projectOwnerId = (project as any).owner?.toString?.() ?? (project as any).owner;
+    if (projectOwnerId !== req.user!.userId) {
+      throw new AppError('You can only create invoices for your own projects', 403, 'FORBIDDEN');
+    }
 
-    // Validate billing period
     if (data.billingPeriod.from >= data.billingPeriod.to) {
       throw new AppError('Invalid billing period', 400, 'INVALID_BILLING_PERIOD');
     }
@@ -483,13 +485,15 @@ export const updateInvoice = async (
       );
     }
 
-    // Verify project exists
     const project = await Project.findById(data.projectId);
     if (!project) {
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
+    const projectOwnerId = (project as any).owner?.toString?.() ?? (project as any).owner;
+    if (projectOwnerId !== req.user!.userId) {
+      throw new AppError('You can only assign invoices to your own projects', 403, 'FORBIDDEN');
+    }
 
-    // Validate billing period
     if (data.billingPeriod.from >= data.billingPeriod.to) {
       throw new AppError('Invalid billing period', 400, 'INVALID_BILLING_PERIOD');
     }
@@ -707,10 +711,13 @@ export const getInvoiceSuggestion = async (
       throw new AppError('from date must be before to date', 400, 'VALIDATION_ERROR');
     }
 
-    // Verify project exists
     const project = await Project.findById(projectId);
     if (!project) {
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+    const projectOwnerId = (project as any).owner?.toString?.() ?? (project as any).owner;
+    if (projectOwnerId !== req.user!.userId) {
+      throw new AppError('You can only get invoice suggestions for your own projects', 403, 'FORBIDDEN');
     }
 
     const suggestion = await generateInvoiceSuggestion(

@@ -47,8 +47,12 @@ export const createEvent = async (
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
 
-    // Authorization: Owners can create events for any project, others must be members
-    if (req.user.role !== 'owner') {
+    const projectOwnerId = (project as any).owner?.toString?.() ?? (project as any).owner;
+    if (req.user.role === 'owner') {
+      if (projectOwnerId !== req.user!.userId) {
+        throw new AppError('You can only create events for your own projects', 403, 'FORBIDDEN');
+      }
+    } else {
       const isMember = project.members.some(
         (memberId) => memberId.toString() === req.user!.userId
       );
@@ -97,46 +101,51 @@ export const getEvents = async (
 
     const query: any = {};
     
-    // Role-based filtering
     if (req.user.role === 'owner') {
-      // Owners can see all events
-      if (projectId) {
-        query.projectId = projectId;
-      }
-    } else {
-      // Managers and engineers can only see events from projects they are members of
-      const userProjects = await Project.find({
-        members: new mongoose.Types.ObjectId(req.user.userId),
+      const ownedProjects = await Project.find({
+        owner: new mongoose.Types.ObjectId(req.user.userId),
       }).select('_id');
-      const projectIds = userProjects.map(p => p._id);
-      
+      const projectIds = ownedProjects.map(p => p._id);
       if (projectIds.length === 0) {
-        // No projects assigned, return empty result
         const response: ApiResponse = {
           success: true,
           message: 'Events retrieved successfully',
-          data: {
-            events: [],
-            pagination: {
-              page,
-              limit,
-              total: 0,
-              pages: 0,
-            },
-          },
+          data: { events: [], pagination: { page, limit, total: 0, pages: 0 } },
         };
         res.status(200).json(response);
         return;
       }
-      
-      // If projectId is provided, verify it's in the user's projects
       if (projectId) {
-        const requestedProjectId = new mongoose.Types.ObjectId(projectId as string);
-        const hasAccess = projectIds.some(id => id.toString() === requestedProjectId.toString());
+        const requestedId = new mongoose.Types.ObjectId(projectId as string);
+        const hasAccess = projectIds.some(id => id.toString() === requestedId.toString());
+        if (!hasAccess) {
+          throw new AppError('Access denied. You can only view events for your own projects.', 403, 'FORBIDDEN');
+        }
+        query.projectId = requestedId;
+      } else {
+        query.projectId = { $in: projectIds };
+      }
+    } else {
+      const userProjects = await Project.find({
+        members: new mongoose.Types.ObjectId(req.user.userId),
+      }).select('_id');
+      const projectIds = userProjects.map(p => p._id);
+      if (projectIds.length === 0) {
+        const response: ApiResponse = {
+          success: true,
+          message: 'Events retrieved successfully',
+          data: { events: [], pagination: { page, limit, total: 0, pages: 0 } },
+        };
+        res.status(200).json(response);
+        return;
+      }
+      if (projectId) {
+        const requestedId = new mongoose.Types.ObjectId(projectId as string);
+        const hasAccess = projectIds.some(id => id.toString() === requestedId.toString());
         if (!hasAccess) {
           throw new AppError('Access denied. You are not a member of this project.', 403, 'FORBIDDEN');
         }
-        query.projectId = requestedProjectId;
+        query.projectId = requestedId;
       } else {
         query.projectId = { $in: projectIds };
       }
@@ -183,7 +192,7 @@ export const getEventById = async (
     const { id } = req.params;
 
     const event = await Event.findById(id)
-      .populate('projectId', 'name location members')
+      .populate('projectId', 'name location members owner')
       .populate('createdBy', 'name email phone')
       .populate('attendees', 'name email phone')
       .select('-__v');
@@ -196,9 +205,13 @@ export const getEventById = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    // Verify user has access to the project
     const project = event.projectId as any;
-    if (req.user.role !== 'owner') {
+    const projectOwnerId = project?.owner?.toString?.() ?? project?.owner;
+    if (req.user.role === 'owner') {
+      if (projectOwnerId !== req.user!.userId) {
+        throw new AppError('Access denied. You can only view events for your own projects.', 403, 'FORBIDDEN');
+      }
+    } else {
       const isMember = project?.members?.some(
         (memberId: any) => memberId.toString() === req.user!.userId
       );
@@ -236,7 +249,7 @@ export const updateEvent = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    const event = await Event.findById(id).populate('projectId', 'members');
+    const event = await Event.findById(id).populate('projectId', 'members owner');
 
     if (!event) {
       throw new AppError('Event not found', 404, 'EVENT_NOT_FOUND');
@@ -246,9 +259,13 @@ export const updateEvent = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    // Verify user has access to the project
     const project = event.projectId as any;
-    if (req.user.role !== 'owner') {
+    const projectOwnerId = project?.owner?.toString?.() ?? project?.owner;
+    if (req.user.role === 'owner') {
+      if (projectOwnerId !== req.user!.userId) {
+        throw new AppError('Access denied. You can only update events for your own projects.', 403, 'FORBIDDEN');
+      }
+    } else {
       const isMember = project?.members?.some(
         (memberId: any) => memberId.toString() === req.user!.userId
       );
@@ -287,7 +304,7 @@ export const deleteEvent = async (
 
     const { id } = req.params;
 
-    const event = await Event.findById(id).populate('projectId', 'members');
+    const event = await Event.findById(id).populate('projectId', 'members owner');
 
     if (!event) {
       throw new AppError('Event not found', 404, 'EVENT_NOT_FOUND');
@@ -297,9 +314,13 @@ export const deleteEvent = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    // Verify user has access to the project
     const project = event.projectId as any;
-    if (req.user.role !== 'owner') {
+    const projectOwnerId = project?.owner?.toString?.() ?? project?.owner;
+    if (req.user.role === 'owner') {
+      if (projectOwnerId !== req.user!.userId) {
+        throw new AppError('Access denied. You can only delete events for your own projects.', 403, 'FORBIDDEN');
+      }
+    } else {
       const isMember = project?.members?.some(
         (memberId: any) => memberId.toString() === req.user!.userId
       );
