@@ -807,10 +807,12 @@ export const getMyInvoices = async (
         data: invoices,
       };
 
-      return res.status(200).json(response);
+      res.status(200).json(response);
+      return;
     } catch (innerErr) {
       logger.error('Failed to fetch contractor invoices', { err: (innerErr as Error).message, user: req.user?.userId, contractorId: contractor?._id });
-      return next(new AppError('Failed to load invoices. Please try again later.', 500, 'INVOICE_LOAD_ERROR'));
+      next(new AppError('Failed to load invoices. Please try again later.', 500, 'INVOICE_LOAD_ERROR'));
+      return;
     }
   } catch (error) {
     next(error);
