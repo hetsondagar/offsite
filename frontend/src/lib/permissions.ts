@@ -83,7 +83,7 @@ export const RolePermissions = {
     canReturnTools: true,
     canManageTools: true,
     canSubmitPettyCash: false,
-    canApprovePettyCash: false,
+    canApprovePettyCash: true,
     
     // ❌ NOT ALLOWED
     canCreateDPR: false,

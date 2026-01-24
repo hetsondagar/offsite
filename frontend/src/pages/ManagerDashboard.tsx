@@ -29,6 +29,7 @@ import { notificationsApi } from "@/services/api/notifications";
 import { dprApi } from "@/services/api/dpr";
 import { invoicesApi, type Invoice } from "@/services/api/invoices";
 import { contractorApi, Contractor } from "@/services/api/contractor";
+import { pettyCashApi, type PettyCash } from "@/services/api/petty-cash";
 import { Button } from "@/components/ui/button";
 import { Loader2, UserPlus, X, Star, Building } from "lucide-react";
 import { toast } from "sonner";
@@ -58,6 +59,7 @@ export default function ManagerDashboard() {
   const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [contractors, setContractors] = useState<Contractor[]>([]);
+  const [pendingExpenses, setPendingExpenses] = useState<PettyCash[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDPR, setSelectedDPR] = useState<any | null>(null);
   const [isDPRModalOpen, setIsDPRModalOpen] = useState(false);
@@ -83,6 +85,11 @@ export default function ManagerDashboard() {
         insightsApi.getDelayRisks(),
         materialsApi.getPending(1, 100),
       ];
+
+      // Load pending reimbursements for Project Managers
+      if (role === 'manager') {
+        loadPromises.push(pettyCashApi.getPendingExpenses());
+      }
       
       // Load contractors for owners
       if (role === 'owner') {
@@ -90,7 +97,13 @@ export default function ManagerDashboard() {
       }
       
       const results = await Promise.all(loadPromises);
-      const [projectsData, healthData, delayRisksData, materialsData, contractorsData] = results;
+      const [projectsData, healthData, delayRisksData, materialsData, contractorsData, pendingExpensesData] = results;
+
+      if (role === 'manager') {
+        setPendingExpenses(Array.isArray(pendingExpensesData) ? pendingExpensesData : []);
+      } else {
+        setPendingExpenses([]);
+      }
 
       setProjectOverview(projectsData?.projects || []);
       setHealthScore(healthData?.overallHealthScore || 0);
@@ -219,7 +232,9 @@ export default function ManagerDashboard() {
         activeProjects: projectsData?.projects?.length || 0,
         attendance: attendancePercentage,
         attendanceTrend: attendanceTrend,
-        pendingApprovals: materialsData?.requests?.filter((r: any) => r.status === 'pending').length || 0,
+        pendingApprovals:
+          (materialsData?.requests?.filter((r: any) => r.status === 'pending').length || 0) +
+          (role === 'manager' ? (Array.isArray(pendingExpensesData) ? pendingExpensesData.length : 0) : 0),
         delayRisks: delayRisksData?.filter((r: any) => r.risk === 'High').length || 0,
       });
 

@@ -6,6 +6,7 @@
 import { Geolocation } from '@capacitor/geolocation';
 import { isNative } from './capacitor';
 import { saveLastKnownLocation } from './indexeddb';
+import { getMapTilerKey } from './config';
 
 export interface LocationData {
   coords: {
@@ -165,9 +166,25 @@ export async function getCurrentPosition(
 
 /**
  * Reverse geocode latitude/longitude to a human readable address.
- * Uses Nominatim (OpenStreetMap) with a graceful fallback to "lat, lon".
+ * Prefers MapTiler (configured via VITE_MAPTILER_KEY) with a graceful fallback to Nominatim,
+ * then finally to "lat, lon".
  */
 export async function reverseGeocode(lat: number, lon: number): Promise<string> {
+  try {
+    const key = getMapTilerKey();
+    if (key && key.trim()) {
+      const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(lon)},${encodeURIComponent(lat)}.json?key=${encodeURIComponent(key)}&limit=1`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        const place = data?.features?.[0]?.place_name || data?.features?.[0]?.text;
+        if (place && typeof place === 'string') return place;
+      }
+    }
+  } catch (e) {
+    // ignore and fallback
+  }
+
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
     const res = await fetch(url, { headers: { 'User-Agent': 'offsite-app' } });
@@ -177,6 +194,7 @@ export async function reverseGeocode(lat: number, lon: number): Promise<string> 
   } catch (e) {
     // ignore and fallback
   }
+
   return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
 }
 

@@ -55,6 +55,12 @@ export default function PettyCashPage() {
   const [location, setLocation] = useState<{ latitude: number; longitude: number; address: string } | null>(null);
 
   useEffect(() => {
+    if (role === 'manager') {
+      toast.error("Project Managers approve reimbursements from Pending Approvals");
+      navigate("/", { replace: true });
+      return;
+    }
+
     if (!canSubmit && !canApprove && !canViewDashboard) {
       toast.error("You don't have permission to access reimbursements");
       navigate("/", { replace: true });
