@@ -189,7 +189,13 @@ export default function AttendancePage() {
 
     return () => {
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
+        if (typeof mapInstanceRef.current.remove === 'function') {
+          try {
+            mapInstanceRef.current.remove();
+          } catch (error) {
+            console.warn('Error removing map instance:', error);
+          }
+        }
         mapInstanceRef.current = null;
       }
     };
