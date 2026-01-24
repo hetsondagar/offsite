@@ -10,6 +10,7 @@ import { KPICard } from "@/components/common/KPICard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { contractorApi, Contractor, ContractorInvoice } from "@/services/api/contractor";
 import { projectsApi } from "@/services/api/projects";
+import { usersApi } from "@/services/api/users";
 import { Users, Plus, Receipt, Loader2, Building } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -58,8 +59,16 @@ export default function ContractorsManagementPage() {
 
     try {
       setIsSubmitting(true);
+
+      // Allow owner to type either MongoDB User ID or Offsite ID (e.g., OSCT0002)
+      let resolvedContractorUserId = contractorUserId.trim();
+      if (/^os/i.test(resolvedContractorUserId)) {
+        const user = await usersApi.getByOffsiteId(resolvedContractorUserId);
+        resolvedContractorUserId = user._id;
+      }
+
       await contractorApi.assignToProject({
-        contractorUserId,
+        contractorUserId: resolvedContractorUserId,
         projectId: selectedProject,
         labourCountPerDay: parseInt(labourCount),
         ratePerLabourPerDay: parseFloat(ratePerLabour),
@@ -123,7 +132,7 @@ export default function ContractorsManagementPage() {
                   <Input
                     value={contractorUserId}
                     onChange={(e) => setContractorUserId(e.target.value)}
-                    placeholder="Enter contractor's MongoDB user ID"
+                    placeholder="Enter contractor Offsite ID (e.g., OSCT0002) or MongoDB user ID"
                   />
                 </div>
                 <div>

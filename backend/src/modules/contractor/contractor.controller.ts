@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import mongoose from 'mongoose';
 import { Contractor } from './contractor.model';
 import { Labour } from './labour.model';
 import { LabourAttendance } from './labour-attendance.model';
@@ -125,17 +126,28 @@ export const assignContractorToProject = async (
 
     const data = assignContractorSchema.parse(req.body);
 
-    // Verify user is a contractor
-    const contractorUser = await User.findById(data.contractorUserId);
+    // Resolve contractor user (accept MongoDB userId OR Offsite ID like OSCT0002)
+    let contractorUser: any = null;
+    const trimmedIdentifier = data.contractorUserId?.trim();
+
+    if (trimmedIdentifier && mongoose.Types.ObjectId.isValid(trimmedIdentifier)) {
+      contractorUser = await User.findById(trimmedIdentifier);
+    } else if (trimmedIdentifier) {
+      contractorUser = await User.findOne({
+        offsiteId: { $regex: new RegExp(`^${trimmedIdentifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+        role: 'contractor',
+      });
+    }
+
     if (!contractorUser || contractorUser.role !== 'contractor') {
       throw new AppError('User is not a contractor', 400, 'INVALID_USER');
     }
 
     // Find or create contractor profile
-    let contractor = await Contractor.findOne({ userId: data.contractorUserId });
+    let contractor = await Contractor.findOne({ userId: contractorUser._id });
     if (!contractor) {
       contractor = new Contractor({
-        userId: data.contractorUserId,
+        userId: contractorUser._id,
         assignedProjects: [],
         contracts: [],
       });
