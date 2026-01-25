@@ -201,9 +201,8 @@ function AppContent() {
             <Route path="/permits" element={<PermitsPage />} />
             <Route path="/petty-cash" element={<PettyCashPage />} />
             {/* Site360 Routes */}
-            <Route path="/engineer/site360" element={<EngineerSite360UploadPage />} />
-            <Route path="/owner/site360/:projectId" element={<OwnerSite360WalkthroughPage />} />
-            <Route path="/manager/site360/:projectId" element={<OwnerSite360WalkthroughPage />} />
+            <Route path="/site360" element={<EngineerSite360UploadPage />} />
+            <Route path="/site360/:projectId" element={<OwnerSite360WalkthroughPage />} />
             <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

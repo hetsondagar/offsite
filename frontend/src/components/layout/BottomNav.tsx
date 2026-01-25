@@ -14,7 +14,7 @@ const engineerNav: NavItem[] = [
   { icon: Home, labelKey: "navigation.home", path: "/" },
   { icon: CheckSquare, labelKey: "navigation.tasks", path: "/tasks" },
   { icon: FileText, labelKey: "navigation.dpr", path: "/dpr" },
-  { icon: Camera, labelKey: "navigation.site360", path: "/engineer/site360" },
+  { icon: Camera, labelKey: "navigation.site360", path: "/site360" },
   { icon: User, labelKey: "navigation.profile", path: "/profile" },
 ];
 
