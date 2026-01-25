@@ -13,7 +13,7 @@ ensureUploadsDirectory();
 
 // Configure multer for disk storage
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (_req, _file, cb) => {
     const uploadsDir = path.join(process.cwd(), 'backend', 'uploads', 'site360');
     // Ensure directory exists
     if (!fs.existsSync(uploadsDir)) {
@@ -21,7 +21,7 @@ const storage = multer.diskStorage({
     }
     cb(null, uploadsDir);
   },
-  filename: (req, file, cb) => {
+  filename: (_req, file, cb) => {
     const timestamp = Date.now();
     const originalName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
     const filename = `site360_${timestamp}_${originalName}`;
@@ -34,7 +34,7 @@ const upload = multer({
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB for panorama images
   },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (_req, file, cb) => {
     // Accept image files
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
