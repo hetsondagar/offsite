@@ -8,6 +8,11 @@ import {
   getSentMaterialsForEngineer,
   getAllHistory,
 } from './purchase.controller';
+import {
+  getPurchaseInvoices,
+  getPurchaseInvoiceById,
+  generatePurchaseInvoicePDF,
+} from './purchase-invoice.controller';
 
 const router = Router();
 
@@ -31,5 +36,14 @@ router.get('/history/project/:projectId', getHistoryByProject);
 
 // Get all purchase history
 router.get('/history', getAllHistory);
+
+// Get purchase invoices (Manager/Owner)
+router.get('/invoices', getPurchaseInvoices);
+
+// Get purchase invoice by ID
+router.get('/invoices/:id', getPurchaseInvoiceById);
+
+// Generate PDF for purchase invoice
+router.get('/invoices/:id/pdf', generatePurchaseInvoicePDF);
 
 export default router;

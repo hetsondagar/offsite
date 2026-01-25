@@ -21,7 +21,9 @@ export interface IPurchaseHistory extends Document {
     latitude: number;
     longitude: number;
   };
-  status: 'SENT' | 'RECEIVED';
+  status: 'PENDING_GRN' | 'SENT' | 'RECEIVED';
+  grnGenerated: boolean;
+  grnGeneratedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -117,8 +119,15 @@ const purchaseHistorySchema = new Schema<IPurchaseHistory>(
     },
     status: {
       type: String,
-      enum: ['SENT', 'RECEIVED'],
-      default: 'SENT',
+      enum: ['PENDING_GRN', 'SENT', 'RECEIVED'],
+      default: 'PENDING_GRN',
+    },
+    grnGenerated: {
+      type: Boolean,
+      default: false,
+    },
+    grnGeneratedAt: {
+      type: Date,
     },
   },
   {

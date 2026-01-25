@@ -327,7 +327,7 @@ export const approveRequest = async (
 
     await request.populate('requestedBy', 'name phone offsiteId');
     await request.populate('approvedBy', 'name phone');
-    await request.populate('projectId', 'name');
+    await request.populate('projectId', 'name members');
 
     logger.info(`Material request approved: ${id} by ${req.user.userId}`);
 
@@ -350,6 +350,44 @@ export const approveRequest = async (
       }
     } catch (notifError: any) {
       logger.warn('Failed to send approval notification:', notifError.message);
+      // Don't fail the request if notification fails
+    }
+
+    // Send notification to assigned Purchase Manager
+    try {
+      const project = request.projectId as any;
+      if (project && project.members) {
+        // Find purchase manager in project members
+        const memberIds = project.members.map((m: any) => 
+          typeof m === 'object' ? m._id : m
+        );
+        const { User } = await import('../users/user.model');
+        const purchaseManager = await User.findOne({
+          _id: { $in: memberIds },
+          role: 'purchase_manager'
+        }).select('_id offsiteId name');
+
+        if (purchaseManager) {
+          await createNotification({
+            userId: purchaseManager._id.toString(),
+            offsiteId: purchaseManager.offsiteId,
+            type: 'material_approved',
+            title: 'New Material Request Approved',
+            message: `Material request approved for "${project.name}": ${request.materialName} (${request.quantity} ${request.unit}). Please send materials.`,
+            data: {
+              materialRequestId: request._id.toString(),
+              projectId: project._id?.toString() || project.toString(),
+              projectName: project.name,
+              materialName: request.materialName,
+              quantity: request.quantity,
+              unit: request.unit,
+            },
+          });
+          logger.info(`Notified Purchase Manager ${purchaseManager.offsiteId} about approved material request`);
+        }
+      }
+    } catch (notifError: any) {
+      logger.warn('Failed to send Purchase Manager notification:', notifError.message);
       // Don't fail the request if notification fails
     }
 

@@ -31,6 +31,7 @@ import { dprApi } from "@/services/api/dpr";
 import { invoicesApi, type Invoice } from "@/services/api/invoices";
 import { contractorApi, Contractor } from "@/services/api/contractor";
 import { pettyCashApi, type PettyCash } from "@/services/api/petty-cash";
+import { purchaseInvoiceApi, PurchaseInvoice } from "@/services/api/purchase";
 import { Button } from "@/components/ui/button";
 import { Loader2, UserPlus, X, Star, Building, Receipt, Download, Check, XCircle } from "lucide-react";
 import { jsPDF } from 'jspdf';
@@ -65,11 +66,13 @@ export default function ManagerDashboard() {
   const [contractors, setContractors] = useState<Contractor[]>([]);
   const [pendingExpenses, setPendingExpenses] = useState<PettyCash[]>([]);
   const [pendingContractorInvoices, setPendingContractorInvoices] = useState<ContractorInvoice[]>([]);
+  const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDPR, setSelectedDPR] = useState<any | null>(null);
   const [isDPRModalOpen, setIsDPRModalOpen] = useState(false);
   const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
   const [approvingInvoiceId, setApprovingInvoiceId] = useState<string | null>(null);
+  const [downloadingPurchaseInvoiceId, setDownloadingPurchaseInvoiceId] = useState<string | null>(null);
   const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   const formatCurrency = (amount: number) => {
@@ -184,6 +187,31 @@ export default function ManagerDashboard() {
     }
   };
 
+  const handleDownloadPurchaseInvoicePdf = async (invoiceId: string) => {
+    try {
+      setDownloadingPurchaseInvoiceId(invoiceId);
+      const blob = await purchaseInvoiceApi.downloadPDF(invoiceId);
+      const invoice = purchaseInvoices.find((inv) => inv._id === invoiceId);
+      const filename = invoice?.invoiceNumber
+        ? `Purchase-Invoice-${invoice.invoiceNumber}.pdf`
+        : `Purchase-Invoice-${invoiceId}.pdf`;
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success('Purchase invoice PDF downloaded successfully');
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to download invoice');
+    } finally {
+      setDownloadingPurchaseInvoiceId(null);
+    }
+  };
+
   useEffect(() => {
     loadDashboardData();
     
@@ -209,6 +237,12 @@ export default function ManagerDashboard() {
       if (role === 'manager') {
         loadPromises.push(pettyCashApi.getPendingExpenses());
         loadPromises.push(contractorApi.getPendingInvoices());
+        loadPromises.push(purchaseInvoiceApi.getInvoices(1, 10));
+      }
+      
+      // Load purchase invoices for owners
+      if (role === 'owner') {
+        loadPromises.push(purchaseInvoiceApi.getInvoices(1, 10));
       }
       
       // Load contractors for owners and managers
@@ -217,14 +251,18 @@ export default function ManagerDashboard() {
       }
       
       const results = await Promise.all(loadPromises);
-      const [projectsData, healthData, delayRisksData, materialsData, contractorsData, pendingExpensesData, pendingInvoicesData] = results;
+      const [projectsData, healthData, delayRisksData, materialsData, contractorsData, pendingExpensesData, pendingInvoicesData, purchaseInvoicesData] = results;
 
       if (role === 'manager') {
         setPendingExpenses(Array.isArray(pendingExpensesData) ? pendingExpensesData : []);
         setPendingContractorInvoices(Array.isArray(pendingInvoicesData) ? pendingInvoicesData : []);
+        setPurchaseInvoices(purchaseInvoicesData?.invoices || []);
+      } else if (role === 'owner') {
+        setPurchaseInvoices(purchaseInvoicesData?.invoices || []);
       } else {
         setPendingExpenses([]);
         setPendingContractorInvoices([]);
+        setPurchaseInvoices([]);
       }
 
       setProjectOverview(projectsData?.projects || []);
@@ -972,6 +1010,69 @@ export default function ManagerDashboard() {
                           <Check className="w-4 h-4 mr-2" />
                         )}
                         Approve
+                      </Button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Purchase Invoices Card - For Managers and Owners */}
+        {(role === 'manager' || role === 'owner') && purchaseInvoices.length > 0 && (
+          <Card className="opacity-0 animate-fade-up stagger-7">
+            <CardHeader className="flex-row items-center justify-between pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Receipt className="w-5 h-5 text-primary" />
+                Purchase Invoices ({purchaseInvoices.length})
+              </CardTitle>
+              <button 
+                onClick={() => navigate("/purchase-invoices")}
+                className="text-sm text-primary flex items-center gap-1"
+              >
+                View All <ChevronRight className="w-4 h-4" />
+              </button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {purchaseInvoices.slice(0, 5).map((invoice, index) => (
+                  <motion.div
+                    key={invoice._id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="p-4 rounded-lg border bg-card"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h3 className="font-semibold text-foreground">
+                          {invoice.invoiceNumber}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          {invoice.projectId?.name || 'N/A'}
+                        </p>
+                      </div>
+                      <StatusBadge status="success" label="VERIFIED" />
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      <p>📦 {invoice.materialName}</p>
+                      <p>💰 Total: ₹{invoice.totalAmount.toFixed(2)}</p>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDownloadPurchaseInvoicePdf(invoice._id)}
+                        disabled={downloadingPurchaseInvoiceId === invoice._id}
+                        className="flex-1"
+                      >
+                        {downloadingPurchaseInvoiceId === invoice._id ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Download className="w-4 h-4 mr-2" />
+                        )}
+                        PDF
                       </Button>
                     </div>
                   </motion.div>

@@ -22,7 +22,9 @@ export interface PurchaseHistory {
     latitude: number;
     longitude: number;
   };
-  status: 'SENT' | 'RECEIVED';
+  status: 'PENDING_GRN' | 'SENT' | 'RECEIVED';
+  grnGenerated?: boolean;
+  grnGeneratedAt?: string;
 }
 
 export interface ApprovedRequest {
@@ -96,5 +98,62 @@ export const purchaseApi = {
       params
     );
     return response.data;
+  },
+};
+
+export interface PurchaseInvoice {
+  _id: string;
+  purchaseHistoryId: any;
+  projectId: any;
+  invoiceNumber: string;
+  materialName: string;
+  qty: number;
+  unit: string;
+  basePrice: number;
+  gstRate: number;
+  gstAmount: number;
+  totalAmount: number;
+  generatedAt: string;
+  generatedBy: any;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const purchaseInvoiceApi = {
+  // Get purchase invoices (Manager/Owner)
+  getInvoices: async (page = 1, limit = 20) => {
+    const response = await apiGet<{ invoices: PurchaseInvoice[]; pagination: any }>(
+      '/purchase/invoices',
+      { page, limit }
+    );
+    return response.data;
+  },
+
+  // Get purchase invoice by ID
+  getInvoiceById: async (id: string) => {
+    const response = await apiGet<PurchaseInvoice>(`/purchase/invoices/${id}`);
+    return response.data;
+  },
+
+  // Download PDF
+  downloadPDF: async (id: string): Promise<Blob> => {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    const token = localStorage.getItem('accessToken');
+    const response = await fetch(`${apiUrl}/purchase/invoices/${id}/pdf`, {
+      method: 'GET',
+      headers: {
+        ...(token && token.trim() ? { Authorization: `Bearer ${token.trim()}` } : {}),
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        window.location.href = '/login';
+        throw new Error('Session expired. Please log in again.');
+      }
+      throw new Error('Failed to download invoice PDF');
+    }
+
+    return response.blob();
   },
 };

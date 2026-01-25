@@ -40,6 +40,7 @@ import NotFound from "./pages/NotFound";
 // New module pages
 import PurchaseDashboard from "./pages/PurchaseDashboard";
 import PurchaseHistoryPage from "./pages/PurchaseHistoryPage";
+import PurchaseInvoicesPage from "./pages/PurchaseInvoicesPage";
 import ContractorLaboursPage from "./pages/ContractorLaboursPage";
 import ContractorAttendancePage from "./pages/ContractorAttendancePage";
 import ContractorWeeklyInvoicePage from "./pages/ContractorWeeklyInvoicePage";
@@ -192,6 +193,8 @@ function AppContent() {
             {/* Purchase Manager Routes */}
             <Route path="/purchase-dashboard" element={<PurchaseDashboard />} />
             <Route path="/purchase-history" element={<PurchaseHistoryPage />} />
+            {/* Purchase Invoices (Manager/Owner) */}
+            <Route path="/purchase-invoices" element={<PurchaseInvoicesPage />} />
             {/* Contractor Routes */}
             <Route path="/contractor/labours" element={<ContractorLaboursPage />} />
             <Route path="/contractor/attendance" element={<ContractorAttendancePage />} />

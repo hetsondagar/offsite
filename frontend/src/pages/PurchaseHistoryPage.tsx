@@ -180,8 +180,12 @@ export default function PurchaseHistoryPage() {
                         />
                       ) : (
                         <StatusBadge 
-                          status={item.status === 'RECEIVED' ? 'success' : 'info'} 
-                          label={item.status} 
+                          status={
+                            item.status === 'RECEIVED' ? 'success' : 
+                            item.status === 'PENDING_GRN' ? 'warning' : 
+                            'info'
+                          } 
+                          label={item.status === 'PENDING_GRN' ? 'PENDING GRN' : item.status} 
                         />
                       )}
                     </div>
@@ -223,7 +227,7 @@ export default function PurchaseHistoryPage() {
                       </div>
                     )}
 
-                    {role === 'engineer' && item.status === 'SENT' && (
+                    {role === 'engineer' && (item.status === 'PENDING_GRN' || item.status === 'SENT') && (
                       <Button
                         className="w-full"
                         onClick={() => handleReceiveMaterial(item._id)}

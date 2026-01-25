@@ -1,12 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { PurchaseHistory } from './purchase-history.model';
+import { PurchaseInvoice } from './purchase-invoice.model';
 import { MaterialRequest } from '../materials/material.model';
 import { MaterialCatalog } from '../materials/material-catalog.model';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 import { logger } from '../../utils/logger';
 import { createNotification } from '../notifications/notification.service';
+import { generatePurchaseInvoice as generateInvoice } from './purchase-invoice.service';
 
 const sendMaterialSchema = z.object({
   gstRate: z.number().min(0).max(100).optional().default(18),
@@ -138,7 +140,8 @@ export const sendMaterial = async (
     const gstAmount = basePrice * (data.gstRate / 100);
     const totalCost = basePrice + gstAmount;
 
-    // Create purchase history entry
+    // Create purchase history entry with PENDING_GRN status
+    // This will only be marked as RECEIVED after Engineer verifies with GRN
     const purchaseHistory = new PurchaseHistory({
       projectId: materialRequest.projectId,
       materialRequestId: materialRequest._id,
@@ -152,12 +155,13 @@ export const sendMaterial = async (
       totalCost,
       sentAt: new Date(),
       sentBy: req.user.userId,
-      status: 'SENT',
+      status: 'PENDING_GRN', // Changed: Now pending GRN verification
+      grnGenerated: false,
     });
 
     await purchaseHistory.save();
 
-    // Update material request status
+    // Update material request status to 'sent' (pending GRN)
     materialRequest.status = 'sent' as any;
     await materialRequest.save();
 
@@ -232,11 +236,18 @@ export const receiveMaterial = async (
       throw new AppError('GPS coordinates are required for Goods Receipt Note (GRN)', 400, 'MISSING_GPS');
     }
 
-    // Update to received
+    // Verify this is in PENDING_GRN status
+    if (purchaseHistory.status !== 'PENDING_GRN' && purchaseHistory.status !== 'SENT') {
+      throw new AppError('Material is not pending GRN verification', 400, 'INVALID_STATUS');
+    }
+
+    // Update to received with GRN verification
     purchaseHistory.status = 'RECEIVED';
     purchaseHistory.receivedAt = new Date();
     purchaseHistory.receivedBy = req.user.userId as any;
     purchaseHistory.proofPhotoUrl = data.proofPhotoUrl;
+    purchaseHistory.grnGenerated = true;
+    purchaseHistory.grnGeneratedAt = new Date();
     
     if (data.geoLocation) {
       purchaseHistory.geoLocation = data.geoLocation;
@@ -253,6 +264,14 @@ export const receiveMaterial = async (
     await MaterialRequest.findByIdAndUpdate(purchaseHistory.materialRequestId, {
       status: 'received',
     });
+
+    // Generate purchase invoice after GRN verification
+    try {
+      await generateInvoice(purchaseHistory, req.user.userId);
+    } catch (invoiceError: any) {
+      logger.warn(`Failed to generate purchase invoice: ${invoiceError.message}`);
+      // Don't fail the GRN if invoice generation fails
+    }
 
     logger.info(`Material received: ${historyId} by ${req.user.userId}`);
 
@@ -350,7 +369,7 @@ export const getSentMaterialsForEngineer = async (
 
     const query = {
       projectId: { $in: projectIds },
-      status: 'SENT',
+      status: { $in: ['PENDING_GRN', 'SENT'] }, // Show both pending GRN and sent materials
     };
 
     const [history, total] = await Promise.all([
@@ -402,7 +421,7 @@ export const getAllHistory = async (
     const status = req.query.status as string;
 
     const query: any = {};
-    if (status && ['SENT', 'RECEIVED'].includes(status)) {
+    if (status && ['PENDING_GRN', 'SENT', 'RECEIVED'].includes(status)) {
       query.status = status;
     }
 
