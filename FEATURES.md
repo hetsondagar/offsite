@@ -1810,5 +1810,82 @@ OffSite is a mobile-first construction field operations management application d
 
 ---
 
+## SiteLens Walkthrough 360
+
+**Feature Overview:**
+SiteLens Walkthrough 360 is an immersive 360° panorama viewing system that allows remote site inspection similar to Google Street View. Engineers upload 360° panorama images by zone, and Owners/Managers can navigate through the site virtually using arrow hotspots.
+
+**Key Benefits:**
+- **Remote Site Inspection**: Owners and Managers can inspect construction sites remotely without physical visits
+- **Transparency**: Provides visual proof of site conditions and progress
+- **Fraud Prevention**: Reduces the need for frequent site visits while maintaining oversight
+- **Offline-Friendly**: All panoramas stored locally, no cloud dependencies or API keys required
+- **Hackathon-Winning Feature**: Designed for offline-first demo scenarios
+
+### Engineer Workflow
+
+**Upload Site360 Zones:**
+1. Navigate to **SiteLens 360** from the bottom navigation
+2. Select a project from the dropdown
+3. Enter a zone name (e.g., "Entrance", "Slab Area", "Storage")
+4. Upload an equirectangular 360° panorama image (max 50MB)
+5. Optionally connect this zone to an existing zone to create navigation paths
+6. Click **Upload Zone**
+
+**Zone Management:**
+- View all uploaded zones for the selected project
+- See connection count for each zone
+- Zones are automatically linked bidirectionally when connected
+
+### Owner/Manager Workflow
+
+**View Site Walkthrough:**
+1. Navigate to a project's detail page
+2. Access **SiteLens Walkthrough 360** for that project
+3. View list of available zones uploaded by engineers
+4. Click **Start Walkthrough** or click **View** on a specific zone
+
+**Immersive Viewer:**
+- Fullscreen 360° panorama viewer
+- Rotate freely in all directions using mouse/touch drag
+- Click arrow hotspots to navigate between connected zones
+- Smooth transitions between zones
+- Zone information displayed in overlay
+- Connection count shown for each zone
+
+**Navigation:**
+- Forward/Backward navigation via arrow hotspots
+- Hotspots appear at bottom center of panorama
+- Each hotspot labeled with destination zone name
+- Click hotspot to instantly switch to connected zone
+
+### Technical Details
+
+**Storage:**
+- All panorama images stored locally in `backend/uploads/site360/`
+- Images served statically via Express at `/uploads/site360/<filename>`
+- No cloud storage, no API keys required
+- Offline-first architecture
+
+**Database:**
+- Each zone stored as a `Site360Node` in MongoDB
+- Contains: projectId, zoneName, imageUrl, uploadedBy, connections
+- Connections array stores bidirectional links between zones
+- Automatic connection creation when zones are linked
+
+**File Format:**
+- Supports equirectangular 360° panorama images
+- Common formats: JPG, PNG
+- Maximum file size: 50MB
+- Recommended resolution: 4000x2000 or higher for best quality
+
+**Access Control:**
+- Engineers: Can upload zones for projects they are members of
+- Owners: Can view walkthroughs for all projects
+- Managers: Can view walkthroughs for projects they manage
+- RBAC enforced at API level
+
+---
+
 This documentation covers all features and functionalities available in the OffSite application from a user perspective, focusing on what users can do and how they interact with the system.
 

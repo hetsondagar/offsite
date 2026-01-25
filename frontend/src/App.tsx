@@ -47,6 +47,8 @@ import ContractorsManagementPage from "./pages/ContractorsManagementPage";
 import ToolsPage from "./pages/ToolsPage";
 import PermitsPage from "./pages/PermitsPage";
 import PettyCashPage from "./pages/PettyCashPage";
+import EngineerSite360UploadPage from "./pages/EngineerSite360UploadPage";
+import OwnerSite360WalkthroughPage from "./pages/OwnerSite360WalkthroughPage";
 
 const queryClient = new QueryClient();
 
@@ -198,6 +200,10 @@ function AppContent() {
             <Route path="/tools" element={<ToolsPage />} />
             <Route path="/permits" element={<PermitsPage />} />
             <Route path="/petty-cash" element={<PettyCashPage />} />
+            {/* Site360 Routes */}
+            <Route path="/engineer/site360" element={<EngineerSite360UploadPage />} />
+            <Route path="/owner/site360/:projectId" element={<OwnerSite360WalkthroughPage />} />
+            <Route path="/manager/site360/:projectId" element={<OwnerSite360WalkthroughPage />} />
             <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

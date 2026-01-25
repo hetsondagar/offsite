@@ -32,6 +32,7 @@ import contractorRoutes from './modules/contractor/contractor.routes';
 import toolRoutes from './modules/tools/tool.routes';
 import permitRoutes from './modules/permits/permit.routes';
 import pettyCashRoutes from './modules/petty-cash/petty-cash.routes';
+import site360Routes from './modules/site360/site360.routes';
 
 const app: Application = express();
 
@@ -161,6 +162,13 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Serve static uploads (must be before API routes to avoid conflicts)
+const uploadsPath = path.join(process.cwd(), 'backend', 'uploads');
+if (!fs.existsSync(uploadsPath)) {
+  fs.mkdirSync(uploadsPath, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsPath));
+
 // Logging
 if (env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
@@ -261,6 +269,7 @@ app.use('/api/contractor', contractorRoutes);
 app.use('/api/tools', toolRoutes);
 app.use('/api/permits', permitRoutes);
 app.use('/api/petty-cash', pettyCashRoutes);
+app.use('/api/site360', site360Routes);
 
 // Serve frontend build (single-origin local/prod setup)
 // Build the frontend first: ../frontend/dist

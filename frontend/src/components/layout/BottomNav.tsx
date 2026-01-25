@@ -1,4 +1,4 @@
-import { Home, FileText, MapPin, Package, User, LayoutDashboard, FolderKanban, CheckSquare, Lightbulb, Receipt, Calendar, Users, Wrench, ShieldCheck, Wallet, Send, History } from "lucide-react";
+import { Home, FileText, MapPin, Package, User, LayoutDashboard, FolderKanban, CheckSquare, Lightbulb, Receipt, Calendar, Users, Wrench, ShieldCheck, Wallet, Send, History, Camera } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,7 @@ const engineerNav: NavItem[] = [
   { icon: Home, labelKey: "navigation.home", path: "/" },
   { icon: CheckSquare, labelKey: "navigation.tasks", path: "/tasks" },
   { icon: FileText, labelKey: "navigation.dpr", path: "/dpr" },
-  { icon: MapPin, labelKey: "navigation.attendance", path: "/attendance" },
+  { icon: Camera, labelKey: "navigation.site360", path: "/engineer/site360" },
   { icon: User, labelKey: "navigation.profile", path: "/profile" },
 ];
 

@@ -132,7 +132,9 @@
     "permits": "Permits",
     "pettyCash": "Petty Cash",
     "contractors": "Contractors",
-    "sync": "Sync"
+    "sync": "Sync",
+    "site360": "SiteLens 360",
+    "site360Walkthrough": "SiteLens Walkthrough"
   },
   "dashboard": {
     "goodMorning": "Good Morning",
