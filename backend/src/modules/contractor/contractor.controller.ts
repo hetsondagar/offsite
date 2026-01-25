@@ -94,16 +94,21 @@ export const getAllContractors = async (
       .populate('userId', 'name email phone offsiteId')
       .populate('assignedProjects', 'name location')
       .populate('contracts.projectId', 'name location')
-      .sort({ rating: -1 }); // Sort by rating descending
+      .sort({ rating: -1 }) // Sort by rating descending
+      .lean(); // Use lean() for better performance
+
+    // Filter out contractors with null userId (orphaned records)
+    const validContractors = contractors.filter((c: any) => c.userId !== null);
 
     const response: ApiResponse = {
       success: true,
       message: 'Contractors retrieved successfully',
-      data: contractors,
+      data: validContractors,
     };
 
     res.status(200).json(response);
-  } catch (error) {
+  } catch (error: any) {
+    logger.error('Error fetching contractors:', error);
     next(error);
   }
 };

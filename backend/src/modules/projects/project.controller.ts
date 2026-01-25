@@ -380,6 +380,10 @@ export const getProjectById = async (
 
     const { id } = req.params;
 
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new AppError('Invalid project ID', 400, 'INVALID_ID');
+    }
+
     const project = await Project.findById(id)
       .populate('owner', 'name phone role offsiteId')
       .populate('members', 'name phone role offsiteId')
@@ -443,7 +447,7 @@ export const getProjectById = async (
       attendanceQuery.userId = req.user.userId;
     }
 
-    // Fetch all related data in parallel
+    // Fetch all related data in parallel with error handling
     const [
       tasksCount,
       recentTasks,
@@ -456,14 +460,15 @@ export const getProjectById = async (
       recentAttendance,
       eventsCount,
       taskStats,
-    ] = await Promise.all([
+    ] = await Promise.allSettled([
       Task.countDocuments(taskQuery),
       // Recent tasks (last 5)
       Task.find(taskQuery)
         .populate('assignedTo', 'name phone')
         .sort({ createdAt: -1 })
         .limit(5)
-        .select('-__v'),
+        .select('-__v')
+        .lean(),
       DPR.countDocuments(dprQuery),
       // Recent DPRs (last 5)
       DPR.find(dprQuery)
@@ -471,30 +476,44 @@ export const getProjectById = async (
         .populate('taskId', 'title')
         .sort({ createdAt: -1 })
         .limit(5)
-        .select('-__v'),
+        .select('-__v')
+        .lean(),
       // All material requests
-      MaterialRequest.find(materialQuery).select('_id status'),
+      MaterialRequest.find(materialQuery).select('_id status').lean(),
       MaterialRequest.countDocuments(materialQuery),
       // Recent material requests (last 5)
       MaterialRequest.find(materialQuery)
         .populate('requestedBy', 'name phone')
         .sort({ createdAt: -1 })
         .limit(5)
-        .select('-__v'),
+        .select('-__v')
+        .lean(),
       Attendance.countDocuments(attendanceQuery),
       // Recent attendance (last 10)
       Attendance.find(attendanceQuery)
         .populate('userId', 'name phone')
         .sort({ timestamp: -1 })
         .limit(10)
-        .select('-__v'),
+        .select('-__v')
+        .lean(),
       Event.countDocuments(eventQuery),
       // Task statistics
       Task.aggregate([
         { $match: taskQuery },
         { $group: { _id: '$status', count: { $sum: 1 } } },
       ]),
-    ]);
+    ]).then((results) => {
+      // Extract values from Promise.allSettled results
+      return results.map((result) => {
+        if (result.status === 'fulfilled') {
+          return result.value;
+        } else {
+          // Return default values on error
+          logger.warn('Error fetching project data:', result.reason);
+          return Array.isArray(result.reason) ? [] : 0;
+        }
+      });
+    });
 
     // Calculate task statistics
     const taskStatusCounts = {

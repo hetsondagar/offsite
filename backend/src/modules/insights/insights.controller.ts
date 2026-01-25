@@ -14,6 +14,7 @@ export {
 } from './insights.controller.ai';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
+import { logger } from '../../utils/logger';
 
 export const getSiteHealth = async (
   req: Request,
@@ -42,13 +43,23 @@ export const getSiteHealth = async (
     let totalHealthScore = 0;
     const projectHealthScores = await Promise.all(
       projects.map(async (project) => {
-        const score = await calculateProjectHealthScore(project._id.toString());
-        totalHealthScore += score;
-        return {
-          projectId: project._id.toString(),
-          projectName: project.name,
-          healthScore: score,
-        };
+        try {
+          const score = await calculateProjectHealthScore(project._id.toString());
+          totalHealthScore += score;
+          return {
+            projectId: project._id.toString(),
+            projectName: project.name,
+            healthScore: score,
+          };
+        } catch (error: any) {
+          logger.warn(`Failed to calculate health score for project ${project._id}: ${error.message}`);
+          // Return default score if calculation fails
+          return {
+            projectId: project._id.toString(),
+            projectName: project.name,
+            healthScore: 0,
+          };
+        }
       })
     );
 
@@ -96,9 +107,21 @@ export const getDelayRisks = async (
     }
 
     const delayRisks = await Promise.all(
-      projects.map((project) =>
-        predictDelayRisk(project._id.toString(), project.name)
-      )
+      projects.map(async (project) => {
+        try {
+          return await predictDelayRisk(project._id.toString(), project.name);
+        } catch (error: any) {
+          logger.warn(`Failed to predict delay risk for project ${project._id}: ${error.message}`);
+          // Return default risk if prediction fails
+          return {
+            projectId: project._id.toString(),
+            projectName: project.name,
+            riskLevel: 'low',
+            riskScore: 0,
+            factors: [],
+          };
+        }
+      })
     );
 
     const response: ApiResponse = {
