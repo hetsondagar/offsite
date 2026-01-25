@@ -62,7 +62,7 @@ export default function ManagerDashboard() {
   const [aiInsight, setAiInsight] = useState<{ text: string; projectName: string; projectId: string } | null>(null);
   const [recentDPRs, setRecentDPRs] = useState<any[]>([]);
   const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
-    const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [contractors, setContractors] = useState<Contractor[]>([]);
   const [pendingExpenses, setPendingExpenses] = useState<PettyCash[]>([]);
   const [pendingContractorInvoices, setPendingContractorInvoices] = useState<ContractorInvoice[]>([]);
@@ -290,31 +290,36 @@ export default function ManagerDashboard() {
       if (role === 'manager') {
         setPendingExpenses(Array.isArray(pendingExpensesData) ? pendingExpensesData : []);
         setPendingContractorInvoices(Array.isArray(pendingInvoicesData) ? pendingInvoicesData : []);
-        setPurchaseInvoices(purchaseInvoicesData?.invoices || []);
+        setPurchaseInvoices(Array.isArray(purchaseInvoicesData?.invoices) ? purchaseInvoicesData.invoices : []);
       } else if (role === 'owner') {
-        setPurchaseInvoices(purchaseInvoicesData?.invoices || []);
+        setPendingExpenses([]);
+        setPendingContractorInvoices([]);
+        setPurchaseInvoices(Array.isArray(purchaseInvoicesData?.invoices) ? purchaseInvoicesData.invoices : []);
       } else {
         setPendingExpenses([]);
         setPendingContractorInvoices([]);
         setPurchaseInvoices([]);
       }
 
-      setProjectOverview(projectsData?.projects || []);
+      setProjectOverview(Array.isArray(projectsData?.projects) ? projectsData.projects : []);
       setHealthScore(healthData?.overallHealthScore || 0);
-      setHealthScores(healthData?.projectHealthScores || []);
+      setHealthScores(Array.isArray(healthData?.projectHealthScores) ? healthData.projectHealthScores : []);
       
       if ((role === 'owner' || role === 'manager') && contractorsData) {
-        setContractors(contractorsData || []);
+        setContractors(Array.isArray(contractorsData) ? contractorsData : []);
+      } else {
+        setContractors([]);
       }
+      
       
       // Calculate attendance percentage from real data (optimized)
       let attendancePercentage = 0;
       let attendanceTrend = 0;
       try {
-        const projects = projectsData?.projects || [];
+        const projects = Array.isArray(projectsData?.projects) ? projectsData.projects : [];
         if (projects.length > 0) {
           // Optimize: Only calculate for first 3 projects to improve performance
-          const projectsToCheck = projects.slice(0, 3);
+          const projectsToCheck = Array.isArray(projects) ? projects.slice(0, 3) : [];
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           const sevenDaysAgo = new Date(today);
@@ -412,7 +417,8 @@ export default function ManagerDashboard() {
       const pendingMaterialsCount = materialsData?.requests?.filter((r: any) => r.status === 'pending').length || 0;
       const pendingExpensesCount = role === 'manager' ? (Array.isArray(pendingExpensesData) ? pendingExpensesData.length : 0) : 0;
       const pendingContractorInvoicesCount = role === 'manager' ? (Array.isArray(pendingInvoicesData) ? pendingInvoicesData.length : 0) : 0;
-      const highRiskProjects = delayRisksData?.filter((r: any) => r.riskLevel === 'high' || r.risk === 'High').length || 0;
+      const delayRisksArray = Array.isArray(delayRisksData) ? delayRisksData : [];
+      const highRiskProjects = delayRisksArray.filter((r: any) => (r.riskLevel === 'high' || r.risk === 'High')).length || 0;
 
       setKpis({
         activeProjects: activeProjectsCount,
@@ -424,10 +430,11 @@ export default function ManagerDashboard() {
 
       // Load recent DPRs from all projects in parallel (optimized)
       try {
-        const projects = projectsData?.projects || [];
-        if (projects.length > 0) {
+        const projects = Array.isArray(projectsData?.projects) ? projectsData.projects : [];
+        if (Array.isArray(projects) && projects.length > 0) {
           // Load DPRs for first 3 projects in parallel (reduced from 5 for performance)
-          const dprPromises = projects.slice(0, 3).map((project: any) =>
+          const projectsToLoad = projects.slice(0, 3);
+          const dprPromises = projectsToLoad.map((project: any) =>
             dprApi.getByProject(project._id, 1, 5)
               .then((dprData: any) => ({
                 projectName: project.name,
@@ -442,17 +449,24 @@ export default function ManagerDashboard() {
           );
           
           const dprResults = await Promise.all(dprPromises);
-          const allDPRs = dprResults.flatMap((result: any) =>
-            result.dprs.map((dpr: any) => ({
-              ...dpr,
-              projectName: result.projectName,
-              projectId: result.projectId,
-            }))
-          );
+          const allDPRs = Array.isArray(dprResults) 
+            ? dprResults.flatMap((result: any) => {
+                const dprs = Array.isArray(result?.dprs) ? result.dprs : [];
+                return dprs.map((dpr: any) => ({
+                  ...dpr,
+                  projectName: result.projectName,
+                  projectId: result.projectId,
+                }));
+              })
+            : [];
           
           // Sort by creation date (newest first) and take top 10
-          allDPRs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          setRecentDPRs(allDPRs.slice(0, 10));
+          if (Array.isArray(allDPRs)) {
+            allDPRs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            setRecentDPRs(allDPRs.slice(0, 10));
+          } else {
+            setRecentDPRs([]);
+          }
         } else {
           setRecentDPRs([]);
         }
@@ -464,9 +478,10 @@ export default function ManagerDashboard() {
       // Load AI insight for highest risk project (optimized - only if needed)
       // Skip AI calls for performance - use structured data instead
       try {
-        const highRiskProjects = delayRisksData?.filter((r: any) => 
+        const delayRisksArray = Array.isArray(delayRisksData) ? delayRisksData : [];
+        const highRiskProjects = delayRisksArray.filter((r: any) => 
           (r.riskLevel === 'high' || r.risk === 'High' || r.riskLevel === 'medium' || r.risk === 'Medium')
-        ) || [];
+        );
         if (highRiskProjects.length > 0) {
           const topRiskProject = highRiskProjects[0];
           // Use structured data instead of AI call for better performance
@@ -500,17 +515,23 @@ export default function ManagerDashboard() {
       if (role !== 'owner') {
         try {
           const invoicesData = await invoicesApi.getAll(1, 10).catch(() => ({ invoices: [] }));
-          const allInvoices = invoicesData?.invoices || [];
+          const allInvoices = Array.isArray(invoicesData?.invoices) ? invoicesData.invoices : [];
           // Filter invoices created by owner
-          const ownerInvoices = allInvoices.filter((inv: Invoice) => {
-            const ownerData = typeof inv.ownerId === 'object' ? inv.ownerId : null;
-            return ownerData !== null;
-          });
+          const ownerInvoices = Array.isArray(allInvoices) 
+            ? allInvoices.filter((inv: Invoice) => {
+                const ownerData = typeof inv.ownerId === 'object' ? inv.ownerId : null;
+                return ownerData !== null;
+              })
+            : [];
           // Sort by createdAt descending and take first 5
-          ownerInvoices.sort((a: Invoice, b: Invoice) => 
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-          setRecentInvoices(ownerInvoices.slice(0, 5));
+          if (Array.isArray(ownerInvoices)) {
+            ownerInvoices.sort((a: Invoice, b: Invoice) => 
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+            setRecentInvoices(ownerInvoices.slice(0, 5));
+          } else {
+            setRecentInvoices([]);
+          }
         } catch (error) {
           console.error('Error loading invoices:', error);
           setRecentInvoices([]);
@@ -600,7 +621,7 @@ export default function ManagerDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {pendingInvitations.map((invitation: any) => (
+              {Array.isArray(pendingInvitations) && pendingInvitations.map((invitation: any) => (
                 <div key={invitation._id} className="p-3 rounded-lg border bg-card">
                   <div className="space-y-2">
                     <div>
@@ -654,13 +675,13 @@ export default function ManagerDashboard() {
                 <div className="flex gap-2 mt-4">
                   <StatusBadge 
                     status="success" 
-                    label={`${healthScores.filter(p => p.healthScore >= 70).length} On Track`} 
+                    label={`${Array.isArray(healthScores) ? healthScores.filter(p => p.healthScore >= 70).length : 0} On Track`} 
                   />
                   <StatusBadge 
                     status="warning" 
-                    label={`${healthScores.filter(p => p.healthScore < 70 && p.healthScore >= 50).length} At Risk`} 
+                    label={`${Array.isArray(healthScores) ? healthScores.filter(p => p.healthScore < 70 && p.healthScore >= 50).length : 0} At Risk`} 
                   />
-                  {healthScores.filter(p => p.healthScore < 50).length > 0 && (
+                  {Array.isArray(healthScores) && healthScores.filter(p => p.healthScore < 50).length > 0 && (
                     <StatusBadge 
                       status="error" 
                       label={`${healthScores.filter(p => p.healthScore < 50).length} Critical`} 
@@ -752,7 +773,7 @@ export default function ManagerDashboard() {
             </button>
           </CardHeader>
           <CardContent className="space-y-3 px-4 sm:px-6 pb-4 sm:pb-6">
-            {projectOverview.map((project, index) => (
+            {Array.isArray(projectOverview) && projectOverview.map((project, index) => (
               <div 
                 key={index} 
                 className="p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
@@ -800,7 +821,7 @@ export default function ManagerDashboard() {
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
               </div>
             ) : recentDPRs.length > 0 ? (
-              recentDPRs.map((dpr: any) => (
+              Array.isArray(recentDPRs) && recentDPRs.map((dpr: any) => (
                 <div 
                   key={dpr._id} 
                   className="p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
@@ -897,11 +918,11 @@ export default function ManagerDashboard() {
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
-              ) : contractors.length === 0 ? (
+              ) : !Array.isArray(contractors) || contractors.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">No contractors registered</p>
               ) : (
                 <div className="space-y-3">
-                  {contractors.slice(0, 5).map((contractor, index) => (
+                  {(Array.isArray(contractors) ? contractors : []).slice(0, 5).map((contractor, index) => (
                     <div
                       key={contractor._id}
                       className="p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
@@ -1034,7 +1055,7 @@ export default function ManagerDashboard() {
         )}
 
         {/* Purchase Invoices Card - For Managers and Owners */}
-        {(role === 'manager' || role === 'owner') && purchaseInvoices.length > 0 && (
+        {(role === 'manager' || role === 'owner') && Array.isArray(purchaseInvoices) && purchaseInvoices.length > 0 && (
           <Card className="opacity-0 animate-fade-up stagger-7">
             <CardHeader className="flex-row items-center justify-between pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -1050,7 +1071,7 @@ export default function ManagerDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {purchaseInvoices.slice(0, 5).map((invoice, index) => (
+                {(Array.isArray(purchaseInvoices) ? purchaseInvoices : []).slice(0, 5).map((invoice, index) => (
                   <motion.div
                     key={invoice._id}
                     initial={{ opacity: 0, x: -20 }}
