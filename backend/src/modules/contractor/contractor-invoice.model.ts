@@ -20,6 +20,10 @@ export interface IContractorInvoice extends Document {
   rejectionReason?: string;
   sentToOwner: boolean;
   invoiceNumber?: string;
+  pdfUrl?: string;
+  pdfSource?: 'GENERATED' | 'UPLOADED';
+  pdfUploadedBy?: mongoose.Types.ObjectId;
+  pdfUploadedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -104,6 +108,21 @@ const contractorInvoiceSchema = new Schema<IContractorInvoice>(
     invoiceNumber: {
       type: String,
       trim: true,
+    },
+    pdfUrl: {
+      type: String,
+      trim: true,
+    },
+    pdfSource: {
+      type: String,
+      enum: ['GENERATED', 'UPLOADED'],
+    },
+    pdfUploadedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    pdfUploadedAt: {
+      type: Date,
     },
   },
   {

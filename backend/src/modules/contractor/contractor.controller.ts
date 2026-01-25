@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import mongoose from 'mongoose';
+import fs from 'fs';
 import { Contractor } from './contractor.model';
 import { Labour } from './labour.model';
 import { LabourAttendance } from './labour-attendance.model';
@@ -12,6 +13,7 @@ import { AppError } from '../../middlewares/error.middleware';
 import { logger } from '../../utils/logger';
 import { createNotification } from '../notifications/notification.service';
 import { validateGeoFence, getProjectGeoFence } from '../../utils/geoFence';
+import { cloudinary } from '../../config/cloudinary';
 
 // Ensure contractor profile helper
 async function ensureContractorProfileForUser(userId: string) {
@@ -638,15 +640,17 @@ export const createWeeklyInvoice = async (
       gstAmount,
       totalAmount,
       status: 'PENDING_PM_APPROVAL',
-      sentToOwner: false,
+      // Make invoice visible to owner immediately (still marked pending PM approval)
+      sentToOwner: true,
       invoiceNumber,
     });
 
     await invoice.save();
 
-    // Notify project managers
-    const { Project } = await import('../projects/project.model');
-    const project = await Project.findById(data.projectId).populate('members', 'role offsiteId _id');
+    // Notify project managers + owner
+    const project = await Project.findById(data.projectId)
+      .populate('members', 'role offsiteId _id')
+      .populate('owner', 'offsiteId _id');
     if (project) {
       const managers = (project.members as any[]).filter(m => m.role === 'manager');
       for (const manager of managers) {
@@ -661,6 +665,22 @@ export const createWeeklyInvoice = async (
           });
         } catch (e) {
           logger.warn('Failed to notify manager:', e);
+        }
+      }
+
+      const owner = project.owner as any;
+      if (owner?._id) {
+        try {
+          await createNotification({
+            userId: owner._id.toString(),
+            offsiteId: owner.offsiteId,
+            type: 'general',
+            title: 'New Contractor Invoice',
+            message: `New contractor invoice ${invoiceNumber} created (₹${totalAmount.toFixed(2)}). Status: Pending PM approval.`,
+            data: { invoiceId: invoice._id.toString() },
+          });
+        } catch (e) {
+          logger.warn('Failed to notify owner:', e);
         }
       }
     }
@@ -696,7 +716,6 @@ export const getPendingInvoices = async (
       throw new AppError('Access denied', 403, 'FORBIDDEN');
     }
 
-    const { Project } = await import('../projects/project.model');
     let projectIds: string[] = [];
 
     if (req.user.role === 'manager') {
@@ -704,8 +723,15 @@ export const getPendingInvoices = async (
       projectIds = projects.map(p => p._id.toString());
     }
 
+    if (req.user.role === 'owner') {
+      const projects = await Project.find({ owner: req.user.userId }).select('_id');
+      projectIds = projects.map(p => p._id.toString());
+    }
+
     const query: any = { status: 'PENDING_PM_APPROVAL' };
-    if (projectIds.length > 0) {
+
+    // Scope to the caller's projects (empty list should return no invoices, not all invoices)
+    if (req.user.role === 'manager' || req.user.role === 'owner') {
       query.projectId = { $in: projectIds };
     }
 
@@ -776,13 +802,40 @@ export const approveInvoice = async (
     }
     await invoice.populate('approvedBy', 'name email');
 
-    // Generate PDF and send to owner
+    // Generate PDF, persist URL (best-effort), and send to owner
     try {
       const { generateContractorInvoicePDFBuffer } = await import('./contractor-invoice-pdf.service');
       const { sendEmailWithAttachment } = await import('../../utils/email-with-attachment');
-      const { Project } = await import('../projects/project.model');
 
       const pdfBuffer = await generateContractorInvoicePDFBuffer(invoice);
+
+      // Best-effort: upload generated PDF to Cloudinary so it can be accessed in-app later
+      try {
+        const uploaded = await new Promise<{ secure_url?: string }>((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            {
+              folder: 'offsite/contractor/invoices',
+              resource_type: 'raw',
+              public_id: `contractor-invoice-${invoice.invoiceNumber || invoice._id.toString()}`,
+            },
+            (error, result) => {
+              if (error) return reject(error);
+              resolve(result as any);
+            }
+          );
+          uploadStream.end(pdfBuffer);
+        });
+
+        if (uploaded?.secure_url) {
+          invoice.pdfUrl = uploaded.secure_url;
+          invoice.pdfSource = 'GENERATED';
+          invoice.pdfUploadedBy = req.user.userId as any;
+          invoice.pdfUploadedAt = new Date();
+          await invoice.save();
+        }
+      } catch (e: any) {
+        logger.warn(`Failed to upload generated contractor invoice PDF to Cloudinary: ${e?.message || e}`);
+      }
 
       // Get owner email
       const project = await Project.findById(invoice.projectId).populate('owner', 'email name');
@@ -926,7 +979,14 @@ export const getApprovedInvoices = async (
       throw new AppError('Only owners can view approved invoices', 403, 'FORBIDDEN');
     }
 
-    const invoices = await ContractorInvoice.find({ status: 'APPROVED', sentToOwner: true })
+    const ownerProjects = await Project.find({ owner: req.user.userId }).select('_id');
+    const projectIds = ownerProjects.map(p => p._id.toString());
+
+    const invoices = await ContractorInvoice.find({
+      status: 'APPROVED',
+      sentToOwner: true,
+      projectId: { $in: projectIds },
+    })
       .populate('contractorId')
       .populate('projectId', 'name location')
       .populate('approvedBy', 'name offsiteId')
@@ -989,6 +1049,99 @@ export const getMyInvoices = async (
       next(new AppError('Failed to load invoices. Please try again later.', 500, 'INVOICE_LOAD_ERROR'));
       return;
     }
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Upload/import a contractor invoice PDF (Contractor)
+ */
+export const uploadInvoicePdf = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    if (req.user.role !== 'contractor') {
+      throw new AppError('Only contractors can upload invoice PDFs', 403, 'FORBIDDEN');
+    }
+
+    const { id } = req.params;
+    const file = req.file;
+
+    if (!file) {
+      throw new AppError('PDF file is required', 400, 'MISSING_FILE');
+    }
+
+    const contractor = await ensureContractorProfileForUser(req.user.userId);
+    const invoice = await ContractorInvoice.findById(id);
+    if (!invoice) {
+      throw new AppError('Invoice not found', 404, 'NOT_FOUND');
+    }
+
+    if (invoice.contractorId.toString() !== contractor._id.toString()) {
+      throw new AppError('You can only upload PDFs for your own invoices', 403, 'FORBIDDEN');
+    }
+
+    // Upload PDF to Cloudinary (persistent). Keep local fallback for dev.
+    let pdfUrl = `/uploads/contractor/invoices/${file.filename}`;
+    try {
+      if (file.path) {
+        const result = await cloudinary.uploader.upload(file.path, {
+          folder: 'offsite/contractor/invoices',
+          resource_type: 'raw',
+        });
+
+        if (result?.secure_url) {
+          pdfUrl = result.secure_url;
+          try {
+            fs.unlinkSync(file.path);
+          } catch {
+            // ignore cleanup failures
+          }
+        }
+      }
+    } catch (e: any) {
+      logger.warn(`Cloudinary upload failed for contractor invoice PDF; using local uploads fallback: ${e?.message || e}`);
+    }
+
+    invoice.pdfUrl = pdfUrl;
+    invoice.pdfSource = 'UPLOADED';
+    invoice.pdfUploadedBy = req.user.userId as any;
+    invoice.pdfUploadedAt = new Date();
+    invoice.sentToOwner = true;
+    await invoice.save();
+
+    // Notify owner that a PDF was uploaded (best-effort)
+    try {
+      const project = await Project.findById(invoice.projectId).populate('owner', 'offsiteId _id');
+      const owner = project?.owner as any;
+      if (owner?._id) {
+        await createNotification({
+          userId: owner._id.toString(),
+          offsiteId: owner.offsiteId,
+          type: 'general',
+          title: 'Contractor Invoice PDF Uploaded',
+          message: `A PDF was uploaded for invoice ${invoice.invoiceNumber || invoice._id.toString().slice(-6)}.`,
+          data: { invoiceId: invoice._id.toString() },
+        });
+      }
+    } catch (e) {
+      logger.warn('Failed to notify owner about PDF upload:', e);
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Invoice PDF uploaded successfully',
+      data: invoice,
+    };
+
+    res.status(200).json(response);
   } catch (error) {
     next(error);
   }

@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { contractorApi, Contractor, ContractorInvoice } from "@/services/api/contractor";
 import { projectsApi } from "@/services/api/projects";
 import { usersApi } from "@/services/api/users";
-import { Users, Plus, Receipt, Loader2, Building, Star, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { Users, Plus, Receipt, Loader2, Building, Star, CheckCircle, XCircle, AlertCircle, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { useAppSelector } from "@/store/hooks";
@@ -52,7 +52,7 @@ export default function ContractorsManagementPage() {
       const [contractorsData, invoicesData, pendingInvoicesData, projectsData] = await Promise.all([
         contractorApi.getAllContractors(),
         isOwner ? contractorApi.getApprovedInvoices() : Promise.resolve([] as ContractorInvoice[]),
-        isManager ? contractorApi.getPendingInvoices() : Promise.resolve([] as ContractorInvoice[]),
+        (isManager || isOwner) ? contractorApi.getPendingInvoices() : Promise.resolve([] as ContractorInvoice[]),
         canAssign ? projectsApi.getAll(1, 50) : Promise.resolve(null as any),
       ]);
 
@@ -435,6 +435,81 @@ export default function ContractorsManagementPage() {
           </Card>
         )}
 
+        {/* Pending Invoices (Owner read-only) */}
+        {isOwner && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-orange-500" />
+                Pending Contractor Invoices ({pendingInvoices.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : pendingInvoices.length === 0 ? (
+                <div className="text-center py-8">
+                  <Receipt className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">No pending invoices</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {pendingInvoices.map((invoice, index) => (
+                    <motion.div
+                      key={invoice._id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="p-4 rounded-lg border bg-card border-orange-200 dark:border-orange-800"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-semibold text-foreground">
+                            {invoice.invoiceNumber || `INV-${invoice._id.substring(0, 8)}`}
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            {invoice.projectId?.name || 'Unknown Project'}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Contractor: {(invoice.contractorId as any)?.userId?.name || 'Unknown'}
+                          </p>
+                        </div>
+                        <StatusBadge status="warning" label="PENDING" />
+                      </div>
+
+                      <div className="text-sm space-y-1 mb-3">
+                        <p className="text-muted-foreground">
+                          📅 Period: {new Date(invoice.weekStartDate).toLocaleDateString()} - {new Date(invoice.weekEndDate).toLocaleDateString()}
+                        </p>
+                        <p className="text-muted-foreground">👥 Total Labour Days: {invoice.labourCountTotal}</p>
+                        <div className="border-t pt-2 mt-2">
+                          <p className="text-muted-foreground">Taxable Amount: {formatCurrency(invoice.taxableAmount)}</p>
+                          <p className="text-muted-foreground">GST ({invoice.gstRate}%): {formatCurrency(invoice.gstAmount)}</p>
+                          <p className="font-semibold text-foreground text-base">Total Amount: {formatCurrency(invoice.totalAmount)}</p>
+                        </div>
+                      </div>
+
+                      {invoice.pdfUrl && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => window.open(invoice.pdfUrl!, '_blank')}
+                        >
+                          <FileText className="w-4 h-4 mr-2" />
+                          View PDF
+                        </Button>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Reject Invoice Dialog */}
         <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
           <DialogContent>
@@ -523,6 +598,19 @@ export default function ContractorsManagementPage() {
                           Total: {formatCurrency(invoice.totalAmount)}
                         </p>
                       </div>
+
+                      {invoice.pdfUrl && (
+                        <div className="mt-3">
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => window.open(invoice.pdfUrl!, '_blank')}
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            View PDF
+                          </Button>
+                        </div>
+                      )}
                     </motion.div>
                   ))}
                 </div>

@@ -120,12 +120,17 @@ export const apiRequest = async <T = unknown>(
   const method = (options.method || 'GET').toUpperCase();
   const isGet = method === 'GET';
   const cacheKey = isGet ? getCacheKey(endpoint) : null;
-  const requestKey = getRequestKey(endpoint, method, options.body as string);
+  const requestKey = getRequestKey(endpoint, method, typeof options.body === 'string' ? (options.body as string) : undefined);
+
+  const isFormDataBody =
+    typeof FormData !== 'undefined' &&
+    options.body instanceof FormData;
   
-  // Build headers object
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+  // Build headers object. Default to JSON unless caller is sending FormData.
+  const headers: Record<string, string> = {};
+  if (!isFormDataBody) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   // Merge any existing headers from options (but don't override Authorization if we have a token)
   if (options.headers) {
@@ -227,6 +232,19 @@ export const apiPost = async <T = unknown>(
   return apiRequest<T>(endpoint, {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+};
+
+/**
+ * Make an authenticated POST request with FormData (e.g. file uploads)
+ */
+export const apiPostFormData = async <T = unknown>(
+  endpoint: string,
+  body: FormData
+): Promise<ApiResponse<T>> => {
+  return apiRequest<T>(endpoint, {
+    method: 'POST',
+    body,
   });
 };
 

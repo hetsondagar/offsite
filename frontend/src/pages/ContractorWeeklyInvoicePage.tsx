@@ -17,6 +17,7 @@ export default function ContractorWeeklyInvoicePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [uploadingInvoiceId, setUploadingInvoiceId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -92,6 +93,20 @@ export default function ContractorWeeklyInvoicePage() {
       case 'APPROVED': return 'success';
       case 'REJECTED': return 'error';
       default: return 'warning';
+    }
+  };
+
+  const handleUploadPdf = async (invoiceId: string, file: File | null) => {
+    if (!file) return;
+    try {
+      setUploadingInvoiceId(invoiceId);
+      await contractorApi.uploadInvoicePdf(invoiceId, file);
+      toast.success('PDF uploaded successfully');
+      await loadData();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to upload PDF');
+    } finally {
+      setUploadingInvoiceId(null);
     }
   };
 
@@ -212,6 +227,38 @@ export default function ContractorWeeklyInvoicePage() {
                         Rejected: {invoice.rejectionReason}
                       </div>
                     )}
+
+                    <div className="mt-4 flex flex-col gap-2">
+                      {invoice.pdfUrl ? (
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => window.open(invoice.pdfUrl!, '_blank')}
+                        >
+                          <FileText className="w-4 h-4 mr-2" />
+                          View PDF
+                        </Button>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          <label className="text-xs text-muted-foreground">
+                            Import PDF (optional)
+                          </label>
+                          <input
+                            type="file"
+                            accept="application/pdf"
+                            disabled={uploadingInvoiceId === invoice._id}
+                            onChange={(e) => handleUploadPdf(invoice._id, e.target.files?.[0] || null)}
+                            className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-primary-foreground hover:file:bg-primary/90"
+                          />
+                          {uploadingInvoiceId === invoice._id && (
+                            <div className="flex items-center text-xs text-muted-foreground">
+                              <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                              Uploading PDF...
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </motion.div>
                 ))}
               </div>

@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, apiPostFormData } from '@/lib/api';
 
 export interface Contractor {
   _id: string;
@@ -47,6 +47,10 @@ export interface ContractorInvoice {
   rejectionReason?: string;
   sentToOwner: boolean;
   invoiceNumber?: string;
+  pdfUrl?: string;
+  pdfSource?: 'GENERATED' | 'UPLOADED';
+  pdfUploadedBy?: any;
+  pdfUploadedAt?: string;
 }
 
 export const contractorApi = {
@@ -154,6 +158,14 @@ export const contractorApi = {
   // Reject invoice (Manager)
   rejectInvoice: async (id: string, rejectionReason: string) => {
     const response = await apiPost<ContractorInvoice>(`/contractor/invoice/${id}/reject`, { rejectionReason });
+    return response.data;
+  },
+
+  // Upload/import invoice PDF (Contractor)
+  uploadInvoicePdf: async (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append('pdf', file);
+    const response = await apiPostFormData<ContractorInvoice>(`/contractor/invoice/${id}/upload-pdf`, formData);
     return response.data;
   },
 };
