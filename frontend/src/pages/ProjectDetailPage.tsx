@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { HealthScoreRing } from "@/components/common/HealthScoreRing";
 import { useAppSelector } from "@/store/hooks";
+import { usePermissions } from "@/hooks/usePermissions";
 import { 
   ArrowLeft, 
   Building2,
@@ -27,6 +28,7 @@ import {
   AlertCircle,
   Loader2,
   Image as ImageIcon,
+  Camera,
   Plus,
   Search,
   X,
@@ -42,6 +44,7 @@ export default function ProjectDetailPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { role } = useAppSelector((state) => state.auth);
+  const { hasPermission } = usePermissions();
   const [isLoading, setIsLoading] = useState(true);
   const [projectData, setProjectData] = useState<any>(null);
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
@@ -319,6 +322,18 @@ export default function ProjectDetailPage() {
             <h1 className="text-lg sm:text-xl md:text-2xl font-bold truncate">{project.name}</h1>
             <p className="text-xs sm:text-sm text-muted-foreground truncate">{project.location}</p>
           </div>
+
+          {hasPermission('canViewSite360') && id && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => navigate(`/site360/${id}`)}
+            >
+              <Camera className="w-4 h-4 mr-2" />
+              SiteLens 360
+            </Button>
+          )}
         </div>
 
         {/* Project Overview */}

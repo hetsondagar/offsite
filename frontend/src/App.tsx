@@ -49,6 +49,8 @@ import PermitsPage from "./pages/PermitsPage";
 import PettyCashPage from "./pages/PettyCashPage";
 import EngineerSite360UploadPage from "./pages/EngineerSite360UploadPage";
 import OwnerSite360WalkthroughPage from "./pages/OwnerSite360WalkthroughPage";
+import Site360ProjectsPage from "./pages/Site360ProjectsPage";
+import { ProtectedRoute } from "@/components/common/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -201,8 +203,30 @@ function AppContent() {
             <Route path="/permits" element={<PermitsPage />} />
             <Route path="/petty-cash" element={<PettyCashPage />} />
             {/* Site360 Routes */}
-            <Route path="/site360" element={<EngineerSite360UploadPage />} />
-            <Route path="/site360/:projectId" element={<OwnerSite360WalkthroughPage />} />
+            <Route
+              path="/site360"
+              element={
+                <ProtectedRoute requiredPermission="canViewSite360">
+                  <Site360ProjectsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/site360/upload"
+              element={
+                <ProtectedRoute requiredPermission="canUploadSite360">
+                  <EngineerSite360UploadPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/site360/:projectId"
+              element={
+                <ProtectedRoute requiredPermission="canViewSite360">
+                  <OwnerSite360WalkthroughPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { createNode, getProjectNodes, getNode } from './site360.controller';
 import { authenticateUser } from '../../middlewares/auth.middleware';
+import { authorizeRoles } from '../../middlewares/role.middleware';
 import { ensureUploadsDirectory } from './site360.service';
 
 const router = Router();
@@ -48,6 +49,7 @@ const upload = multer({
 router.post(
   '/nodes',
   authenticateUser,
+  authorizeRoles('engineer'),
   upload.single('panorama'),
   createNode
 );
@@ -55,12 +57,14 @@ router.post(
 router.get(
   '/project/:projectId',
   authenticateUser,
+  authorizeRoles('engineer', 'manager', 'owner'),
   getProjectNodes
 );
 
 router.get(
   '/node/:nodeId',
   authenticateUser,
+  authorizeRoles('engineer', 'manager', 'owner'),
   getNode
 );
 

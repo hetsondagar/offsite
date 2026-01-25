@@ -17,7 +17,8 @@ import {
   ChevronRight,
   Building2,
   FileText,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Camera
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -662,6 +663,27 @@ export default function ManagerDashboard() {
             onClick={() => navigate("/insights")}
           />
         </div>
+
+        {/* SiteLens 360 */}
+        {hasPermission("canViewSite360") && (
+          <Card className="opacity-0 animate-fade-up stagger-4 border-primary/15">
+            <CardHeader className="flex-row items-center justify-between pb-3 px-4 sm:px-6">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                SiteLens 360
+              </CardTitle>
+              <Button size="sm" variant="outline" onClick={() => navigate("/site360")}
+              >
+                View
+              </Button>
+            </CardHeader>
+            <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+              <p className="text-sm text-muted-foreground">
+                View 360° zones uploaded by site engineers.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Projects Overview */}
         <Card variant="gradient" className="opacity-0 animate-fade-up stagger-4">

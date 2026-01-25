@@ -33,6 +33,8 @@ export const RolePermissions = {
     canViewTools: true,
     canIssueTools: true,
     canReturnTools: true,
+    canUploadSite360: true,
+    canViewSite360: false,
     
     // ❌ NOT ALLOWED
     canApproveMaterialRequests: false,
@@ -84,6 +86,8 @@ export const RolePermissions = {
     canManageTools: true,
     canSubmitPettyCash: false,
     canApprovePettyCash: true,
+    canUploadSite360: false,
+    canViewSite360: true,
     
     // ❌ NOT ALLOWED
     canCreateDPR: false,
@@ -129,6 +133,8 @@ export const RolePermissions = {
     canManageTools: true,
     canViewPettyCashDashboard: true,
     canApprovePettyCash: true,
+    canUploadSite360: false,
+    canViewSite360: true,
     
     // ❌ NOT ALLOWED
     canCreateDPR: false,
@@ -155,6 +161,8 @@ export const RolePermissions = {
     canViewTools: true,
     canIssueTools: true,
     canReturnTools: true,
+    canUploadSite360: false,
+    canViewSite360: false,
     
     // ❌ NOT ALLOWED
     canCreateDPR: false,
@@ -200,6 +208,8 @@ export const RolePermissions = {
     canViewTools: true,
     canIssueTools: true,
     canReturnTools: true,
+    canUploadSite360: false,
+    canViewSite360: false,
     
     // ❌ NOT ALLOWED
     canCreateDPR: false,

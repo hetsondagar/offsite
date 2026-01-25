@@ -14,7 +14,7 @@ const engineerNav: NavItem[] = [
   { icon: Home, labelKey: "navigation.home", path: "/" },
   { icon: CheckSquare, labelKey: "navigation.tasks", path: "/tasks" },
   { icon: FileText, labelKey: "navigation.dpr", path: "/dpr" },
-  { icon: Camera, labelKey: "navigation.site360", path: "/site360" },
+  { icon: Camera, labelKey: "navigation.site360", path: "/site360/upload" },
   { icon: User, labelKey: "navigation.profile", path: "/profile" },
 ];
 
@@ -67,6 +67,7 @@ export function BottomNav({ role }: BottomNavProps) {
       if (item.path === "/dpr") return hasPermission("canCreateDPR");
       if (item.path === "/attendance") return hasPermission("canMarkAttendance");
       if (item.path === "/materials") return hasPermission("canRaiseMaterialRequest");
+      if (item.path === "/site360/upload") return hasPermission("canUploadSite360");
       return true; // Home and Profile are always accessible
     });
   } else if (role === "owner") {
