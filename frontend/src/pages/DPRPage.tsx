@@ -675,7 +675,7 @@ export default function DPRPage() {
                   </CardContent>
                 </Card>
               ) : (
-                projects.map((project) => (
+                projects.filter(Boolean).map((project) => (
                   <Card
                     key={project._id}
                     className={cn(

@@ -170,7 +170,7 @@ export default function EventsPage() {
                         <SelectValue placeholder={t('events.selectProject')} />
                       </SelectTrigger>
                       <SelectContent>
-                        {projects.map((project) => (
+                        {projects.filter(Boolean).map((project) => (
                           <SelectItem key={project._id} value={project._id}>
                             {project.name}
                           </SelectItem>

@@ -224,7 +224,7 @@ export function InvoiceForm({ onInvoiceCreated, onCancel, editInvoice }: Invoice
                       <p className="text-sm text-muted-foreground">No projects available</p>
                     </div>
                   ) : (
-                    projects.map((project) => (
+                    projects.filter(Boolean).map((project) => (
                       <button
                         key={project._id}
                         onClick={() => handleSelectProject(project._id)}
@@ -236,7 +236,7 @@ export function InvoiceForm({ onInvoiceCreated, onCancel, editInvoice }: Invoice
                         )}
                       >
                         <p className="font-medium text-foreground">{project.name}</p>
-                        <p className="text-xs text-muted-foreground">{project.location}</p>
+                        <p className="text-xs text-muted-foreground">{project.location || ''}</p>
                       </button>
                     ))
                   )}

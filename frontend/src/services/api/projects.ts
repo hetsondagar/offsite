@@ -29,7 +29,11 @@ export interface Project {
 export const projectsApi = {
   getAll: async (page = 1, limit = 10) => {
     const response = await apiGet<{ projects: Project[]; pagination: any }>('/projects', { page, limit });
-    return response.data;
+    const data: any = response.data;
+    const projects = Array.isArray(data?.projects)
+      ? data.projects.filter((p: any) => p && typeof p === 'object' && p._id)
+      : [];
+    return { ...data, projects };
   },
 
   getById: async (id: string) => {

@@ -281,7 +281,7 @@ export default function AICommandCenter() {
                 onChange={(e) => setSelectedProjectId(e.target.value)}
                 className="w-full p-2 rounded-lg border bg-background text-foreground"
               >
-                {projects.map((project) => (
+                {projects.filter(Boolean).map((project) => (
                   <option key={project._id} value={project._id}>
                     {project.name}
                   </option>

@@ -201,7 +201,7 @@ export default function ToolsPage() {
                                     <SelectValue placeholder="Select project" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {projects.map((project) => (
+                                    {projects.filter(Boolean).map((project) => (
                                       <SelectItem key={project._id} value={project._id}>
                                         {project.name}
                                       </SelectItem>

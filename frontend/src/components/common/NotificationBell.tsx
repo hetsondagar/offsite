@@ -47,10 +47,10 @@ export function NotificationBell() {
       toast.success(t('projects.invitationAcceptedAdded'));
       await loadInvitations();
       setIsOpen(false);
-      // Refresh the page to show updated projects
+      // Navigate to projects list (no full page reload)
       setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+        navigate('/projects');
+      }, 250);
     } catch (error: any) {
       console.error('Error accepting invitation:', error);
       toast.error(error.message || 'Failed to accept invitation');
@@ -111,16 +111,16 @@ export function NotificationBell() {
                     <div className="space-y-3">
                       <div>
                         <p className="font-medium text-sm">
-                          {invitation.projectId && typeof invitation.projectId === 'object' 
-                            ? invitation.projectId.name 
+                          {invitation.projectId && typeof invitation.projectId === 'object'
+                            ? (invitation.projectId as any).name
                             : t('dpr.project')}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
                           {t('projects.invitedAs')} {invitation.role === 'engineer' ? t('auth.engineer') : t('auth.manager')}
                         </p>
-                        {typeof invitation.projectId === 'object' && invitation.projectId.location && (
+                        {invitation.projectId && typeof invitation.projectId === 'object' && (invitation.projectId as any).location && (
                           <p className="text-xs text-muted-foreground mt-1">
-                            📍 {invitation.projectId.location}
+                            📍 {(invitation.projectId as any).location}
                           </p>
                         )}
                       </div>

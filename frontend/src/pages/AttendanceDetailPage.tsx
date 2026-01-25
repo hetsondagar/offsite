@@ -186,7 +186,7 @@ export default function AttendanceDetailPage() {
                   onChange={(e) => setSelectedProject(e.target.value)}
                   className="w-full h-12 px-4 rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
                 >
-                  {projects.map((project) => (
+                  {projects.filter(Boolean).map((project) => (
                     <option key={project._id} value={project._id}>
                       {project.name}
                     </option>

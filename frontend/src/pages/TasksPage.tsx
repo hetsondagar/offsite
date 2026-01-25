@@ -315,7 +315,7 @@ export default function TasksPage() {
                           <SelectValue placeholder={t('tasks.selectProject')} />
                         </SelectTrigger>
                         <SelectContent>
-                          {projects.map((project) => (
+                          {projects.filter(Boolean).map((project) => (
                             <SelectItem key={project._id} value={project._id}>
                               {project.name}
                             </SelectItem>
@@ -497,7 +497,7 @@ export default function TasksPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t('tasks.allTasks')}</SelectItem>
-                  {projects.map((project) => (
+                  {projects.filter(Boolean).map((project) => (
                     <SelectItem key={project._id} value={project._id}>
                       {project.name}
                     </SelectItem>

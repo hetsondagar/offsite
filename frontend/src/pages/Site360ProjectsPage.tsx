@@ -54,7 +54,7 @@ export default function Site360ProjectsPage() {
               </CardContent>
             </Card>
           ) : (
-            projects.map((project) => (
+            projects.filter(Boolean).map((project) => (
               <Card key={project._id} className="animate-fade-up">
                 <CardHeader>
                   <div className="flex items-start justify-between gap-3">

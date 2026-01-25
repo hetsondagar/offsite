@@ -712,27 +712,32 @@ export default function ProjectsPage() {
                 </div>
 
                 <div className="mt-3 space-y-3">
-                  {invitations.map((inv) => (
-                    <div
-                      key={inv._id}
-                      className="rounded-lg border border-border/50 bg-background/40 p-3"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="font-medium text-sm text-foreground truncate">
-                            {inv.projectId?.name || 'Project'}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {t('projects.invitedAs')} {inv.role === 'engineer' ? t('auth.engineer') : t('auth.manager')}
-                          </p>
-                          {inv.projectId?.location && (
-                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              <span className="truncate">{inv.projectId.location}</span>
+                  {invitations.map((inv: any) => {
+                    const projectObj = inv?.projectId && typeof inv.projectId === 'object' ? inv.projectId : null;
+                    const projectName = projectObj?.name || 'Project';
+                    const projectLocation = projectObj?.location;
+
+                    return (
+                      <div
+                        key={inv._id}
+                        className="rounded-lg border border-border/50 bg-background/40 p-3"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm text-foreground truncate">
+                              {projectName}
                             </p>
-                          )}
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {t('projects.invitedAs')} {inv.role === 'engineer' ? t('auth.engineer') : t('auth.manager')}
+                            </p>
+                            {projectLocation && (
+                              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                <MapPin className="w-3 h-3" />
+                                <span className="truncate">{projectLocation}</span>
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
                       <div className="mt-3 flex gap-2">
                         <Button
@@ -753,8 +758,9 @@ export default function ProjectsPage() {
                           {t('common.reject')}
                         </Button>
                       </div>
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -777,7 +783,7 @@ export default function ProjectsPage() {
               </CardContent>
             </Card>
           ) : (
-            projects.map((project, index) => (
+            projects.filter(Boolean).map((project, index) => (
               <Card 
                 key={project._id}
                 variant="gradient"
@@ -798,7 +804,7 @@ export default function ProjectsPage() {
                           <h3 className="font-display font-semibold text-foreground truncate">
                             {project.name}
                           </h3>
-                          <p className="text-xs text-muted-foreground">{project.location}</p>
+                          <p className="text-xs text-muted-foreground">{project.location || ''}</p>
                         </div>
                         {/* Risk badge would come from insights API */}
                       </div>

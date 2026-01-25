@@ -249,42 +249,50 @@ export default function EngineerDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {pendingInvitations.map((invitation: any) => (
-                <div key={invitation._id} className="p-3 rounded-lg border bg-card">
-                  <div className="space-y-2">
-                    <div>
-                      <p className="font-medium text-sm">{invitation.projectId?.name || t("pages.projects")}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {t("dashboard.invitedAs")} {invitation.role === 'engineer' ? t("dashboard.siteEngineer") : t("dashboard.projectManager")}
-                      </p>
-                      {invitation.projectId?.location && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          📍 {invitation.projectId.location}
+              {pendingInvitations.map((invitation: any) => {
+                const projectObj = invitation?.projectId && typeof invitation.projectId === 'object'
+                  ? invitation.projectId
+                  : null;
+                const projectName = projectObj?.name || 'Project';
+                const projectLocation = projectObj?.location;
+
+                return (
+                  <div key={invitation._id} className="p-3 rounded-lg border bg-card">
+                    <div className="space-y-2">
+                      <div>
+                        <p className="font-medium text-sm">{projectName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Invited as {invitation.role === 'engineer' ? 'Site Engineer' : 'Project Manager'}
                         </p>
-                      )}
-                    </div>
-                    <div className="flex gap-2 mt-3">
-                      <Button
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => handleAcceptInvitation(invitation._id)}
-                      >
-                        <UserPlus className="w-4 h-4 mr-1" />
-                        {t("common.accept")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => handleRejectInvitation(invitation._id)}
-                      >
-                        <X className="w-4 h-4 mr-1" />
-                        {t("common.reject")}
-                      </Button>
+                        {projectLocation && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            📍 {projectLocation}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <Button
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => handleAcceptInvitation(invitation._id)}
+                        >
+                          <UserPlus className="w-4 h-4 mr-1" />
+                          Accept
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => handleRejectInvitation(invitation._id)}
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          Reject
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
         )}
