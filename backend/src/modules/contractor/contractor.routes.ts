@@ -19,6 +19,7 @@ import {
   getMyInvoices,
   uploadInvoicePdf,
   downloadInvoicePDF,
+  debugPendingInvoices,
 } from './contractor.controller';
 
 const router = Router();
@@ -97,5 +98,8 @@ router.post('/invoice/:id/approve', approveInvoice);
 router.post('/invoice/:id/reject', rejectInvoice);
 router.get('/invoice/:id/download-pdf', downloadInvoicePDF);
 router.post('/invoice/:id/upload-pdf', authorizeRoles('contractor'), pdfUpload.single('pdf'), uploadInvoicePdf);
+
+// Debug endpoint (remove in production)
+router.get('/debug/pending-invoices', authenticateUser, debugPendingInvoices);
 
 export default router;

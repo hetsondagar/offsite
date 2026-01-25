@@ -725,9 +725,10 @@ export const getPendingInvoices = async (
         { members: req.user.userId },
         { owner: req.user.userId }
       ]
-    }).select('_id');
+    }).select('_id name');
     projectIds = projects.map(p => p._id.toString());
-    logger.info(`[getPendingInvoices] Manager ${req.user.userId} has access to ${projectIds.length} projects`);
+    
+    logger.info(`[getPendingInvoices] Manager ${req.user.userId} has access to ${projectIds.length} projects:`, projects.map(p => ({ id: p._id, name: (p as any).name })));
 
     const query: any = { status: 'PENDING_PM_APPROVAL' };
 
@@ -746,10 +747,22 @@ export const getPendingInvoices = async (
       return;
     }
 
+    logger.info(`[getPendingInvoices] Running query:`, { status: query.status, projectIds });
+
     const invoices = await ContractorInvoice.find(query)
       .populate('contractorId')
       .populate('projectId', 'name location')
       .sort({ createdAt: -1 });
+
+    logger.info(`[getPendingInvoices] Found ${invoices.length} pending invoices for manager ${req.user.userId}`);
+    if (invoices.length > 0) {
+      logger.info(`[getPendingInvoices] Invoice details:`, invoices.map(inv => ({ 
+        id: inv._id, 
+        status: inv.status,
+        projectId: inv.projectId,
+        invoiceNumber: inv.invoiceNumber
+      })));
+    }
 
     // Populate contractor user info
     for (const invoice of invoices) {
@@ -1214,6 +1227,84 @@ export const uploadInvoicePdf = async (
       success: true,
       message: 'Invoice PDF uploaded successfully',
       data: invoice,
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Debug endpoint to check database state (remove in production)
+export const debugPendingInvoices = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    // Count all pending invoices in database
+    const totalPending = await ContractorInvoice.countDocuments({ status: 'PENDING_PM_APPROVAL' });
+    
+    // Get all pending invoices
+    const allPendingInvoices = await ContractorInvoice.find({ status: 'PENDING_PM_APPROVAL' })
+      .populate('projectId', 'name _id owner members')
+      .select('_id invoiceNumber status projectId createdAt');
+
+    // Get manager's projects
+    const managerProjects = await Project.find({
+      $or: [
+        { members: req.user.userId },
+        { owner: req.user.userId }
+      ]
+    }).select('_id name');
+
+    const managerProjectIds = managerProjects.map(p => p._id.toString());
+
+    // Get pending invoices for this manager
+    const managerPendingInvoices = await ContractorInvoice.find({
+      status: 'PENDING_PM_APPROVAL',
+      projectId: { $in: managerProjectIds }
+    }).select('_id invoiceNumber status projectId createdAt');
+
+    logger.info('[debugPendingInvoices] Database state:', {
+      totalPendingInvoices: totalPending,
+      managerUserId: req.user.userId,
+      managerProjectCount: managerProjects.length,
+      managerProjectIds,
+      managerPendingInvoiceCount: managerPendingInvoices.length,
+      allPendingInvoiceCount: allPendingInvoices.length
+    });
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Debug info retrieved',
+      data: {
+        totalPendingInvoices: totalPending,
+        managerUserId: req.user.userId,
+        managerRole: req.user.role,
+        managerProjectCount: managerProjects.length,
+        managerProjectIds: managerProjectIds,
+        managerPendingInvoiceCount: managerPendingInvoices.length,
+        allPendingInvoices: allPendingInvoices.map(inv => ({
+          id: inv._id,
+          invoiceNumber: inv.invoiceNumber,
+          status: inv.status,
+          projectId: (inv.projectId as any)?._id,
+          projectName: (inv.projectId as any)?.name,
+          createdAt: inv.createdAt
+        })),
+        managerPendingInvoices: managerPendingInvoices.map(inv => ({
+          id: inv._id,
+          invoiceNumber: inv.invoiceNumber,
+          status: inv.status,
+          projectId: inv.projectId,
+          createdAt: inv.createdAt
+        }))
+      }
     };
 
     res.status(200).json(response);
