@@ -781,7 +781,6 @@ export const approveInvoice = async (
       const { generateContractorInvoicePDFBuffer } = await import('./contractor-invoice-pdf.service');
       const { sendEmailWithAttachment } = await import('../../utils/email-with-attachment');
       const { Project } = await import('../projects/project.model');
-      const { User } = await import('../users/user.model');
 
       const pdfBuffer = await generateContractorInvoicePDFBuffer(invoice);
 

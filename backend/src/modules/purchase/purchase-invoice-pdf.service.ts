@@ -1,7 +1,5 @@
 import PDFDocument from 'pdfkit';
 import { IPurchaseInvoice } from './purchase-invoice.model';
-import fs from 'fs';
-import path from 'path';
 
 /**
  * Generate purchase invoice PDF with receipt photo if available
