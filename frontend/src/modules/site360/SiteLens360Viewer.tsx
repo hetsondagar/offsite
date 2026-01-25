@@ -22,6 +22,7 @@ export function SiteLens360Viewer({
   const sceneRef = useRef<Marzipano.Scene | null>(null);
   const loadTokenRef = useRef(0);
   const hotspotsTimerRef = useRef<number | null>(null);
+  const initTimerRef = useRef<number | null>(null);
   const [currentNode, setCurrentNode] = useState<Site360Node>(node);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -46,17 +47,23 @@ export function SiteLens360Viewer({
       img.src = url;
     });
 
+  const waitForViewerReady = async (token: number, timeoutMs = 2500) => {
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < timeoutMs) {
+      if (token !== loadTokenRef.current) return false;
+      const viewer = viewerRef.current;
+      const stage = viewer?.stage?.();
+      if (viewer && stage) return true;
+      await new Promise((r) => window.setTimeout(r, 50));
+    }
+
+    return false;
+  };
+
   // Load scene
   const loadScene = async (targetNode: Site360Node) => {
     if (!containerRef.current || !viewerRef.current) {
-      console.warn('Viewer or container not ready');
-      return;
-    }
-
-    // Check if viewer is properly initialized
-    if (!viewerRef.current.stage() || !viewerRef.current.stage().renderLoop) {
-      console.warn('Viewer stage not ready, waiting...');
-      setTimeout(() => loadScene(targetNode), 100);
       return;
     }
 
@@ -67,6 +74,11 @@ export function SiteLens360Viewer({
     setLoadError(null);
 
     try {
+      const isReady = await waitForViewerReady(myToken);
+      if (!isReady || myToken !== loadTokenRef.current || !viewerRef.current) {
+        return;
+      }
+
       // Destroy old scene first
       if (sceneRef.current) {
         try {
@@ -141,7 +153,7 @@ export function SiteLens360Viewer({
       }, 300);
     } catch (error) {
       console.error('Failed to load scene:', error);
-      setLoadError('Failed to load panorama image. Please try again.');
+      setLoadError('Failed to load panorama. Please try again or re-upload this view.');
     } finally {
       setIsLoading(false);
     }
@@ -227,22 +239,60 @@ export function SiteLens360Viewer({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Ensure container has dimensions
-    if (containerRef.current.clientWidth === 0 || containerRef.current.clientHeight === 0) {
-      // Wait for container to have dimensions
-      const checkDimensions = setInterval(() => {
-        if (containerRef.current && containerRef.current.clientWidth > 0 && containerRef.current.clientHeight > 0) {
-          clearInterval(checkDimensions);
-          initializeViewer();
-        }
-      }, 100);
-      return () => clearInterval(checkDimensions);
-    } else {
-      initializeViewer();
-    }
+    let disposed = false;
+    let resizeObserver: ResizeObserver | null = null;
+    let dimensionsInterval: number | null = null;
 
-    function initializeViewer() {
+    const cleanup = () => {
+      disposed = true;
+      loadTokenRef.current += 1;
+
+      if (initTimerRef.current) {
+        window.clearTimeout(initTimerRef.current);
+        initTimerRef.current = null;
+      }
+
+      if (dimensionsInterval) {
+        window.clearInterval(dimensionsInterval);
+        dimensionsInterval = null;
+      }
+
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+        resizeObserver = null;
+      }
+
+      if (hotspotsTimerRef.current) {
+        window.clearTimeout(hotspotsTimerRef.current);
+        hotspotsTimerRef.current = null;
+      }
+
+      if (sceneRef.current) {
+        try {
+          sceneRef.current.destroy();
+        } catch (e) {
+          // Ignore destroy errors
+        }
+        sceneRef.current = null;
+      }
+
+      if (viewerRef.current) {
+        try {
+          viewerRef.current.destroy();
+        } catch (e) {
+          // Ignore destroy errors
+        }
+        viewerRef.current = null;
+      }
+    };
+
+    const maybeInitViewer = () => {
+      if (disposed) return;
       if (!containerRef.current) return;
+      if (viewerRef.current) return;
+
+      const { clientWidth, clientHeight } = containerRef.current;
+      if (clientWidth === 0 || clientHeight === 0) return;
 
       try {
         const viewer = new Marzipano.Viewer(containerRef.current, {
@@ -253,66 +303,38 @@ export function SiteLens360Viewer({
 
         viewerRef.current = viewer;
 
-        // Wait for viewer to be fully initialized before loading scene
-        const timer = setTimeout(() => {
-          if (viewerRef.current && currentNode) {
+        initTimerRef.current = window.setTimeout(() => {
+          if (!disposed && viewerRef.current && currentNode) {
             loadScene(currentNode);
           }
-        }, 200);
-
-        return () => {
-          clearTimeout(timer);
-          if (sceneRef.current) {
-            try {
-              sceneRef.current.destroy();
-            } catch (e) {
-              // Ignore destroy errors
-            }
-            sceneRef.current = null;
-          }
-          if (viewerRef.current) {
-            try {
-              viewerRef.current.destroy();
-            } catch (e) {
-              // Ignore destroy errors
-            }
-            viewerRef.current = null;
-          }
-        };
+        }, 0);
       } catch (error) {
         console.error('Failed to initialize Marzipano viewer:', error);
-      }
-    }
-
-    return () => {
-      loadTokenRef.current += 1;
-      if (hotspotsTimerRef.current) {
-        window.clearTimeout(hotspotsTimerRef.current);
-        hotspotsTimerRef.current = null;
-      }
-      if (sceneRef.current) {
-        try {
-          sceneRef.current.destroy();
-        } catch (e) {
-          // Ignore destroy errors
-        }
-        sceneRef.current = null;
-      }
-      if (viewerRef.current) {
-        try {
-          viewerRef.current.destroy();
-        } catch (e) {
-          // Ignore destroy errors
-        }
-        viewerRef.current = null;
+        setLoadError('Failed to initialize viewer. Please refresh and try again.');
       }
     };
+
+    // Initialize immediately if possible.
+    maybeInitViewer();
+
+    // React to container sizing changes (common cause of "stage not ready" loops).
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        maybeInitViewer();
+      });
+      resizeObserver.observe(containerRef.current);
+    } else {
+      dimensionsInterval = window.setInterval(() => {
+        maybeInitViewer();
+      }, 100);
+    }
+
+    return cleanup;
   }, []);
 
   // Reload scene when node changes
   useEffect(() => {
-    if (viewerRef.current && currentNode && viewerRef.current.stage()?.renderLoop) {
-      // Only reload if viewer is properly initialized
+    if (viewerRef.current && currentNode) {
       loadScene(currentNode);
     }
   }, [currentNode._id]);
