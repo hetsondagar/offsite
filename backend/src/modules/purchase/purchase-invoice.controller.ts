@@ -21,7 +21,7 @@ export const getPurchaseInvoices = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    if (req.user.role !== 'manager' && req.user.role !== 'owner') {
+    if (req.user.role !== 'manager' && req.user.role !== 'owner' && req.user.role !== 'purchase_manager') {
       throw new AppError('Access denied', 403, 'FORBIDDEN');
     }
 
@@ -38,9 +38,11 @@ export const getPurchaseInvoices = async (
     }
 
     const query: any = {};
-    if (projectIds.length > 0 && req.user.role === 'manager') {
+    if (req.user.role === 'manager' && projectIds.length > 0) {
       query.projectId = { $in: projectIds };
     }
+    // Purchase managers can see all invoices
+    // Owners can see all their invoices (no filter needed)
 
     const [invoices, total] = await Promise.all([
       PurchaseInvoice.find(query)
@@ -86,7 +88,7 @@ export const getPurchaseInvoiceById = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    if (req.user.role !== 'manager' && req.user.role !== 'owner') {
+    if (req.user.role !== 'manager' && req.user.role !== 'owner' && req.user.role !== 'purchase_manager') {
       throw new AppError('Access denied', 403, 'FORBIDDEN');
     }
 
@@ -116,6 +118,8 @@ export const getPurchaseInvoiceById = async (
         throw new AppError('Access denied', 403, 'FORBIDDEN');
       }
     }
+    
+    // Purchase managers can access all invoices
 
     const response: ApiResponse = {
       success: true,
@@ -142,7 +146,7 @@ export const generatePurchaseInvoicePDF = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    if (req.user.role !== 'manager' && req.user.role !== 'owner') {
+    if (req.user.role !== 'manager' && req.user.role !== 'owner' && req.user.role !== 'purchase_manager') {
       throw new AppError('Access denied', 403, 'FORBIDDEN');
     }
 
@@ -172,6 +176,8 @@ export const generatePurchaseInvoicePDF = async (
         throw new AppError('Access denied', 403, 'FORBIDDEN');
       }
     }
+    
+    // Purchase managers can access all invoices
 
     // Generate PDF using service
     const pdfBuffer = await generatePurchaseInvoicePDFBuffer(invoice);

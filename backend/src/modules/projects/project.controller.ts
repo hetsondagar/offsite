@@ -299,7 +299,26 @@ export const createProject = async (
     };
 
     res.status(201).json(response);
-  } catch (error) {
+  } catch (error: any) {
+    // Log the error for debugging
+    logger.error('Error creating project:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.userId,
+      body: req.body,
+    });
+    
+    // If it's a validation error from zod, pass it through
+    if (error.name === 'ZodError') {
+      return next(error);
+    }
+    
+    // If it's already an AppError, pass it through
+    if (error.statusCode) {
+      return next(error);
+    }
+    
+    // Otherwise, wrap it in a generic error
     next(error);
   }
 };

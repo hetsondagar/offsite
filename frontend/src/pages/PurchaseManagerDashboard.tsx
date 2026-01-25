@@ -6,10 +6,11 @@ import { Logo } from "@/components/common/Logo";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { NotificationBell } from "@/components/common/NotificationBell";
 import { purchaseApi } from "@/services/api/purchase";
-import { Send, History, Package, Wrench, Clock } from "lucide-react";
+import { Send, History, Package, Wrench, Clock, Receipt, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 
 export default function PurchaseManagerDashboard() {
   const navigate = useNavigate();

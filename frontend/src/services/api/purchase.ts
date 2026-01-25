@@ -115,6 +115,11 @@ export interface PurchaseInvoice {
   totalAmount: number;
   generatedAt: string;
   generatedBy: any;
+  receiptPhotoUrl?: string;
+  receiptUploadedAt?: string;
+  receiptUploadedBy?: any;
+  pdfSentToOwner?: boolean;
+  pdfSentToManager?: boolean;
   createdAt: string;
   updatedAt: string;
 }
