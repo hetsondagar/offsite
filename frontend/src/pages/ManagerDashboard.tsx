@@ -31,12 +31,15 @@ import { invoicesApi, type Invoice } from "@/services/api/invoices";
 import { contractorApi, Contractor } from "@/services/api/contractor";
 import { pettyCashApi, type PettyCash } from "@/services/api/petty-cash";
 import { Button } from "@/components/ui/button";
-import { Loader2, UserPlus, X, Star, Building } from "lucide-react";
+import { Loader2, UserPlus, X, Star, Building, Receipt, Download, Check, XCircle } from "lucide-react";
+import { jsPDF } from 'jspdf';
+import { ContractorInvoice } from "@/services/api/contractor";
 import { toast } from "sonner";
 import { NotificationBell } from "@/components/common/NotificationBell";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTranslation } from "react-i18next";
 import { UnauthorizedError } from "@/lib/api";
+import { motion } from "framer-motion";
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
@@ -60,10 +63,125 @@ export default function ManagerDashboard() {
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [contractors, setContractors] = useState<Contractor[]>([]);
   const [pendingExpenses, setPendingExpenses] = useState<PettyCash[]>([]);
+  const [pendingContractorInvoices, setPendingContractorInvoices] = useState<ContractorInvoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDPR, setSelectedDPR] = useState<any | null>(null);
   const [isDPRModalOpen, setIsDPRModalOpen] = useState(false);
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
+  const [approvingInvoiceId, setApprovingInvoiceId] = useState<string | null>(null);
   const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const handleDownloadContractorInvoicePDF = async (invoice: ContractorInvoice) => {
+    try {
+      setDownloadingInvoiceId(invoice._id);
+      const doc = new jsPDF();
+      
+      // Title
+      doc.setFontSize(18);
+      doc.text('CONTRACTOR INVOICE', 105, 20, { align: 'center' });
+      
+      // Invoice Details
+      doc.setFontSize(10);
+      doc.text(`Invoice No: ${invoice.invoiceNumber || 'N/A'}`, 14, 35);
+      doc.text(`Date: ${new Date().toLocaleDateString('en-IN')}`, 14, 42);
+      
+      // Project Details
+      doc.text(`Project: ${invoice.projectId?.name || 'N/A'}`, 14, 52);
+      doc.text(`Location: ${invoice.projectId?.location || 'N/A'}`, 14, 59);
+      
+      // Week Period
+      const weekStart = new Date(invoice.weekStartDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+      const weekEnd = new Date(invoice.weekEndDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+      doc.text(`Period: ${weekStart} - ${weekEnd}`, 14, 69);
+      
+      // Contractor Details
+      const contractorName = invoice.contractorId?.userId?.name || 'N/A';
+      const contractorId = invoice.contractorId?.userId?.offsiteId || 'N/A';
+      doc.setFontSize(12);
+      doc.text('Contractor Details:', 14, 82);
+      doc.setFontSize(10);
+      doc.text(`Name: ${contractorName}`, 14, 90);
+      doc.text(`ID: ${contractorId}`, 14, 97);
+      
+      // Invoice Items Table
+      let yPos = 110;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Description', 14, yPos);
+      doc.text('Quantity', 100, yPos);
+      doc.text('Rate (₹)', 140, yPos);
+      doc.text('Amount (₹)', 180, yPos, { align: 'right' });
+      
+      yPos += 8;
+      doc.line(14, yPos, 200, yPos);
+      yPos += 5;
+      
+      doc.setFont('helvetica', 'normal');
+      doc.text('Labour Days', 14, yPos);
+      doc.text(`${invoice.labourCountTotal} days`, 100, yPos);
+      doc.text(`${invoice.ratePerLabour.toFixed(2)}`, 140, yPos);
+      doc.text(`${invoice.taxableAmount.toFixed(2)}`, 180, yPos, { align: 'right' });
+      
+      yPos += 10;
+      doc.line(14, yPos, 200, yPos);
+      yPos += 8;
+      
+      // Taxable Amount
+      doc.text('Taxable Amount:', 14, yPos);
+      doc.text(`₹${invoice.taxableAmount.toFixed(2)}`, 180, yPos, { align: 'right' });
+      
+      yPos += 8;
+      // GST
+      doc.text(`GST (${invoice.gstRate}%):`, 14, yPos);
+      doc.text(`₹${invoice.gstAmount.toFixed(2)}`, 180, yPos, { align: 'right' });
+      
+      yPos += 10;
+      doc.line(14, yPos, 200, yPos);
+      yPos += 8;
+      
+      // Total
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('Total Amount:', 14, yPos);
+      doc.text(`₹${invoice.totalAmount.toFixed(2)}`, 180, yPos, { align: 'right' });
+      
+      // Status
+      yPos += 15;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Status: ${invoice.status.replace(/_/g, ' ')}`, 14, yPos);
+      
+      // Save PDF
+      const filename = `Contractor-Invoice-${invoice.invoiceNumber || invoice._id.slice(-6)}.pdf`;
+      doc.save(filename);
+      toast.success('Invoice PDF downloaded successfully');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to generate PDF');
+    } finally {
+      setDownloadingInvoiceId(null);
+    }
+  };
+
+  const handleApproveInvoice = async (invoiceId: string) => {
+    try {
+      setApprovingInvoiceId(invoiceId);
+      await contractorApi.approveInvoice(invoiceId);
+      toast.success('Invoice approved successfully');
+      loadDashboardData(); // Refresh data
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to approve invoice');
+    } finally {
+      setApprovingInvoiceId(null);
+    }
+  };
 
   useEffect(() => {
     loadDashboardData();
@@ -89,27 +207,30 @@ export default function ManagerDashboard() {
       // Load pending reimbursements for Project Managers
       if (role === 'manager') {
         loadPromises.push(pettyCashApi.getPendingExpenses());
+        loadPromises.push(contractorApi.getPendingInvoices());
       }
       
-      // Load contractors for owners
-      if (role === 'owner') {
+      // Load contractors for owners and managers
+      if (role === 'owner' || role === 'manager') {
         loadPromises.push(contractorApi.getContractors());
       }
       
       const results = await Promise.all(loadPromises);
-      const [projectsData, healthData, delayRisksData, materialsData, contractorsData, pendingExpensesData] = results;
+      const [projectsData, healthData, delayRisksData, materialsData, contractorsData, pendingExpensesData, pendingInvoicesData] = results;
 
       if (role === 'manager') {
         setPendingExpenses(Array.isArray(pendingExpensesData) ? pendingExpensesData : []);
+        setPendingContractorInvoices(Array.isArray(pendingInvoicesData) ? pendingInvoicesData : []);
       } else {
         setPendingExpenses([]);
+        setPendingContractorInvoices([]);
       }
 
       setProjectOverview(projectsData?.projects || []);
       setHealthScore(healthData?.overallHealthScore || 0);
       setHealthScores(healthData?.projectHealthScores || []);
       
-      if (role === 'owner' && contractorsData) {
+      if ((role === 'owner' || role === 'manager') && contractorsData) {
         setContractors(contractorsData || []);
       }
       
@@ -682,8 +803,8 @@ export default function ManagerDashboard() {
           </Card>
         )}
 
-        {/* Contractors Card - Only for Owners */}
-        {role === 'owner' && (
+        {/* Contractors Card - For Owners and Managers */}
+        {(role === 'owner' || role === 'manager') && (
           <Card className="opacity-0 animate-fade-up stagger-6">
             <CardHeader className="flex-row items-center justify-between pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -749,6 +870,91 @@ export default function ManagerDashboard() {
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Pending Contractor Invoices - For Project Managers */}
+        {role === 'manager' && pendingContractorInvoices.length > 0 && (
+          <Card className="opacity-0 animate-fade-up stagger-6">
+            <CardHeader className="flex-row items-center justify-between pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Receipt className="w-5 h-5 text-primary" />
+                Pending Contractor Invoices ({pendingContractorInvoices.length})
+              </CardTitle>
+              <button 
+                onClick={() => navigate("/contractors")}
+                className="text-sm text-primary flex items-center gap-1"
+              >
+                View All <ChevronRight className="w-4 h-4" />
+              </button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {pendingContractorInvoices.map((invoice) => (
+                  <motion.div
+                    key={invoice._id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="p-4 rounded-xl border bg-card"
+                  >
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h3 className="font-semibold text-foreground">
+                          {invoice.invoiceNumber || `Invoice #${invoice._id.slice(-6)}`}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          {invoice.projectId?.name || 'N/A'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(invoice.weekStartDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - {new Date(invoice.weekEndDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </p>
+                      </div>
+                      <StatusBadge status="warning" label="PENDING" />
+                    </div>
+
+                    <div className="space-y-1 text-sm text-muted-foreground mb-3">
+                      <p>👥 Labour Days: {invoice.labourCountTotal}</p>
+                      <p>💰 Rate: ₹{invoice.ratePerLabour.toFixed(2)}/day</p>
+                      <p>📊 Taxable: ₹{invoice.taxableAmount.toFixed(2)}</p>
+                      <p>📊 GST ({invoice.gstRate}%): ₹{invoice.gstAmount.toFixed(2)}</p>
+                      <p className="font-semibold text-foreground text-base mt-2">
+                        Total: ₹{invoice.totalAmount.toFixed(2)}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2 mt-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => handleDownloadContractorInvoicePDF(invoice)}
+                        disabled={downloadingInvoiceId === invoice._id}
+                      >
+                        {downloadingInvoiceId === invoice._id ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Download className="w-4 h-4 mr-2" />
+                        )}
+                        Export PDF
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => handleApproveInvoice(invoice._id)}
+                        disabled={approvingInvoiceId === invoice._id}
+                      >
+                        {approvingInvoiceId === invoice._id ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Check className="w-4 h-4 mr-2" />
+                        )}
+                        Approve
+                      </Button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         )}

@@ -13,10 +13,10 @@ const sendMaterialSchema = z.object({
 });
 
 const receiveMaterialSchema = z.object({
-  proofPhotoUrl: z.string().optional(),
+  proofPhotoUrl: z.string().min(1, 'Proof photo is required for GRN'),
   geoLocation: z.string().optional(),
-  latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional(),
+  latitude: z.number().min(-90).max(90, 'Valid GPS coordinates required for GRN'),
+  longitude: z.number().min(-180).max(180, 'Valid GPS coordinates required for GRN'),
 });
 
 /**
@@ -224,23 +224,28 @@ export const receiveMaterial = async (
       throw new AppError('Material already received', 400, 'ALREADY_RECEIVED');
     }
 
+    // Validate GRN requirements (photo and GPS are mandatory)
+    if (!data.proofPhotoUrl) {
+      throw new AppError('Proof photo is required for Goods Receipt Note (GRN)', 400, 'MISSING_PHOTO');
+    }
+    if (data.latitude === undefined || data.longitude === undefined) {
+      throw new AppError('GPS coordinates are required for Goods Receipt Note (GRN)', 400, 'MISSING_GPS');
+    }
+
     // Update to received
     purchaseHistory.status = 'RECEIVED';
     purchaseHistory.receivedAt = new Date();
     purchaseHistory.receivedBy = req.user.userId as any;
+    purchaseHistory.proofPhotoUrl = data.proofPhotoUrl;
     
-    if (data.proofPhotoUrl) {
-      purchaseHistory.proofPhotoUrl = data.proofPhotoUrl;
-    }
     if (data.geoLocation) {
       purchaseHistory.geoLocation = data.geoLocation;
     }
-    if (data.latitude !== undefined && data.longitude !== undefined) {
-      purchaseHistory.coordinates = {
-        latitude: data.latitude,
-        longitude: data.longitude,
-      };
-    }
+    
+    purchaseHistory.coordinates = {
+      latitude: data.latitude,
+      longitude: data.longitude,
+    };
 
     await purchaseHistory.save();
 

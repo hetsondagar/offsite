@@ -571,18 +571,31 @@ export const createWeeklyInvoice = async (
 
     const totalLabourDays = labourDayMap.size;
 
-    // Calculate average rate (use contract rate, but if multiple contracts exist, average them)
-    let averageRate = contract.ratePerLabourPerDay;
+    // Use market average rate (INR) - current market trends for construction labour in India
+    // Average rate: ₹650-750 per day for unskilled labour, ₹800-1000 for semi-skilled
+    // Using ₹700 as the market average rate
+    const MARKET_AVERAGE_RATE_PER_DAY = 700; // INR per labour per day
+    
+    // If contract rate exists and is reasonable, use average of contract and market rate
+    // Otherwise, use pure market rate
+    let averageRate = MARKET_AVERAGE_RATE_PER_DAY;
     const activeContracts = contractor.contracts.filter(c => 
       c.projectId.toString() === data.projectId && c.isActive
     );
-    if (activeContracts.length > 1) {
-      const totalRate = activeContracts.reduce((sum, c) => sum + c.ratePerLabourPerDay, 0);
-      averageRate = totalRate / activeContracts.length;
+    
+    if (activeContracts.length > 0) {
+      const contractRates = activeContracts.map(c => c.ratePerLabourPerDay);
+      const avgContractRate = contractRates.reduce((sum, rate) => sum + rate, 0) / contractRates.length;
+      
+      // Use weighted average: 70% market rate, 30% contract rate (if contract rate is reasonable)
+      // This ensures market trends are prioritized while respecting existing contracts
+      if (avgContractRate > 0 && avgContractRate <= 1500) { // Reasonable contract rate
+        averageRate = Math.round((MARKET_AVERAGE_RATE_PER_DAY * 0.7 + avgContractRate * 0.3) * 100) / 100;
+      }
     }
 
     // Calculate amounts with GST
-    const taxableAmount = totalLabourDays * averageRate;
+    const taxableAmount = Math.round(totalLabourDays * averageRate * 100) / 100;
     const gstAmount = Math.round((taxableAmount * contract.gstRate) / 100 * 100) / 100; // Round to 2 decimal places
     const totalAmount = Math.round((taxableAmount + gstAmount) * 100) / 100; // Round to 2 decimal places
 

@@ -57,15 +57,20 @@ export default function PurchaseHistoryPage() {
     try {
       setReceivingId(historyId);
 
-      // Take photo proof
+      // Take photo proof (MANDATORY for GRN)
       let proofPhotoUrl: string | undefined;
       try {
         proofPhotoUrl = await takePhoto();
+        if (!proofPhotoUrl) {
+          toast.error("Photo proof is required for Goods Receipt Note (GRN)");
+          return;
+        }
       } catch (e) {
-        console.warn("Photo capture skipped:", e);
+        toast.error("Photo capture is required for GRN. Please try again.");
+        return;
       }
 
-      // Get GPS location
+      // Get GPS location (MANDATORY for GRN)
       let latitude: number | undefined;
       let longitude: number | undefined;
       let geoLocation: string | undefined;
@@ -74,16 +79,21 @@ export default function PurchaseHistoryPage() {
         const position = await getCurrentPosition();
         latitude = position.coords.latitude;
         longitude = position.coords.longitude;
+        if (latitude === undefined || longitude === undefined) {
+          toast.error("GPS coordinates are required for GRN");
+          return;
+        }
         geoLocation = await reverseGeocode(latitude, longitude);
       } catch (e) {
-        console.warn("GPS capture skipped:", e);
+        toast.error("GPS location is required for GRN. Please enable location services and try again.");
+        return;
       }
 
       await purchaseApi.receiveMaterial(historyId, {
-        proofPhotoUrl,
+        proofPhotoUrl: proofPhotoUrl!, // Required
         geoLocation,
-        latitude,
-        longitude,
+        latitude: latitude!, // Required
+        longitude: longitude!, // Required
       });
 
       toast.success("Material received successfully!");
