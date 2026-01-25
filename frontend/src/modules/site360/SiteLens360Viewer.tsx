@@ -39,11 +39,6 @@ export function SiteLens360Viewer({
     setIsLoading(true);
 
     try {
-      // Destroy existing scene
-      if (sceneRef.current) {
-        sceneRef.current.destroy();
-      }
-
       // Create new scene
       const source = Marzipano.ImageUrlSource.fromString(
         getImageUrl(targetNode.imageUrl)
@@ -59,7 +54,19 @@ export function SiteLens360Viewer({
         view,
       });
 
-      scene.switchTo();
+      // Switch to the new scene with a smooth transition
+      scene.switchTo({
+        transitionDuration: 500,
+      });
+
+      // Destroy old scene after transition
+      if (sceneRef.current) {
+        setTimeout(() => {
+          sceneRef.current?.destroy();
+        }, 600);
+      }
+
+      sceneRef.current = scene;
 
       // Add hotspots for connections
       targetNode.connections.forEach((connection) => {
@@ -78,8 +85,6 @@ export function SiteLens360Viewer({
           }
         });
       });
-
-      sceneRef.current = scene;
     } catch (error) {
       console.error('Failed to load scene:', error);
     } finally {
@@ -160,19 +165,28 @@ export function SiteLens360Viewer({
       controls: {
         mouseViewMode: 'drag',
       },
+      stage: {
+        width: containerRef.current.clientWidth,
+        height: containerRef.current.clientHeight,
+      },
     });
 
     viewerRef.current = viewer;
 
-    // Load initial scene
-    loadScene(currentNode);
+    // Wait a bit for viewer to be ready before loading scene
+    const timer = setTimeout(() => {
+      loadScene(currentNode);
+    }, 100);
 
     return () => {
+      clearTimeout(timer);
       if (sceneRef.current) {
         sceneRef.current.destroy();
+        sceneRef.current = null;
       }
-      if (viewer) {
-        viewer.destroy();
+      if (viewerRef.current) {
+        viewerRef.current.destroy();
+        viewerRef.current = null;
       }
     };
   }, []);
