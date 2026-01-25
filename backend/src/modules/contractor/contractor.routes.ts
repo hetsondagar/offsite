@@ -20,7 +20,7 @@ const router = Router();
 // All routes require authentication
 router.use(authenticateUser);
 
-// Contractor management (Owner)
+// Contractor management (Owner + Project Manager)
 router.get('/', getAllContractors);
 router.post('/assign', assignContractorToProject);
 

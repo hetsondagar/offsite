@@ -3,8 +3,19 @@ import { Contractor } from '../modules/contractor/contractor.model';
 import { User } from '../modules/users/user.model';
 import { generateOffsiteId } from '../utils/generateOffsiteId';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 
-dotenv.config();
+const dotenvPath = (() => {
+  if (process.env.DOTENV_PATH) return process.env.DOTENV_PATH;
+  const envDefault = path.resolve(process.cwd(), '.env');
+  if (fs.existsSync(envDefault)) return envDefault;
+  const envMongo = path.resolve(process.cwd(), '.env.mongodb');
+  if (fs.existsSync(envMongo)) return envMongo;
+  return undefined;
+})();
+
+dotenv.config(dotenvPath ? { path: dotenvPath } : undefined);
 
 // Indian contractor names with realistic company names
 const contractorsData = [

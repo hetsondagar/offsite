@@ -14,8 +14,13 @@ import { usersApi } from "@/services/api/users";
 import { Users, Plus, Receipt, Loader2, Building, Star } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { useAppSelector } from "@/store/hooks";
 
 export default function ContractorsManagementPage() {
+  const role = useAppSelector((state) => state.auth.role);
+  const isOwner = role === "owner";
+  const layoutRole = (role ?? "manager") as "engineer" | "manager" | "owner" | "purchase_manager" | "contractor";
+
   const [contractors, setContractors] = useState<Contractor[]>([]);
   const [invoices, setInvoices] = useState<ContractorInvoice[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -36,11 +41,13 @@ export default function ContractorsManagementPage() {
   const loadData = async () => {
     try {
       setIsLoading(true);
+
       const [contractorsData, invoicesData, projectsData] = await Promise.all([
         contractorApi.getAllContractors(),
-        contractorApi.getApprovedInvoices(),
-        projectsApi.getAll(1, 50),
+        isOwner ? contractorApi.getApprovedInvoices() : Promise.resolve([] as ContractorInvoice[]),
+        isOwner ? projectsApi.getAll(1, 50) : Promise.resolve(null as any),
       ]);
+
       setContractors(contractorsData || []);
       setInvoices(invoicesData || []);
       setProjects(projectsData?.projects || []);
@@ -104,7 +111,7 @@ export default function ContractorsManagementPage() {
   const totalGST = invoices.reduce((sum, inv) => sum + inv.gstAmount, 0);
 
   return (
-    <MobileLayout role="owner">
+    <MobileLayout role={layoutRole}>
       <div className="p-4 space-y-6 safe-area-top">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -113,94 +120,100 @@ export default function ContractorsManagementPage() {
         >
           <div>
             <h1 className="text-2xl font-bold text-foreground">Contractors</h1>
-            <p className="text-sm text-muted-foreground">Manage contractor assignments</p>
+            <p className="text-sm text-muted-foreground">
+              {isOwner ? "Manage contractor assignments" : "View available contractors"}
+            </p>
           </div>
-          <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Assign
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Assign Contractor to Project</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label>Contractor User ID *</Label>
-                  <Input
-                    value={contractorUserId}
-                    onChange={(e) => setContractorUserId(e.target.value)}
-                    placeholder="Enter contractor Offsite ID (e.g., OSCT0002) or MongoDB user ID"
-                  />
-                </div>
-                <div>
-                  <Label>Project *</Label>
-                  <Select value={selectedProject} onValueChange={setSelectedProject}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {projects.map((project) => (
-                        <SelectItem key={project._id} value={project._id}>
-                          {project.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Labour Count / Day *</Label>
-                  <Input
-                    type="number"
-                    value={labourCount}
-                    onChange={(e) => setLabourCount(e.target.value)}
-                    placeholder="Expected daily labours"
-                  />
-                </div>
-                <div>
-                  <Label>Rate per Labour / Day (₹) *</Label>
-                  <Input
-                    type="number"
-                    value={ratePerLabour}
-                    onChange={(e) => setRatePerLabour(e.target.value)}
-                    placeholder="Daily rate in INR"
-                  />
-                </div>
-                <Button className="w-full" onClick={handleAssignContractor} disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Assign Contractor
+          {isOwner && (
+            <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Assign
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Assign Contractor to Project</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Contractor User ID *</Label>
+                    <Input
+                      value={contractorUserId}
+                      onChange={(e) => setContractorUserId(e.target.value)}
+                      placeholder="Enter contractor Offsite ID (e.g., OSCT0002) or MongoDB user ID"
+                    />
+                  </div>
+                  <div>
+                    <Label>Project *</Label>
+                    <Select value={selectedProject} onValueChange={setSelectedProject}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {projects.map((project) => (
+                          <SelectItem key={project._id} value={project._id}>
+                            {project.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Labour Count / Day *</Label>
+                    <Input
+                      type="number"
+                      value={labourCount}
+                      onChange={(e) => setLabourCount(e.target.value)}
+                      placeholder="Expected daily labours"
+                    />
+                  </div>
+                  <div>
+                    <Label>Rate per Labour / Day (₹) *</Label>
+                    <Input
+                      type="number"
+                      value={ratePerLabour}
+                      onChange={(e) => setRatePerLabour(e.target.value)}
+                      placeholder="Daily rate in INR"
+                    />
+                  </div>
+                  <Button className="w-full" onClick={handleAssignContractor} disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Assign Contractor
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </motion.div>
 
         {/* Summary KPIs */}
-        <div className="grid grid-cols-2 gap-3">
-          <KPICard
-            title="Total Labour Cost"
-            value={formatCurrency(totalLabourCost)}
-            icon={Users}
-            variant="default"
-            delay={100}
-          />
-          <KPICard
-            title="GST Paid"
-            value={formatCurrency(totalGST)}
-            icon={Receipt}
-            variant="warning"
-            delay={200}
-          />
-        </div>
+        {isOwner && (
+          <div className="grid grid-cols-2 gap-3">
+            <KPICard
+              title="Total Labour Cost"
+              value={formatCurrency(totalLabourCost)}
+              icon={Users}
+              variant="default"
+              delay={100}
+            />
+            <KPICard
+              title="GST Paid"
+              value={formatCurrency(totalGST)}
+              icon={Receipt}
+              variant="warning"
+              delay={200}
+            />
+          </div>
+        )}
 
         {/* Contractors List */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building className="w-5 h-5" />
-              Registered Contractors ({contractors.length})
+              Available Contractors ({contractors.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -273,55 +286,57 @@ export default function ContractorsManagementPage() {
           </CardContent>
         </Card>
 
-        {/* Approved Invoices */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Receipt className="w-5 h-5" />
-              Approved Contractor Invoices ({invoices.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {invoices.length === 0 ? (
-              <div className="text-center py-8">
-                <Receipt className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">No approved invoices yet</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {invoices.map((invoice, index) => (
-                  <motion.div
-                    key={invoice._id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="p-4 rounded-lg border bg-card"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h3 className="font-semibold text-foreground">
-                          {invoice.invoiceNumber}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          {invoice.projectId?.name || 'N/A'}
+        {/* Approved Invoices (Owner only) */}
+        {isOwner && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Receipt className="w-5 h-5" />
+                Approved Contractor Invoices ({invoices.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {invoices.length === 0 ? (
+                <div className="text-center py-8">
+                  <Receipt className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">No approved invoices yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {invoices.map((invoice, index) => (
+                    <motion.div
+                      key={invoice._id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="p-4 rounded-lg border bg-card"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h3 className="font-semibold text-foreground">
+                            {invoice.invoiceNumber}
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            {invoice.projectId?.name || 'N/A'}
+                          </p>
+                        </div>
+                        <StatusBadge status="success" label="APPROVED" />
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        <p>👥 Labour Days: {invoice.labourCountTotal}</p>
+                        <p>📊 Taxable: {formatCurrency(invoice.taxableAmount)}</p>
+                        <p>📊 GST ({invoice.gstRate}%): {formatCurrency(invoice.gstAmount)}</p>
+                        <p className="font-semibold text-foreground">
+                          Total: {formatCurrency(invoice.totalAmount)}
                         </p>
                       </div>
-                      <StatusBadge status="success" label="APPROVED" />
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      <p>👥 Labour Days: {invoice.labourCountTotal}</p>
-                      <p>📊 Taxable: {formatCurrency(invoice.taxableAmount)}</p>
-                      <p>📊 GST ({invoice.gstRate}%): {formatCurrency(invoice.gstAmount)}</p>
-                      <p className="font-semibold text-foreground">
-                        Total: {formatCurrency(invoice.totalAmount)}
-                      </p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </MobileLayout>
   );

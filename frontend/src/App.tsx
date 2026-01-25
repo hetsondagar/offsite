@@ -197,7 +197,14 @@ function AppContent() {
             <Route path="/contractor/attendance" element={<ContractorAttendancePage />} />
             <Route path="/contractor/weekly-invoice" element={<ContractorWeeklyInvoicePage />} />
             {/* Owner Routes */}
-            <Route path="/contractors" element={<ContractorsManagementPage />} />
+            <Route
+              path="/contractors"
+              element={
+                <ProtectedRoute requiredPermission="canViewContractors">
+                  <ContractorsManagementPage />
+                </ProtectedRoute>
+              }
+            />
             {/* Shared Routes */}
             <Route path="/tools" element={<ToolsPage />} />
             <Route path="/permits" element={<PermitsPage />} />

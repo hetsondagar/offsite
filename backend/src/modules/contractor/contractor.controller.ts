@@ -74,7 +74,7 @@ async function generateLabourCode(contractorId: string): Promise<string> {
 }
 
 /**
- * Get all contractors (Owner only)
+ * Get all contractors (Owner + Project Manager)
  */
 export const getAllContractors = async (
   req: Request,
@@ -86,8 +86,8 @@ export const getAllContractors = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    if (req.user.role !== 'owner') {
-      throw new AppError('Only owners can view all contractors', 403, 'FORBIDDEN');
+    if (req.user.role !== 'owner' && req.user.role !== 'manager') {
+      throw new AppError('Only owners and project managers can view contractors', 403, 'FORBIDDEN');
     }
 
     const contractors = await Contractor.find()
