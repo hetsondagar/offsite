@@ -447,7 +447,21 @@ export const getProjectById = async (
       attendanceQuery.userId = req.user.userId;
     }
 
-    // Fetch all related data in parallel with error handling
+    // Fetch all related data in parallel with per-promise error handling.
+    // This keeps types stable (numbers stay numbers, arrays stay arrays).
+    const withDefault = async <T>(
+      promise: Promise<T>,
+      defaultValue: T,
+      label: string
+    ): Promise<T> => {
+      try {
+        return await promise;
+      } catch (err) {
+        logger.warn(`Error fetching project data (${label}):`, err);
+        return defaultValue;
+      }
+    };
+
     const [
       tasksCount,
       recentTasks,
@@ -460,60 +474,67 @@ export const getProjectById = async (
       recentAttendance,
       eventsCount,
       taskStats,
-    ] = await Promise.allSettled([
-      Task.countDocuments(taskQuery),
-      // Recent tasks (last 5)
-      Task.find(taskQuery)
-        .populate('assignedTo', 'name phone')
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .select('-__v')
-        .lean(),
-      DPR.countDocuments(dprQuery),
-      // Recent DPRs (last 5)
-      DPR.find(dprQuery)
-        .populate('createdBy', 'name phone')
-        .populate('taskId', 'title')
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .select('-__v')
-        .lean(),
-      // All material requests
-      MaterialRequest.find(materialQuery).select('_id status').lean(),
-      MaterialRequest.countDocuments(materialQuery),
-      // Recent material requests (last 5)
-      MaterialRequest.find(materialQuery)
-        .populate('requestedBy', 'name phone')
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .select('-__v')
-        .lean(),
-      Attendance.countDocuments(attendanceQuery),
-      // Recent attendance (last 10)
-      Attendance.find(attendanceQuery)
-        .populate('userId', 'name phone')
-        .sort({ timestamp: -1 })
-        .limit(10)
-        .select('-__v')
-        .lean(),
-      Event.countDocuments(eventQuery),
-      // Task statistics
-      Task.aggregate([
-        { $match: taskQuery },
-        { $group: { _id: '$status', count: { $sum: 1 } } },
-      ]),
-    ]).then((results) => {
-      // Extract values from Promise.allSettled results
-      return results.map((result) => {
-        if (result.status === 'fulfilled') {
-          return result.value;
-        } else {
-          // Return default values on error
-          logger.warn('Error fetching project data:', result.reason);
-          return Array.isArray(result.reason) ? [] : 0;
-        }
-      });
-    });
+    ] = await Promise.all([
+      withDefault(Task.countDocuments(taskQuery), 0, 'tasksCount'),
+      withDefault(
+        Task.find(taskQuery)
+          .populate('assignedTo', 'name phone')
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .select('-__v')
+          .lean(),
+        [] as any[],
+        'recentTasks'
+      ),
+      withDefault(DPR.countDocuments(dprQuery), 0, 'dprsCount'),
+      withDefault(
+        DPR.find(dprQuery)
+          .populate('createdBy', 'name phone')
+          .populate('taskId', 'title')
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .select('-__v')
+          .lean(),
+        [] as any[],
+        'recentDPRs'
+      ),
+      withDefault(
+        MaterialRequest.find(materialQuery).select('_id status').lean(),
+        [] as any[],
+        'materials'
+      ),
+      withDefault(MaterialRequest.countDocuments(materialQuery), 0, 'materialsCount'),
+      withDefault(
+        MaterialRequest.find(materialQuery)
+          .populate('requestedBy', 'name phone')
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .select('-__v')
+          .lean(),
+        [] as any[],
+        'recentMaterials'
+      ),
+      withDefault(Attendance.countDocuments(attendanceQuery), 0, 'attendanceCount'),
+      withDefault(
+        Attendance.find(attendanceQuery)
+          .populate('userId', 'name phone')
+          .sort({ timestamp: -1 })
+          .limit(10)
+          .select('-__v')
+          .lean(),
+        [] as any[],
+        'recentAttendance'
+      ),
+      withDefault(Event.countDocuments(eventQuery), 0, 'eventsCount'),
+      withDefault(
+        Task.aggregate([
+          { $match: taskQuery },
+          { $group: { _id: '$status', count: { $sum: 1 } } },
+        ]),
+        [] as any[],
+        'taskStats'
+      ),
+    ]);
 
     // Calculate task statistics
     const taskStatusCounts = {
