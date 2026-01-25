@@ -406,6 +406,23 @@ export default function EngineerDashboard() {
                     </div>
                   </div>
                 )}
+
+                {/* Confirm Materials (Pending GRN) */}
+                <div 
+                  className="flex items-center justify-between p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
+                  onClick={() => navigate("/purchase-history")}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-warning/10">
+                      <Package className="w-4 h-4 text-warning" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Confirm Materials</p>
+                      <p className="text-xs text-muted-foreground">Verify deliveries and generate GRN</p>
+                    </div>
+                  </div>
+                  <StatusBadge status="warning" label="Pending GRN" />
+                </div>
               </>
             )}
           </CardContent>

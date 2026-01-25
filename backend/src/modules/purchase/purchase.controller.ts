@@ -46,7 +46,7 @@ export const getApprovedRequests = async (
     // PENDING_GRN requests should still show as they need to be sent
     // Optimize: Use lean() and only get IDs for better performance
     const sentRequestIds = await PurchaseHistory.find({
-      status: { $in: ['SENT', 'RECEIVED'] }
+      status: { $in: ['PENDING_GRN', 'SENT', 'RECEIVED'] }
     })
       .select('materialRequestId')
       .lean()
@@ -172,9 +172,8 @@ export const sendMaterial = async (
 
     await purchaseHistory.save();
 
-    // Update material request status to 'sent' (pending GRN)
-    materialRequest.status = 'sent' as any;
-    await materialRequest.save();
+    // Keep material request status as 'approved' to align with schema
+    // Progress is tracked in PurchaseHistory; no status change on MaterialRequest
 
     // Send notification to the requesting engineer
     const requester = materialRequest.requestedBy as any;
