@@ -63,6 +63,8 @@ app.use(
           "blob:",
           "https://api.maptiler.com", // MapTiler map tiles
           "https://*.maptiler.com", // MapTiler subdomains
+          "https://res.cloudinary.com", // Cloudinary hosted images
+          "https://*.cloudinary.com", // Cloudinary subdomains (fallback)
         ],
         connectSrc: [
           "'self'",
@@ -193,7 +195,7 @@ if (!fs.existsSync(site360Path)) {
 }
 
 logger.info(`Serving static uploads from: ${uploadsPath}`);
-app.use('/uploads', express.static(uploadsPath, {
+app.use(['/uploads', '/api/uploads'], express.static(uploadsPath, {
   etag: true,
   lastModified: true,
   maxAge: '1d', // Cache for 1 day

@@ -20,17 +20,31 @@ export function SiteLens360Viewer({
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Marzipano.Viewer | null>(null);
   const sceneRef = useRef<Marzipano.Scene | null>(null);
+  const loadTokenRef = useRef(0);
+  const hotspotsTimerRef = useRef<number | null>(null);
   const [currentNode, setCurrentNode] = useState<Site360Node>(node);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Get full image URL
   const getImageUrl = (imageUrl: string) => {
     if (imageUrl.startsWith('http')) {
       return imageUrl;
     }
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-    return `${apiUrl}${imageUrl}`;
+    const configuredApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    // Our backend serves static uploads at /uploads (not /api/uploads).
+    // If VITE_API_URL ends with /api, strip it for asset URLs.
+    const baseUrl = configuredApiUrl.replace(/\/(api)\/?$/i, '');
+    return `${baseUrl}${imageUrl}`;
   };
+
+  const preloadImage = (url: string) =>
+    new Promise<void>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('Image failed to load'));
+      img.src = url;
+    });
 
   // Load scene
   const loadScene = async (targetNode: Site360Node) => {
@@ -46,7 +60,11 @@ export function SiteLens360Viewer({
       return;
     }
 
+    loadTokenRef.current += 1;
+    const myToken = loadTokenRef.current;
+
     setIsLoading(true);
+    setLoadError(null);
 
     try {
       // Destroy old scene first
@@ -59,8 +77,22 @@ export function SiteLens360Viewer({
         sceneRef.current = null;
       }
 
+      if (hotspotsTimerRef.current) {
+        window.clearTimeout(hotspotsTimerRef.current);
+        hotspotsTimerRef.current = null;
+      }
+
       // Create new scene
       const imageUrl = getImageUrl(targetNode.imageUrl);
+
+      // Preload to fail fast (prevents Marzipano getting into a bad state on 404)
+      await preloadImage(imageUrl);
+
+      // If a newer load started or viewer was destroyed, abort.
+      if (myToken !== loadTokenRef.current || !viewerRef.current) {
+        return;
+      }
+
       const source = Marzipano.ImageUrlSource.fromString(imageUrl);
 
       const geometry = new Marzipano.EquirectGeometry([{ width: 4000 }]);
@@ -81,7 +113,8 @@ export function SiteLens360Viewer({
       });
 
       // Wait a bit before adding hotspots to ensure scene is loaded
-      setTimeout(() => {
+      hotspotsTimerRef.current = window.setTimeout(() => {
+        if (myToken !== loadTokenRef.current || !sceneRef.current) return;
         // Add hotspots for connections
         if (targetNode.connections && targetNode.connections.length > 0) {
           targetNode.connections.forEach((connection) => {
@@ -108,6 +141,7 @@ export function SiteLens360Viewer({
       }, 300);
     } catch (error) {
       console.error('Failed to load scene:', error);
+      setLoadError('Failed to load panorama image. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -251,6 +285,11 @@ export function SiteLens360Viewer({
     }
 
     return () => {
+      loadTokenRef.current += 1;
+      if (hotspotsTimerRef.current) {
+        window.clearTimeout(hotspotsTimerRef.current);
+        hotspotsTimerRef.current = null;
+      }
       if (sceneRef.current) {
         try {
           sceneRef.current.destroy();
@@ -287,6 +326,16 @@ export function SiteLens360Viewer({
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
           <div className="text-white text-lg">Loading...</div>
+        </div>
+      )}
+
+      {/* Error Overlay */}
+      {loadError && !isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-10 px-6">
+          <div className="text-white text-center">
+            <div className="text-lg font-semibold mb-2">Unable to load</div>
+            <div className="text-sm text-white/80">{loadError}</div>
+          </div>
         </div>
       )}
 

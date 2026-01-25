@@ -1,10 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import fs from 'fs';
 import { Site360Node } from './site360.model';
 import { Project } from '../projects/project.model';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 import { logger } from '../../utils/logger';
+import { cloudinary } from '../../config/cloudinary';
 import {
   ensureUploadsDirectory,
   getNodesByProject,
@@ -61,7 +63,29 @@ export const createNode = async (
     ensureUploadsDirectory();
 
     // File is already saved by multer, get the filename
-    const imageUrl = `/uploads/site360/${file.filename}`;
+    // Prefer Cloudinary (persistent for production) but keep a local fallback for dev.
+    let imageUrl = `/uploads/site360/${file.filename}`;
+
+    try {
+      if (file.path) {
+        const result = await cloudinary.uploader.upload(file.path, {
+          folder: 'offsite/site360',
+          resource_type: 'image',
+        });
+
+        if (result?.secure_url) {
+          imageUrl = result.secure_url;
+          // Cleanup local file if Cloudinary upload succeeded
+          try {
+            fs.unlinkSync(file.path);
+          } catch (e) {
+            // ignore cleanup failures
+          }
+        }
+      }
+    } catch (e: any) {
+      logger.warn(`Cloudinary upload failed for Site360 panorama; using local uploads fallback: ${e?.message || e}`);
+    }
 
     // Create node
     const node = new Site360Node({
