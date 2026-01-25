@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { PurchaseHistory } from './purchase-history.model';
-import { PurchaseInvoice } from './purchase-invoice.model';
 import { MaterialRequest } from '../materials/material.model';
 import { MaterialCatalog } from '../materials/material-catalog.model';
 import { ApiResponse } from '../../types';

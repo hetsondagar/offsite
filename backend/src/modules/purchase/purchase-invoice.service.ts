@@ -1,5 +1,4 @@
 import { PurchaseInvoice } from './purchase-invoice.model';
-import { PurchaseHistory } from './purchase-history.model';
 import { logger } from '../../utils/logger';
 
 /**

@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { PurchaseInvoice } from './purchase-invoice.model';
 import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
-import { logger } from '../../utils/logger';
 
 /**
  * Get purchase invoices (Manager/Owner)
@@ -181,7 +180,7 @@ export const generatePurchaseInvoicePDF = async (
       res.setHeader('Content-Disposition', `attachment; filename="Purchase-Invoice-${invoice.invoiceNumber}.pdf"`);
       res.send(pdfBuffer);
     });
-    doc.on('error', (error) => {
+    doc.on('error', () => {
       next(new AppError('Failed to generate PDF', 500, 'PDF_GENERATION_ERROR'));
     });
 
@@ -224,7 +223,7 @@ export const generatePurchaseInvoicePDF = async (
     doc.text(`${invoice.basePrice.toFixed(2)}`, 500, doc.y - 12, { align: 'right' });
 
     doc.moveDown(1);
-    doc.line(50, doc.y, 550, doc.y);
+    doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
     doc.moveDown(0.5);
 
     // Taxable Amount
@@ -237,7 +236,7 @@ export const generatePurchaseInvoicePDF = async (
     doc.text(`₹${invoice.gstAmount.toFixed(2)}`, 500, doc.y - 12, { align: 'right' });
 
     doc.moveDown(0.5);
-    doc.line(50, doc.y, 550, doc.y);
+    doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
     doc.moveDown(0.3);
 
     // Total
