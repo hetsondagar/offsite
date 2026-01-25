@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import multer from 'multer';
 import { authenticateUser } from '../../middlewares/auth.middleware';
 import {
   submitExpense,
@@ -12,19 +11,11 @@ import {
 
 const router = Router();
 
-// Configure multer for memory storage (receipt photo)
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB
-  },
-});
-
 // All routes require authentication
 router.use(authenticateUser);
 
 // Submit expense (Manager)
-router.post('/', upload.single('receipt'), submitExpense);
+router.post('/', submitExpense);
 
 // Get expenses
 router.get('/pending', getPendingExpenses);
