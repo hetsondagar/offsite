@@ -31,11 +31,6 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const navigate = useNavigate();
 
-  // Defensive guard - ensure invoice has required properties
-  if (!invoice) {
-    return null;
-  }
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -53,11 +48,11 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
   };
 
   const projectName =
-    invoice.projectId && typeof invoice.projectId === 'object' ? invoice.projectId.name : t('materials.unknown') + ' ' + t('dpr.project');
+    typeof invoice.projectId === 'object' ? invoice.projectId.name : t('materials.unknown') + ' ' + t('dpr.project');
   const projectLocation =
-    invoice.projectId && typeof invoice.projectId === 'object' ? invoice.projectId.location : '';
+    typeof invoice.projectId === 'object' ? invoice.projectId.location : '';
   const projectId =
-    invoice.projectId && typeof invoice.projectId === 'object' ? invoice.projectId._id : invoice.projectId;
+    typeof invoice.projectId === 'object' ? invoice.projectId._id : invoice.projectId;
 
   const handleFinalize = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -119,9 +114,7 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
       if (projectLocation) {
         doc.text(`${t('projects.location')}: ${projectLocation}`, 14, 32);
       }
-      if (invoice.billingPeriod) {
-        doc.text(`${t('invoices.billingPeriod')}: ${formatDate(invoice.billingPeriod.from)} - ${formatDate(invoice.billingPeriod.to)}`, 14, 38);
-      }
+      doc.text(`${t('invoices.billingPeriod')}: ${formatDate(invoice.billingPeriod.from)} - ${formatDate(invoice.billingPeriod.to)}`, 14, 38);
       doc.text(`${t('invoices.gst')} ${t('common.details')}: ${invoice.gstType}`, 14, 44);
 
       const startY = 54;
@@ -212,11 +205,7 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
               <div className="flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
                 <span className="text-xs">
-                  {invoice.billingPeriod ? (
-                    <>{formatDate(invoice.billingPeriod.from)} - {formatDate(invoice.billingPeriod.to)}</>
-                  ) : (
-                    'N/A'
-                  )}
+                  {formatDate(invoice.billingPeriod.from)} - {formatDate(invoice.billingPeriod.to)}
                 </span>
               </div>
               <p className="text-xs mt-1">
@@ -248,26 +237,22 @@ export function InvoiceCard({ invoice, isSelected, onSelect, onFinalize, onEdit,
             >
               {/* Supplier & Client Details */}
               <div className="grid grid-cols-2 gap-4">
-                {invoice.supplier && (
-                  <div className="p-3 rounded-xl bg-muted/50">
-                    <h4 className="text-xs font-medium text-muted-foreground mb-2">Supplier</h4>
-                    <p className="text-sm font-medium text-foreground">{invoice.supplier.companyName || 'N/A'}</p>
-                    <p className="text-xs text-muted-foreground">{invoice.supplier.address || 'N/A'}</p>
-                    <p className="text-xs text-muted-foreground">GSTIN: {invoice.supplier.gstin || 'N/A'}</p>
-                    <p className="text-xs text-muted-foreground">State: {invoice.supplier.state || 'N/A'}</p>
-                  </div>
-                )}
-                {invoice.client && (
-                  <div className="p-3 rounded-xl bg-muted/50">
-                    <h4 className="text-xs font-medium text-muted-foreground mb-2">{t('invoices.client')}</h4>
-                    <p className="text-sm font-medium text-foreground">{invoice.client.name || 'N/A'}</p>
-                    <p className="text-xs text-muted-foreground">{invoice.client.address || 'N/A'}</p>
-                    {invoice.client.gstin && (
-                      <p className="text-xs text-muted-foreground">GSTIN: {invoice.client.gstin}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground">State: {invoice.client.state || 'N/A'}</p>
-                  </div>
-                )}
+                <div className="p-3 rounded-xl bg-muted/50">
+                  <h4 className="text-xs font-medium text-muted-foreground mb-2">Supplier</h4>
+                  <p className="text-sm font-medium text-foreground">{invoice.supplier.companyName}</p>
+                  <p className="text-xs text-muted-foreground">{invoice.supplier.address}</p>
+                  <p className="text-xs text-muted-foreground">GSTIN: {invoice.supplier.gstin}</p>
+                  <p className="text-xs text-muted-foreground">State: {invoice.supplier.state}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-muted/50">
+                  <h4 className="text-xs font-medium text-muted-foreground mb-2">{t('invoices.client')}</h4>
+                  <p className="text-sm font-medium text-foreground">{invoice.client.name}</p>
+                  <p className="text-xs text-muted-foreground">{invoice.client.address}</p>
+                  {invoice.client.gstin && (
+                    <p className="text-xs text-muted-foreground">GSTIN: {invoice.client.gstin}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">State: {invoice.client.state}</p>
+                </div>
               </div>
 
               {/* GST Breakdown */}

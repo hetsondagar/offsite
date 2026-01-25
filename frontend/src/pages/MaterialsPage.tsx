@@ -379,7 +379,7 @@ export default function MaterialsPage() {
                               No projects available
                             </div>
                           ) : (
-                            projects.filter(Boolean).map((project) => (
+                            projects.map((project) => (
                               <button
                                 key={project._id}
                                 className="w-full p-4 text-left text-sm hover:bg-muted/50 transition-colors border-b border-border/30 last:border-0"
@@ -390,7 +390,7 @@ export default function MaterialsPage() {
                               >
                                 <div>
                                   <p className="font-medium">{project.name}</p>
-                                  <p className="text-xs text-muted-foreground">{project.location || ''}</p>
+                                  <p className="text-xs text-muted-foreground">{project.location}</p>
                                 </div>
                               </button>
                             ))
