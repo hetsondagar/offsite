@@ -11,21 +11,28 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { contractorApi, Contractor, ContractorInvoice } from "@/services/api/contractor";
 import { projectsApi } from "@/services/api/projects";
 import { usersApi } from "@/services/api/users";
-import { Users, Plus, Receipt, Loader2, Building, Star } from "lucide-react";
+import { Users, Plus, Receipt, Loader2, Building, Star, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { useAppSelector } from "@/store/hooks";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function ContractorsManagementPage() {
   const role = useAppSelector((state) => state.auth.role);
   const isOwner = role === "owner";
+  const isManager = role === "manager";
+  const canAssign = isOwner || isManager;
   const layoutRole = (role ?? "manager") as "engineer" | "manager" | "owner" | "purchase_manager" | "contractor";
 
   const [contractors, setContractors] = useState<Contractor[]>([]);
   const [invoices, setInvoices] = useState<ContractorInvoice[]>([]);
+  const [pendingInvoices, setPendingInvoices] = useState<ContractorInvoice[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form state
@@ -42,14 +49,18 @@ export default function ContractorsManagementPage() {
     try {
       setIsLoading(true);
 
-      const [contractorsData, invoicesData, projectsData] = await Promise.all([
+      const [contractorsData, invoicesData, pendingInvoicesData, projectsData] = await Promise.all([
         contractorApi.getAllContractors(),
         isOwner ? contractorApi.getApprovedInvoices() : Promise.resolve([] as ContractorInvoice[]),
-        isOwner ? projectsApi.getAll(1, 50) : Promise.resolve(null as any),
+        isManager ? contractorApi.getPendingInvoices() : Promise.resolve([] as ContractorInvoice[]),
+        canAssign ? projectsApi.getAll(1, 50) : Promise.resolve(null as any),
       ]);
 
+      console.log('Pending invoices loaded:', pendingInvoicesData);
+      
       setContractors(contractorsData || []);
       setInvoices(invoicesData || []);
+      setPendingInvoices(pendingInvoicesData || []);
       setProjects(projectsData?.projects || []);
     } catch (error: any) {
       toast.error(error.message || "Failed to load data");
@@ -99,6 +110,40 @@ export default function ContractorsManagementPage() {
     setRatePerLabour("");
   };
 
+  const handleApproveInvoice = async (invoiceId: string) => {
+    try {
+      setIsSubmitting(true);
+      await contractorApi.approveInvoice(invoiceId);
+      toast.success("Invoice approved! It will now be visible to the owner.");
+      loadData();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to approve invoice");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRejectInvoice = async () => {
+    if (!selectedInvoice || !rejectionReason.trim()) {
+      toast.error("Please provide a rejection reason");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await contractorApi.rejectInvoice(selectedInvoice, rejectionReason);
+      toast.success("Invoice rejected");
+      setShowRejectDialog(false);
+      setSelectedInvoice(null);
+      setRejectionReason("");
+      loadData();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to reject invoice");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -121,10 +166,10 @@ export default function ContractorsManagementPage() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Contractors</h1>
             <p className="text-sm text-muted-foreground">
-              {isOwner ? "Manage contractor assignments" : "View available contractors"}
+              {canAssign ? "Manage contractor assignments" : "View available contractors"}
             </p>
           </div>
-          {isOwner && (
+          {canAssign && (
             <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
               <DialogTrigger asChild>
                 <Button>
@@ -285,6 +330,154 @@ export default function ContractorsManagementPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Pending Invoices for Manager Approval */}
+        {isManager && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-orange-500" />
+                Pending Contractor Invoices ({pendingInvoices.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : pendingInvoices.length === 0 ? (
+                <div className="text-center py-8">
+                  <Receipt className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">No pending invoices to review</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {pendingInvoices.map((invoice, index) => (
+                    <motion.div
+                      key={invoice._id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="p-4 rounded-lg border bg-card border-orange-200 dark:border-orange-800"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-semibold text-foreground">
+                            {invoice.invoiceNumber || `INV-${invoice._id.substring(0, 8)}`}
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            {invoice.projectId?.name || 'Unknown Project'}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Contractor: {(invoice.contractorId as any)?.userId?.name || 'Unknown'}
+                          </p>
+                        </div>
+                        <StatusBadge status="warning" label="PENDING" />
+                      </div>
+                      
+                      <div className="text-sm space-y-1 mb-3">
+                        <p className="text-muted-foreground">
+                          📅 Period: {new Date(invoice.weekStartDate).toLocaleDateString()} - {new Date(invoice.weekEndDate).toLocaleDateString()}
+                        </p>
+                        <p className="text-muted-foreground">
+                          👥 Total Labour Days: {invoice.labourCountTotal}
+                        </p>
+                        <p className="text-muted-foreground">
+                          💰 Rate per Labour: {formatCurrency(invoice.ratePerLabour)}
+                        </p>
+                        <div className="border-t pt-2 mt-2">
+                          <p className="text-muted-foreground">
+                            Taxable Amount: {formatCurrency(invoice.taxableAmount)}
+                          </p>
+                          <p className="text-muted-foreground">
+                            GST ({invoice.gstRate}%): {formatCurrency(invoice.gstAmount)}
+                          </p>
+                          <p className="font-semibold text-foreground text-base">
+                            Total Amount: {formatCurrency(invoice.totalAmount)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="flex-1"
+                          onClick={() => handleApproveInvoice(invoice._id)}
+                          disabled={isSubmitting}
+                        >
+                          {isSubmitting ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                          )}
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="flex-1"
+                          onClick={() => {
+                            setSelectedInvoice(invoice._id);
+                            setShowRejectDialog(true);
+                          }}
+                          disabled={isSubmitting}
+                        >
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Reject
+                        </Button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Reject Invoice Dialog */}
+        <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reject Invoice</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Rejection Reason *</Label>
+                <Textarea
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Provide reason for rejecting this invoice..."
+                  rows={4}
+                  className="mt-2"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowRejectDialog(false);
+                    setSelectedInvoice(null);
+                    setRejectionReason("");
+                  }}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={handleRejectInvoice}
+                  disabled={isSubmitting || !rejectionReason.trim()}
+                >
+                  {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Reject Invoice
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Approved Invoices (Owner only) */}
         {isOwner && (
