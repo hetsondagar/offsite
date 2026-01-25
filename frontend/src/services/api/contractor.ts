@@ -168,4 +168,30 @@ export const contractorApi = {
     const response = await apiPostFormData<ContractorInvoice>(`/contractor/invoice/${id}/upload-pdf`, formData);
     return response.data;
   },
+
+  // Download invoice as PDF (Owner/Manager)
+  downloadInvoicePDF: async (id: string) => {
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    const token = localStorage.getItem('accessToken');
+    const url = `${baseUrl}/contractor/invoice/${id}/download-pdf`;
+    
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to download: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      return blob;
+    } catch (error) {
+      console.error('Error downloading invoice PDF:', error);
+      throw error;
+    }
+  },
 };

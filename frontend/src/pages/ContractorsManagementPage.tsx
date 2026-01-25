@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { contractorApi, Contractor, ContractorInvoice } from "@/services/api/contractor";
 import { projectsApi } from "@/services/api/projects";
 import { usersApi } from "@/services/api/users";
-import { Users, Plus, Receipt, Loader2, Building, Star, CheckCircle, XCircle, AlertCircle, FileText } from "lucide-react";
+import { Users, Plus, Receipt, Loader2, Building, Star, CheckCircle, XCircle, AlertCircle, FileText, Download } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { useAppSelector } from "@/store/hooks";
@@ -34,6 +34,7 @@ export default function ContractorsManagementPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
 
   // Form state
   const [contractorUserId, setContractorUserId] = useState("");
@@ -49,20 +50,35 @@ export default function ContractorsManagementPage() {
     try {
       setIsLoading(true);
 
+      console.log('[ContractorsManagement] Loading data - role:', role, 'isManager:', isManager, 'isOwner:', isOwner);
+
       const [contractorsData, invoicesData, pendingInvoicesData, projectsData] = await Promise.all([
-        contractorApi.getAllContractors(),
-        isOwner ? contractorApi.getApprovedInvoices() : Promise.resolve([] as ContractorInvoice[]),
-        (isManager || isOwner) ? contractorApi.getPendingInvoices() : Promise.resolve([] as ContractorInvoice[]),
-        canAssign ? projectsApi.getAll(1, 50) : Promise.resolve(null as any),
+        contractorApi.getAllContractors().catch(err => {
+          console.error('[ContractorsManagement] Error loading contractors:', err);
+          return [];
+        }),
+        isOwner ? contractorApi.getApprovedInvoices().catch(err => {
+          console.error('[ContractorsManagement] Error loading approved invoices:', err);
+          return [] as ContractorInvoice[];
+        }) : Promise.resolve([] as ContractorInvoice[]),
+        (isManager || isOwner) ? contractorApi.getPendingInvoices().catch(err => {
+          console.error('[ContractorsManagement] Error loading pending invoices:', err);
+          return [] as ContractorInvoice[];
+        }) : Promise.resolve([] as ContractorInvoice[]),
+        canAssign ? projectsApi.getAll(1, 50).catch(err => {
+          console.error('[ContractorsManagement] Error loading projects:', err);
+          return null as any;
+        }) : Promise.resolve(null as any),
       ]);
 
-      console.log('Pending invoices loaded:', pendingInvoicesData);
+      console.log('[ContractorsManagement] Pending invoices loaded:', pendingInvoicesData, 'count:', pendingInvoicesData?.length || 0);
       
       setContractors(contractorsData || []);
       setInvoices(invoicesData || []);
       setPendingInvoices(pendingInvoicesData || []);
       setProjects(projectsData?.projects || []);
     } catch (error: any) {
+      console.error('[ContractorsManagement] Error in loadData:', error);
       toast.error(error.message || "Failed to load data");
     } finally {
       setIsLoading(false);
@@ -141,6 +157,27 @@ export default function ContractorsManagementPage() {
       toast.error(error.message || "Failed to reject invoice");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDownloadInvoicePDF = async (invoice: ContractorInvoice) => {
+    try {
+      setDownloadingInvoiceId(invoice._id);
+      const blob = await contractorApi.downloadInvoicePDF(invoice._id);
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Contractor-Invoice-${invoice.invoiceNumber || invoice._id.slice(-6)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success('Invoice PDF downloaded successfully');
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to download invoice');
+    } finally {
+      setDownloadingInvoiceId(null);
     }
   };
 
@@ -598,6 +635,20 @@ export default function ContractorsManagementPage() {
                           Total: {formatCurrency(invoice.totalAmount)}
                         </p>
                       </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-3 w-full"
+                        onClick={() => handleDownloadInvoicePDF(invoice)}
+                        disabled={downloadingInvoiceId === invoice._id}
+                      >
+                        {downloadingInvoiceId === invoice._id ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Download className="w-4 h-4 mr-2" />
+                        )}
+                        Download PDF
+                      </Button>
 
                       {invoice.pdfUrl && (
                         <div className="mt-3">

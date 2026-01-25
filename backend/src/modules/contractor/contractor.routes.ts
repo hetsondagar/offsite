@@ -18,6 +18,7 @@ import {
   getApprovedInvoices,
   getMyInvoices,
   uploadInvoicePdf,
+  downloadInvoicePDF,
 } from './contractor.controller';
 
 const router = Router();
@@ -94,6 +95,7 @@ router.get('/invoices/approved', getApprovedInvoices);
 router.get('/invoices/my', getMyInvoices);
 router.post('/invoice/:id/approve', approveInvoice);
 router.post('/invoice/:id/reject', rejectInvoice);
+router.get('/invoice/:id/download-pdf', downloadInvoicePDF);
 router.post('/invoice/:id/upload-pdf', authorizeRoles('contractor'), pdfUpload.single('pdf'), uploadInvoicePdf);
 
 export default router;

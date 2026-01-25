@@ -700,7 +700,7 @@ export const createWeeklyInvoice = async (
 };
 
 /**
- * Get pending invoices (Project Manager)
+ * Get pending invoices (Project Manager ONLY)
  */
 export const getPendingInvoices = async (
   req: Request,
@@ -712,27 +712,38 @@ export const getPendingInvoices = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    if (req.user.role !== 'manager' && req.user.role !== 'owner') {
-      throw new AppError('Access denied', 403, 'FORBIDDEN');
+    // Only managers can see pending invoices
+    if (req.user.role !== 'manager') {
+      throw new AppError('Only managers can view pending invoices', 403, 'FORBIDDEN');
     }
 
     let projectIds: string[] = [];
 
-    if (req.user.role === 'manager') {
-      const projects = await Project.find({ members: req.user.userId }).select('_id');
-      projectIds = projects.map(p => p._id.toString());
-    }
-
-    if (req.user.role === 'owner') {
-      const projects = await Project.find({ owner: req.user.userId }).select('_id');
-      projectIds = projects.map(p => p._id.toString());
-    }
+    // Managers can see invoices from projects where they are owner OR members
+    const projects = await Project.find({ 
+      $or: [
+        { members: req.user.userId },
+        { owner: req.user.userId }
+      ]
+    }).select('_id');
+    projectIds = projects.map(p => p._id.toString());
+    logger.info(`[getPendingInvoices] Manager ${req.user.userId} has access to ${projectIds.length} projects`);
 
     const query: any = { status: 'PENDING_PM_APPROVAL' };
 
     // Scope to the caller's projects (empty list should return no invoices, not all invoices)
-    if (req.user.role === 'manager' || req.user.role === 'owner') {
+    if (projectIds.length > 0) {
       query.projectId = { $in: projectIds };
+    } else {
+      // Manager with no projects should see no invoices
+      logger.info(`[getPendingInvoices] Manager ${req.user.userId} has no projects, returning empty list`);
+      const response: ApiResponse = {
+        success: true,
+        message: 'No pending invoices found',
+        data: [],
+      };
+      res.status(200).json(response);
+      return;
     }
 
     const invoices = await ContractorInvoice.find(query)
@@ -1048,6 +1059,70 @@ export const getMyInvoices = async (
       logger.error('Failed to fetch contractor invoices', { err: (innerErr as Error).message, user: req.user?.userId, contractorId: contractor?._id });
       next(new AppError('Failed to load invoices. Please try again later.', 500, 'INVOICE_LOAD_ERROR'));
       return;
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Download contractor invoice as PDF (Owner/Manager)
+ */
+export const downloadInvoicePDF = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
+    }
+
+    if (req.user.role !== 'owner' && req.user.role !== 'manager') {
+      throw new AppError('Access denied', 403, 'FORBIDDEN');
+    }
+
+    const { id } = req.params;
+    const invoice = await ContractorInvoice.findById(id)
+      .populate('contractorId')
+      .populate('projectId', 'owner name location')
+      .populate('approvedBy', 'name');
+
+    if (!invoice) {
+      throw new AppError('Invoice not found', 404, 'NOT_FOUND');
+    }
+
+    // Check access - owner must own the project, manager must be assigned to it
+    const project = invoice.projectId as any;
+    if (req.user.role === 'owner' && project.owner?.toString() !== req.user.userId) {
+      throw new AppError('Access denied', 403, 'FORBIDDEN');
+    }
+
+    if (req.user.role === 'manager') {
+      const { Project } = await import('../projects/project.model');
+      const projectCheck = await Project.findOne({
+        _id: project._id,
+        $or: [
+          { members: req.user.userId },
+          { owner: req.user.userId }
+        ]
+      });
+      if (!projectCheck) {
+        throw new AppError('Access denied', 403, 'FORBIDDEN');
+      }
+    }
+
+    // Generate or retrieve PDF
+    try {
+      const { generateContractorInvoicePDFBuffer } = await import('./contractor-invoice-pdf.service');
+      const pdfBuffer = await generateContractorInvoicePDFBuffer(invoice);
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Contractor-Invoice-${invoice.invoiceNumber || invoice._id.toString().slice(-6)}.pdf"`);
+      res.status(200).send(pdfBuffer);
+    } catch (e: any) {
+      logger.error('Failed to generate invoice PDF:', e);
+      throw new AppError('Failed to generate PDF', 500, 'PDF_GENERATION_ERROR');
     }
   } catch (error) {
     next(error);
