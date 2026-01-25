@@ -21,7 +21,7 @@ import {
   Camera
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { projectsApi } from "@/services/api/projects";
 import { insightsApi } from "@/services/api/insights";
 import { materialsApi } from "@/services/api/materials";
@@ -48,6 +48,8 @@ export default function ManagerDashboard() {
   const { hasPermission } = usePermissions();
   const { role } = useAppSelector((state) => state.auth);
   const { t } = useTranslation();
+  const isFetchingRef = useRef(false);
+  const hasLoadedOnceRef = useRef(false);
   const [projectOverview, setProjectOverview] = useState<any[]>([]);
   const [healthScore, setHealthScore] = useState(0);
   const [healthScores, setHealthScores] = useState<Array<{ projectId: string; projectName: string; healthScore: number }>>([]);
@@ -179,7 +181,7 @@ export default function ManagerDashboard() {
       setApprovingInvoiceId(invoiceId);
       await contractorApi.approveInvoice(invoiceId);
       toast.success('Invoice approved successfully');
-      loadDashboardData(); // Refresh data
+      loadDashboardData({ silent: true }); // Refresh data without full-screen loading
     } catch (error: any) {
       toast.error(error.message || 'Failed to approve invoice');
     } finally {
@@ -217,15 +219,22 @@ export default function ManagerDashboard() {
     
     // Auto-refresh every 30 seconds to get latest data (including new DPRs)
     const refreshInterval = setInterval(() => {
-      loadDashboardData();
+      // Avoid re-mount flicker: refresh silently and skip if a fetch is already running.
+      loadDashboardData({ silent: true });
     }, 30000);
     
     return () => clearInterval(refreshInterval);
   }, []);
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (options?: { silent?: boolean }) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
     try {
-      setIsLoading(true);
+      const silent = options?.silent ?? false;
+      if (!silent && !hasLoadedOnceRef.current) {
+        setIsLoading(true);
+      }
       
       // Batch all API calls in parallel for better performance
       const loadPromises: Promise<any>[] = [
@@ -562,7 +571,11 @@ export default function ManagerDashboard() {
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
-      setIsLoading(false);
+      if (!hasLoadedOnceRef.current) {
+        hasLoadedOnceRef.current = true;
+        setIsLoading(false);
+      }
+      isFetchingRef.current = false;
     }
   };
 
@@ -571,7 +584,7 @@ export default function ManagerDashboard() {
       await notificationsApi.acceptInvitation(invitationId);
       toast.success(t('projects.projectInvitationAccepted'));
       // Reload dashboard data
-      loadDashboardData();
+      loadDashboardData({ silent: true });
     } catch (error: any) {
       console.error('Error accepting invitation:', error);
       toast.error(error.message || 'Failed to accept invitation');
@@ -583,7 +596,7 @@ export default function ManagerDashboard() {
       await notificationsApi.rejectInvitation(invitationId);
       toast.success(t('projects.invitationRejected'));
       // Reload dashboard data
-      loadDashboardData();
+      loadDashboardData({ silent: true });
     } catch (error: any) {
       console.error('Error rejecting invitation:', error);
       toast.error(error.message || 'Failed to reject invitation');

@@ -16,6 +16,8 @@ export default function PurchaseManagerDashboard() {
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState(0);
   const [sentCount, setSentCount] = useState(0);
+  const [pendingInvoiceCount, setPendingInvoiceCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
   
   const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
@@ -26,14 +28,36 @@ export default function PurchaseManagerDashboard() {
 
   const loadStats = async () => {
     try {
+      setIsLoading(true);
       const [approved, history] = await Promise.all([
-        purchaseApi.getApprovedRequests(1, 100),
-        purchaseApi.getAllHistory(1, 100),
+        purchaseApi.getApprovedRequests(1, 100).catch((e) => {
+          console.error('Failed to load approved requests:', e);
+          return { requests: [], pagination: {} };
+        }),
+        purchaseApi.getAllHistory(1, 100).catch((e) => {
+          console.error('Failed to load history:', e);
+          return { history: [], pagination: {} };
+        }),
       ]);
+      
       setPendingCount(approved?.requests?.length || 0);
-      setSentCount(history?.history?.filter((h: any) => h.status === 'SENT').length || 0);
-    } catch (e) {
+      setSentCount(history?.history?.filter((h: any) => h.status === 'SENT' || h.status === 'PENDING_GRN').length || 0);
+      
+      // Load pending invoices count
+      try {
+        const { purchaseInvoiceApi } = await import('@/services/api/purchase');
+        const invoiceData = await purchaseInvoiceApi.getInvoices(1, 100).catch(() => ({ invoices: [], pagination: {} }));
+        const pendingInvoices = (invoiceData?.invoices || []).filter((inv: any) => !inv.receiptPhotoUrl);
+        setPendingInvoiceCount(pendingInvoices.length);
+      } catch (e) {
+        console.error('Failed to load invoices:', e);
+        // Don't fail the whole page if invoices fail to load
+      }
+    } catch (e: any) {
       console.error('Failed to load stats:', e);
+      toast.error('Failed to load dashboard data. Please refresh.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -76,23 +100,41 @@ export default function PurchaseManagerDashboard() {
         </motion.div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 gap-3">
-          <KPICard
-            title="Pending Send"
-            value={pendingCount}
-            icon={Package}
-            variant={pendingCount > 0 ? "warning" : "success"}
-            delay={200}
-            onClick={() => navigate('/purchase-dashboard')}
-          />
-          <KPICard
-            title="In Transit"
-            value={sentCount}
-            icon={Clock}
-            variant="default"
-            delay={300}
-          />
-        </div>
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <KPICard
+              title="Pending Send"
+              value={pendingCount}
+              icon={Package}
+              variant={pendingCount > 0 ? "warning" : "success"}
+              delay={200}
+              onClick={() => navigate('/purchase-dashboard')}
+            />
+            <KPICard
+              title="In Transit"
+              value={sentCount}
+              icon={Clock}
+              variant="default"
+              delay={300}
+              onClick={() => navigate('/purchase-history')}
+            />
+            {pendingInvoiceCount > 0 && (
+              <KPICard
+                title="Pending Receipts"
+                value={pendingInvoiceCount}
+                icon={Receipt}
+                variant="warning"
+                delay={400}
+                onClick={() => navigate('/purchase-invoices')}
+                className="col-span-2"
+              />
+            )}
+          </div>
+        )}
 
         {/* Quick Actions */}
         <div className="space-y-3">
@@ -128,7 +170,19 @@ export default function PurchaseManagerDashboard() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
-              className="col-span-2"
+            >
+              <ActionButton
+                icon={Receipt}
+                label="Invoices"
+                sublabel="Upload receipts"
+                variant={pendingInvoiceCount > 0 ? "glow" : "outline"}
+                onClick={() => navigate("/purchase-invoices")}
+              />
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
             >
               <ActionButton
                 icon={Wrench}
