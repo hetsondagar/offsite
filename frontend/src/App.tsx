@@ -44,6 +44,7 @@ import PurchaseInvoicesPage from "./pages/PurchaseInvoicesPage";
 import ContractorLaboursPage from "./pages/ContractorLaboursPage";
 import ContractorAttendancePage from "./pages/ContractorAttendancePage";
 import ContractorWeeklyInvoicePage from "./pages/ContractorWeeklyInvoicePage";
+import OwnerExpenseManagerPage from "./pages/OwnerExpenseManagerPage";
 import ContractorsManagementPage from "./pages/ContractorsManagementPage";
 import ToolsPage from "./pages/ToolsPage";
 import PermitsPage from "./pages/PermitsPage";
@@ -205,6 +206,14 @@ function AppContent() {
               element={
                 <ProtectedRoute requiredPermission="canViewContractors">
                   <ContractorsManagementPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/expense-manager"
+              element={
+                <ProtectedRoute>
+                  <OwnerExpenseManagerPage />
                 </ProtectedRoute>
               }
             />

@@ -122,7 +122,8 @@
     "materials": "सामग्री",
     "approvals": "अनुमोदन",
     "invoices": "चालान",
-    "profile": "प्रोफ़ाइल"
+    "profile": "प्रोफ़ाइल",
+    "expenseManager": "व्यय प्रबंधक"
   },
   "dashboard": {
     "goodMorning": "सुप्रभात",

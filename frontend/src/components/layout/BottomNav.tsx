@@ -29,7 +29,7 @@ const managerNav: NavItem[] = [
 const ownerNav: NavItem[] = [
   { icon: LayoutDashboard, labelKey: "navigation.dashboard", path: "/" },
   { icon: FolderKanban, labelKey: "navigation.projects", path: "/projects" },
-  { icon: CheckSquare, labelKey: "navigation.tasks", path: "/tasks" },
+  { icon: Wallet, labelKey: "navigation.expenseManager", path: "/expense-manager" },
   { icon: Receipt, labelKey: "navigation.invoices", path: "/invoicing" },
   { icon: User, labelKey: "navigation.profile", path: "/profile" },
 ];
