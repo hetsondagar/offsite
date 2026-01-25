@@ -13,15 +13,13 @@
     <domain-config>
         <domain includeSubdomains="true">res.cloudinary.com</domain>
         <domain includeSubdomains="true">cloudinary.com</domain>
-        <trust-anchors>
-            <certificates src="system" />
-            <certificates src="user" />
-        </trust-anchors>
     </domain-config>
 
-    <!-- Trust system and user certificates for all HTTPS domains -->
-    <trust-anchors>
-        <certificates src="system" />
-        <certificates src="user" />
-    </trust-anchors>
+    <!-- Default trust anchors for HTTPS -->
+    <domain-config>
+        <domain includeSubdomains="true">example.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
 </network-security-config>

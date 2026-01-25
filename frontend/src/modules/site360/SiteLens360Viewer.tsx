@@ -49,8 +49,9 @@ export function SiteLens360Viewer({
         getImageUrl(targetNode.imageUrl)
       );
 
-      const geometry = new Marzipano.EquirectangularGeometry([{ width: 4000 }]);
-      const view = new Marzipano.RectilinearView({ fov: Math.PI / 2 });
+      const geometry = new Marzipano.EquirectGeometry([{ width: 4000 }]);
+      const limiter = Marzipano.RectilinearView.limit.traditional(4096, 100 * Math.PI / 180);
+      const view = new Marzipano.RectilinearView({ fov: Math.PI / 2 }, limiter);
 
       const scene = viewerRef.current.createScene({
         source,
