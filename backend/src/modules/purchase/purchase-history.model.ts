@@ -139,6 +139,7 @@ purchaseHistorySchema.index({ projectId: 1, status: 1 });
 purchaseHistorySchema.index({ sentBy: 1 });
 purchaseHistorySchema.index({ receivedBy: 1 });
 purchaseHistorySchema.index({ materialRequestId: 1 }, { unique: true });
+purchaseHistorySchema.index({ status: 1, materialRequestId: 1 }); // Optimize query for getApprovedRequests
 
 export const PurchaseHistory =
   (mongoose.models.PurchaseHistory as mongoose.Model<IPurchaseHistory>) ||

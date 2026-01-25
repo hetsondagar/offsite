@@ -42,12 +42,24 @@ export const getApprovedRequests = async (
     const skip = (page - 1) * limit;
 
     // Get approved material requests that haven't been sent yet
-    const sentRequestIds = await PurchaseHistory.find().distinct('materialRequestId');
+    // Only exclude requests that have been sent (status: SENT or RECEIVED)
+    // PENDING_GRN requests should still show as they need to be sent
+    // Optimize: Use lean() and only get IDs for better performance
+    const sentRequestIds = await PurchaseHistory.find({
+      status: { $in: ['SENT', 'RECEIVED'] }
+    })
+      .select('materialRequestId')
+      .lean()
+      .distinct('materialRequestId');
     
-    const query = {
+    const query: any = {
       status: 'approved',
-      _id: { $nin: sentRequestIds },
     };
+    
+    // Only filter if there are sent requests (optimization)
+    if (sentRequestIds.length > 0) {
+      query._id = { $nin: sentRequestIds };
+    }
 
     const [requests, total] = await Promise.all([
       MaterialRequest.find(query)

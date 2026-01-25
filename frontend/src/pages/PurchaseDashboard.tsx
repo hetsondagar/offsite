@@ -16,6 +16,13 @@ export default function PurchaseDashboard() {
 
   useEffect(() => {
     loadRequests();
+    
+    // Auto-refresh every 10 seconds to get new approved requests
+    const refreshInterval = setInterval(() => {
+      loadRequests();
+    }, 10000);
+    
+    return () => clearInterval(refreshInterval);
   }, []);
 
   const loadRequests = async () => {

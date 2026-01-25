@@ -107,6 +107,7 @@ const materialRequestSchema = new Schema<IMaterialRequest>(
 
 materialRequestSchema.index({ projectId: 1, status: 1 });
 materialRequestSchema.index({ requestedBy: 1 });
+materialRequestSchema.index({ status: 1, approvedAt: -1 }); // Optimize query for approved requests
 materialRequestSchema.index({ status: 1, createdAt: -1 });
 materialRequestSchema.index({ requestedBy: 1, clientId: 1 }, { unique: true, sparse: true });
 
