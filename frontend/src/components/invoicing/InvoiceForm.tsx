@@ -606,7 +606,7 @@ function InvoiceReview({
       <div className="p-3 rounded-xl bg-primary/5 border border-primary/20">
         <p className="text-xs text-muted-foreground mb-1">GST Calculation</p>
         <p className="text-sm font-medium text-foreground">
-          {supplier?.state === client?.state ? (
+          {supplier && client && supplier.state === client.state ? (
             <>CGST + SGST ({formData.gstRate}%)</>
           ) : (
             <>IGST ({formData.gstRate}%)</>

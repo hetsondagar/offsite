@@ -111,7 +111,7 @@ export function NotificationBell() {
                     <div className="space-y-3">
                       <div>
                         <p className="font-medium text-sm">
-                          {typeof invitation.projectId === 'object' 
+                          {invitation.projectId && typeof invitation.projectId === 'object' 
                             ? invitation.projectId.name 
                             : t('dpr.project')}
                         </p>
