@@ -87,7 +87,7 @@ export default function DPRDetailPage() {
       <div className="min-h-screen bg-background w-full overflow-x-hidden max-w-full" style={{ maxWidth: '100vw' }}>
         <PageHeader
           title={t('dpr.dprDetails')}
-          subtitle={typeof dpr.projectId === 'object' && dpr.projectId?.name ? dpr.projectId.name : ''}
+          subtitle={dpr.projectId && typeof dpr.projectId === 'object' && dpr.projectId?.name ? dpr.projectId.name : ''}
           showBack={true}
         />
 
@@ -105,7 +105,7 @@ export default function DPRDetailPage() {
               <div>
                 <p className="text-xs text-muted-foreground">{t('dpr.project')}</p>
                 <p className="font-medium text-foreground">
-                  {typeof dpr.projectId === 'object' ? dpr.projectId.name : t('materials.unknown') + ' ' + t('dpr.project')}
+                  {dpr.projectId && typeof dpr.projectId === 'object' ? dpr.projectId.name : t('materials.unknown') + ' ' + t('dpr.project')}
                 </p>
               </div>
               <div>

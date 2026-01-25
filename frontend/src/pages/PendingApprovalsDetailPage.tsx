@@ -174,7 +174,7 @@ export default function PendingApprovalsDetailPage() {
                               ₹{expense.amount?.toLocaleString?.() ?? expense.amount} • {expense.category}
                             </CardTitle>
                             <p className="text-xs text-muted-foreground mt-1">
-                              {typeof expense.projectId === 'object' ? expense.projectId.name : 'Project'}
+                              {expense.projectId && typeof expense.projectId === 'object' ? expense.projectId.name : 'Project'}
                               {expense.submittedBy && typeof expense.submittedBy === 'object' && expense.submittedBy.name
                                 ? ` • ${expense.submittedBy.name}`
                                 : ''}
@@ -289,7 +289,7 @@ export default function PendingApprovalsDetailPage() {
                               {request.materialName}
                             </CardTitle>
                             <p className="text-xs text-muted-foreground mt-1">
-                              {t('materials.project')}: {typeof request.projectId === 'object' ? request.projectId.name : t('materials.unknown')}
+                              {t('materials.project')}: {request.projectId && typeof request.projectId === 'object' ? request.projectId.name : t('materials.unknown')}
                             </p>
                           </div>
                           <StatusBadge status="pending" label={t('status.pending')} />

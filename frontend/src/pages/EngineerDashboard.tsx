@@ -119,7 +119,7 @@ export default function EngineerDashboard() {
           dprs.slice(0, 3).forEach((dpr: any) => {
             const timeAgo = getTimeAgo(new Date(dpr.createdAt));
             activities.push({
-              action: `DPR created for ${typeof dpr.projectId === 'object' ? dpr.projectId.name : 'project'}`,
+              action: `DPR created for ${dpr.projectId && typeof dpr.projectId === 'object' ? dpr.projectId.name : 'project'}`,
               time: timeAgo,
               status: "success",
             });

@@ -34,7 +34,9 @@ export default function InvoicingPage() {
     try {
       setIsLoading(true);
       const data = await invoicesApi.getAll(1, 100);
-      setInvoices(data?.invoices || []);
+      // Filter out any null invoices and ensure we have valid data
+      const validInvoices = (data?.invoices || []).filter(inv => inv && inv._id);
+      setInvoices(validInvoices);
     } catch (error: any) {
       console.error("Error loading invoices:", error);
       if (error instanceof UnauthorizedError) return; // api.ts already redirected to login
