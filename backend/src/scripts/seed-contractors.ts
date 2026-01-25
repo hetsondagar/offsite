@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { Contractor } from '../modules/contractor/contractor.model';
+import { Project } from '../modules/projects/project.model';
 import { User } from '../modules/users/user.model';
 import { generateOffsiteId } from '../utils/generateOffsiteId';
 import dotenv from 'dotenv';
@@ -24,37 +25,105 @@ const contractorsData = [
   { name: 'Vikram Singh', companyName: 'Singh Infrastructure Pvt Ltd', rating: 4.2 },
   { name: 'Priya Patel', companyName: 'Patel Construction Works', rating: 4.7 },
   { name: 'Rahul Mehta', companyName: 'Mehta Engineering Solutions', rating: 4.4 },
-  { name: 'Suresh Reddy', companyName: 'Reddy Builders', rating: 4.6 },
-  { name: 'Anjali Desai', companyName: 'Desai Contractors', rating: 4.3 },
-  { name: 'Mohammed Ali', companyName: 'Ali Construction Services', rating: 4.5 },
-  { name: 'Deepak Joshi', companyName: 'Joshi Builders & Associates', rating: 4.1 },
-  { name: 'Kavita Nair', companyName: 'Nair Construction Group', rating: 4.9 },
-  { name: 'Nikhil Gupta', companyName: 'Gupta Builders', rating: 4.0 },
-  { name: 'Sunita Iyer', companyName: 'Iyer Construction Services', rating: 4.6 },
-  { name: 'Arjun Malhotra', companyName: 'Malhotra Builders', rating: 4.3 },
-  { name: 'Meera Kapoor', companyName: 'Kapoor Contractors', rating: 4.7 },
-  { name: 'Ravi Verma', companyName: 'Verma Infrastructure', rating: 4.2 },
-  { name: 'Sneha Agarwal', companyName: 'Agarwal Construction', rating: 4.8 },
-  { name: 'Karan Thakur', companyName: 'Thakur Builders & Co', rating: 4.4 },
-  { name: 'Divya Menon', companyName: 'Menon Construction Works', rating: 4.5 },
-  { name: 'Harsh Shah', companyName: 'Shah Builders Pvt Ltd', rating: 4.1 },
-  { name: 'Pooja Rao', companyName: 'Rao Construction Services', rating: 4.6 },
-  { name: 'Yash Jain', companyName: 'Jain Builders', rating: 4.3 },
-  { name: 'Neha Bhatt', companyName: 'Bhatt Contractors', rating: 4.7 },
-  { name: 'Aditya Chawla', companyName: 'Chawla Construction Group', rating: 4.4 },
-  { name: 'Swati Dutta', companyName: 'Dutta Builders', rating: 4.2 },
-  { name: 'Rohit Banerjee', companyName: 'Banerjee Infrastructure', rating: 4.5 },
 ];
+
+type SeedContractor = {
+  name: string;
+  companyName: string;
+  rating: number;
+};
+
+const OWNER_EMAIL = 'seed.owner@offsite.local';
+const PM_EMAIL = 'seed.pm@offsite.local';
+const DEFAULT_SEED_PASSWORD = 'ChangeMe123!';
+
+async function ensureSeedUser(params: {
+  role: 'owner' | 'manager';
+  name: string;
+  email: string;
+}) {
+  const existing = await User.findOne({ email: params.email.toLowerCase() });
+  if (existing) return existing;
+
+  const offsiteId = await generateOffsiteId(params.role);
+  const user = new User({
+    name: params.name,
+    email: params.email.toLowerCase(),
+    password: DEFAULT_SEED_PASSWORD,
+    role: params.role,
+    offsiteId,
+    isActive: true,
+    assignedProjects: [],
+  });
+  await user.save();
+  console.log(`Created ${params.role}: ${params.name} (${offsiteId})`);
+  return user;
+}
+
+function buildMockProjects(params: {
+  ownerId: mongoose.Types.ObjectId;
+  managerId: mongoose.Types.ObjectId;
+  contractorUserIds: mongoose.Types.ObjectId[];
+}) {
+  const base = new Date();
+  const coords = [
+    { latitude: 19.0760, longitude: 72.8777 }, // Mumbai
+    { latitude: 28.6139, longitude: 77.2090 }, // Delhi
+    { latitude: 12.9716, longitude: 77.5946 }, // Bengaluru
+  ];
+
+  return [
+    {
+      name: 'Mock Project - Riverside Tower',
+      location: 'Mumbai, Maharashtra',
+      startDate: new Date(base.getFullYear(), base.getMonth() - 2, 1),
+      geoCenter: coords[0],
+      contractorUserId: params.contractorUserIds[0],
+    },
+    {
+      name: 'Mock Project - Metro Depot Expansion',
+      location: 'New Delhi, Delhi',
+      startDate: new Date(base.getFullYear(), base.getMonth() - 1, 5),
+      geoCenter: coords[1],
+      contractorUserId: params.contractorUserIds[1] || params.contractorUserIds[0],
+    },
+    {
+      name: 'Mock Project - Tech Park Block C',
+      location: 'Bengaluru, Karnataka',
+      startDate: new Date(base.getFullYear(), base.getMonth(), 10),
+      geoCenter: coords[2],
+      contractorUserId: params.contractorUserIds[2] || params.contractorUserIds[0],
+    },
+  ].map((p) => ({
+    ...p,
+    ownerId: params.ownerId,
+    managerId: params.managerId,
+  }));
+}
 
 async function seedContractors() {
   try {
     await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/offsite');
     console.log('Connected to MongoDB');
 
+    const ownerUser = await ensureSeedUser({
+      role: 'owner',
+      name: 'Seed Owner',
+      email: OWNER_EMAIL,
+    });
+    const managerUser = await ensureSeedUser({
+      role: 'manager',
+      name: 'Seed Project Manager',
+      email: PM_EMAIL,
+    });
+
     let created = 0;
     let skipped = 0;
+    const seededContractorUserIds: mongoose.Types.ObjectId[] = [];
 
-    for (const contractorData of contractorsData) {
+    const limitedContractors: SeedContractor[] = contractorsData.slice(0, 5);
+
+    for (const contractorData of limitedContractors) {
       // Check if user with this name already exists
       let user = await User.findOne({ 
         name: { $regex: new RegExp(`^${contractorData.name}$`, 'i') },
@@ -67,6 +136,7 @@ async function seedContractors() {
         if (existingContractor) {
           console.log(`Contractor ${contractorData.name} already exists, skipping...`);
           skipped++;
+          seededContractorUserIds.push(user._id);
           continue;
         }
       } else {
@@ -94,13 +164,107 @@ async function seedContractors() {
 
       await contractor.save();
       created++;
+      seededContractorUserIds.push(user._id);
       console.log(`Created contractor: ${contractorData.name} (Rating: ${contractorData.rating})`);
+    }
+
+    // Create mock projects and link them with contractors + manager + owner
+    const mockProjects = buildMockProjects({
+      ownerId: ownerUser._id,
+      managerId: managerUser._id,
+      contractorUserIds: seededContractorUserIds,
+    });
+
+    let projectsCreated = 0;
+    let projectsSkipped = 0;
+
+    for (const mp of mockProjects) {
+      const existingProject = await Project.findOne({
+        name: mp.name,
+        owner: ownerUser._id,
+      }).select('_id');
+
+      let projectId: mongoose.Types.ObjectId;
+
+      if (existingProject) {
+        projectsSkipped++;
+        projectId = existingProject._id as mongoose.Types.ObjectId;
+      } else {
+        const project = new Project({
+          name: mp.name,
+          location: mp.location,
+          startDate: mp.startDate,
+          status: 'active',
+          owner: ownerUser._id,
+          members: [ownerUser._id, managerUser._id, mp.contractorUserId],
+          progress: 0,
+          healthScore: 0,
+          geoFence: {
+            enabled: true,
+            center: mp.geoCenter,
+            radiusMeters: 200,
+            bufferMeters: 20,
+          },
+          siteLatitude: mp.geoCenter.latitude,
+          siteLongitude: mp.geoCenter.longitude,
+          siteRadiusMeters: 200,
+        });
+        await project.save();
+        projectsCreated++;
+        projectId = project._id as mongoose.Types.ObjectId;
+        console.log(`Created mock project: ${mp.name}`);
+      }
+
+      // Ensure project members are set (in case project existed from previous run)
+      await Project.updateOne(
+        { _id: projectId },
+        {
+          $addToSet: {
+            members: { $each: [ownerUser._id, managerUser._id, mp.contractorUserId] },
+          },
+          $set: {
+            owner: ownerUser._id,
+          },
+        }
+      );
+
+      // Update assignedProjects for owner, project manager, contractor user
+      await User.updateMany(
+        { _id: { $in: [ownerUser._id, managerUser._id, mp.contractorUserId] } },
+        { $addToSet: { assignedProjects: projectId } }
+      );
+
+      // Ensure contractor record links to project and contains a mock contract
+      const contractorDoc = await Contractor.findOne({ userId: mp.contractorUserId });
+      if (contractorDoc) {
+        const alreadyAssigned = contractorDoc.assignedProjects.some((p) => p.toString() === projectId.toString());
+        if (!alreadyAssigned) {
+          contractorDoc.assignedProjects.push(projectId);
+        }
+
+        const hasContract = contractorDoc.contracts.some((c) => c.projectId.toString() === projectId.toString());
+        if (!hasContract) {
+          contractorDoc.contracts.push({
+            projectId,
+            labourCountPerDay: 20,
+            ratePerLabourPerDay: 800,
+            gstRate: 18,
+            startDate: mp.startDate,
+            isActive: true,
+          });
+        }
+        await contractorDoc.save();
+      }
     }
 
     console.log(`\nSeed completed!`);
     console.log(`Created: ${created} contractors`);
     console.log(`Skipped: ${skipped} contractors (already exist)`);
-    console.log(`Total: ${contractorsData.length} contractors`);
+    console.log(`Total: ${limitedContractors.length} contractors`);
+    console.log(`Mock projects created: ${projectsCreated}`);
+    console.log(`Mock projects skipped: ${projectsSkipped} (already exist)`);
+    console.log(`Owner: ${ownerUser.email}`);
+    console.log(`Project Manager: ${managerUser.email}`);
 
     await mongoose.disconnect();
     process.exit(0);

@@ -11,6 +11,7 @@
     "lint": "eslint src --ext .ts",
     "test": "jest",
     "seed:materials": "tsx scripts/seedMaterialCatalog.ts",
+    "seed:contractors": "tsx src/scripts/seed-contractors.ts",
     "migrate:project-owner": "tsx scripts/migrate-project-owner.ts"
   },
   "keywords": [
