@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
 export default function EngineerSite360UploadPage() {
+  const NONE_CONNECT_VALUE = '__none__';
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProject, setSelectedProject] = useState('');
   const [zoneName, setZoneName] = useState('');
@@ -171,12 +172,15 @@ export default function EngineerSite360UploadPage() {
               {existingNodes.length > 0 && (
                 <div className="space-y-2">
                   <Label htmlFor="connectTo">Connect to Existing Zone (Optional)</Label>
-                  <Select value={connectToNodeId} onValueChange={setConnectToNodeId}>
+                  <Select
+                    value={connectToNodeId}
+                    onValueChange={(value) => setConnectToNodeId(value === NONE_CONNECT_VALUE ? '' : value)}
+                  >
                     <SelectTrigger id="connectTo">
                       <SelectValue placeholder="Select a zone to connect" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value={NONE_CONNECT_VALUE}>None</SelectItem>
                       {existingNodes.map((node) => (
                         <SelectItem key={node._id} value={node._id}>
                           {node.zoneName}
