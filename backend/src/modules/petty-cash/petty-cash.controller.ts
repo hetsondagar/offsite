@@ -6,18 +6,28 @@ import { ApiResponse } from '../../types';
 import { AppError } from '../../middlewares/error.middleware';
 import { logger } from '../../utils/logger';
 import { createNotification } from '../notifications/notification.service';
+import { uploadReceiptPhoto } from './petty-cash.service';
 
 const MAX_DISTANCE_METERS = 200; // 200m from site
 
+const toNumberOrUndefined = (v: unknown): number | undefined => {
+  if (v === undefined || v === null || v === '') return undefined;
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+
 const createExpenseSchema = z.object({
-  projectId: z.string(),
-  amount: z.number().min(0),
+  projectId: z.string().min(1),
+  amount: z.preprocess((v) => {
+    const n = toNumberOrUndefined(v);
+    return n ?? v;
+  }, z.number().min(0)),
   description: z.string().min(1),
   category: z.string().min(1),
   receiptPhotoUrl: z.string().optional(),
   geoLocation: z.string().optional(),
-  latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional(),
+  latitude: z.preprocess((v) => toNumberOrUndefined(v), z.number().min(-90).max(90).optional()),
+  longitude: z.preprocess((v) => toNumberOrUndefined(v), z.number().min(-180).max(180).optional()),
 });
 
 /**
@@ -38,6 +48,22 @@ export const submitExpense = async (
     }
 
     const data = createExpenseSchema.parse(req.body);
+
+    // Receipt photo handling
+    // Never persist blob:/file:/capacitor:// URLs because other users/devices cannot access them.
+    let receiptPhotoUrl: string | undefined;
+    if (req.file) {
+      receiptPhotoUrl = await uploadReceiptPhoto(req.file);
+    } else if (data.receiptPhotoUrl) {
+      const url = data.receiptPhotoUrl.trim();
+      const isShareable = /^https?:\/\//i.test(url) || url.startsWith('/uploads/');
+      if (isShareable) {
+        receiptPhotoUrl = url;
+      } else {
+        // Keep it undefined instead of saving a broken URL
+        receiptPhotoUrl = undefined;
+      }
+    }
 
     // Get project for geofence validation
     const project = await Project.findById(data.projectId);
@@ -67,7 +93,7 @@ export const submitExpense = async (
       amount: data.amount,
       description: data.description,
       category: data.category,
-      receiptPhotoUrl: data.receiptPhotoUrl,
+      receiptPhotoUrl,
       geoLocation: data.geoLocation,
       coordinates: data.latitude !== undefined ? {
         latitude: data.latitude,
