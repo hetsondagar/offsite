@@ -331,7 +331,7 @@ export const approveRequest = async (
 
     logger.info(`Material request approved: ${id} by ${req.user.userId}`);
 
-    // Send notification to the requester
+    // Send notification to the requester (Site Engineer) about GRN requirement
     try {
       const requester = request.requestedBy as any;
       if (requester && requester._id) {
@@ -339,17 +339,24 @@ export const approveRequest = async (
           userId: requester._id.toString(),
           offsiteId: requester.offsiteId,
           type: 'material_approved',
-          title: 'Material Request Approved',
-          message: `Your material request for ${request.materialName} (${request.quantity} ${request.unit}) has been approved.`,
+          title: 'Material Request Approved - GRN Required',
+          message: `Your material request for ${request.materialName} (${request.quantity} ${request.unit}) has been approved. Please confirm receipt by filing a Goods Receipt Note (GRN) with photo and GPS location when materials arrive.`,
           data: {
             materialRequestId: request._id.toString(),
             projectId: (request.projectId as any)?._id?.toString() || (request.projectId as any)?.toString(),
             projectName: (request.projectId as any)?.name,
+            materialName: request.materialName,
+            quantity: request.quantity,
+            unit: request.unit,
+            requiresGRN: true, // Flag to indicate GRN is required
           },
         });
+        logger.info(`GRN notification sent to engineer ${requester._id} for approved request ${id}`);
+      } else {
+        logger.warn(`Could not send GRN notification: requester not found for request ${id}`);
       }
     } catch (notifError: any) {
-      logger.warn('Failed to send approval notification:', notifError.message);
+      logger.error('Failed to send GRN notification to engineer:', notifError.message);
       // Don't fail the request if notification fails
     }
 

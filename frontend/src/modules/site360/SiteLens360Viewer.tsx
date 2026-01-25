@@ -34,15 +34,34 @@ export function SiteLens360Viewer({
 
   // Load scene
   const loadScene = async (targetNode: Site360Node) => {
-    if (!containerRef.current || !viewerRef.current) return;
+    if (!containerRef.current || !viewerRef.current) {
+      console.warn('Viewer or container not ready');
+      return;
+    }
+
+    // Check if viewer is properly initialized
+    if (!viewerRef.current.stage() || !viewerRef.current.stage().renderLoop) {
+      console.warn('Viewer stage not ready, waiting...');
+      setTimeout(() => loadScene(targetNode), 100);
+      return;
+    }
 
     setIsLoading(true);
 
     try {
+      // Destroy old scene first
+      if (sceneRef.current) {
+        try {
+          sceneRef.current.destroy();
+        } catch (e) {
+          // Ignore destroy errors
+        }
+        sceneRef.current = null;
+      }
+
       // Create new scene
-      const source = Marzipano.ImageUrlSource.fromString(
-        getImageUrl(targetNode.imageUrl)
-      );
+      const imageUrl = getImageUrl(targetNode.imageUrl);
+      const source = Marzipano.ImageUrlSource.fromString(imageUrl);
 
       const geometry = new Marzipano.EquirectGeometry([{ width: 4000 }]);
       const limiter = Marzipano.RectilinearView.limit.traditional(4096, 100 * Math.PI / 180);
@@ -54,37 +73,39 @@ export function SiteLens360Viewer({
         view,
       });
 
+      sceneRef.current = scene;
+
       // Switch to the new scene with a smooth transition
       scene.switchTo({
         transitionDuration: 500,
       });
 
-      // Destroy old scene after transition
-      if (sceneRef.current) {
-        setTimeout(() => {
-          sceneRef.current?.destroy();
-        }, 600);
-      }
+      // Wait a bit before adding hotspots to ensure scene is loaded
+      setTimeout(() => {
+        // Add hotspots for connections
+        if (targetNode.connections && targetNode.connections.length > 0) {
+          targetNode.connections.forEach((connection) => {
+            try {
+              addHotspot(scene, connection.label, async () => {
+                try {
+                  const targetNodeId =
+                    typeof connection.targetNodeId === 'string'
+                      ? connection.targetNodeId
+                      : (connection.targetNodeId as any)?._id || connection.targetNodeId;
 
-      sceneRef.current = scene;
-
-      // Add hotspots for connections
-      targetNode.connections.forEach((connection) => {
-        addHotspot(scene, connection.label, async () => {
-          try {
-            const targetNodeId =
-              typeof connection.targetNodeId === 'string'
-                ? connection.targetNodeId
-                : connection.targetNodeId._id;
-
-            const nextNode = await getNode(targetNodeId);
-            setCurrentNode(nextNode);
-            onNodeChange(targetNodeId);
-          } catch (error) {
-            console.error('Failed to load next node:', error);
-          }
-        });
-      });
+                  const nextNode = await getNode(targetNodeId);
+                  setCurrentNode(nextNode);
+                  onNodeChange(targetNodeId);
+                } catch (error) {
+                  console.error('Failed to load next node:', error);
+                }
+              });
+            } catch (error) {
+              console.error('Failed to add hotspot:', error);
+            }
+          });
+        }
+      }, 300);
     } catch (error) {
       console.error('Failed to load scene:', error);
     } finally {
@@ -98,94 +119,152 @@ export function SiteLens360Viewer({
     label: string,
     onClick: () => void
   ) => {
-    const hotspotElement = document.createElement('div');
-    hotspotElement.className = 'marzipano-hotspot';
-    hotspotElement.style.cssText = `
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      background: rgba(59, 130, 246, 0.8);
-      border: 3px solid white;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.3s;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    `;
+    try {
+      const hotspotElement = document.createElement('div');
+      hotspotElement.className = 'marzipano-hotspot';
+      hotspotElement.style.cssText = `
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: rgba(59, 130, 246, 0.8);
+        border: 3px solid white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        position: relative;
+      `;
 
-    // Add arrow icon
-    const arrowIcon = document.createElement('div');
-    arrowIcon.innerHTML = '⬆️';
-    arrowIcon.style.cssText = 'font-size: 24px;';
-    hotspotElement.appendChild(arrowIcon);
+      // Add arrow icon
+      const arrowIcon = document.createElement('div');
+      arrowIcon.innerHTML = '⬆️';
+      arrowIcon.style.cssText = 'font-size: 24px;';
+      hotspotElement.appendChild(arrowIcon);
 
-    // Add label
-    const labelElement = document.createElement('div');
-    labelElement.textContent = label;
-    labelElement.style.cssText = `
-      position: absolute;
-      bottom: -30px;
-      left: 50%;
-      transform: translateX(-50%);
-      white-space: nowrap;
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 12px;
-      pointer-events: none;
-    `;
-    hotspotElement.appendChild(labelElement);
+      // Add label
+      const labelElement = document.createElement('div');
+      labelElement.textContent = label;
+      labelElement.style.cssText = `
+        position: absolute;
+        bottom: -30px;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        pointer-events: none;
+      `;
+      hotspotElement.appendChild(labelElement);
 
-    // Hover effect
-    hotspotElement.addEventListener('mouseenter', () => {
-      hotspotElement.style.transform = 'scale(1.2)';
-      hotspotElement.style.background = 'rgba(59, 130, 246, 1)';
-    });
-    hotspotElement.addEventListener('mouseleave', () => {
-      hotspotElement.style.transform = 'scale(1)';
-      hotspotElement.style.background = 'rgba(59, 130, 246, 0.8)';
-    });
+      // Hover effect
+      hotspotElement.addEventListener('mouseenter', () => {
+        hotspotElement.style.transform = 'scale(1.2)';
+        hotspotElement.style.background = 'rgba(59, 130, 246, 1)';
+      });
+      hotspotElement.addEventListener('mouseleave', () => {
+        hotspotElement.style.transform = 'scale(1)';
+        hotspotElement.style.background = 'rgba(59, 130, 246, 0.8)';
+      });
 
-    hotspotElement.addEventListener('click', onClick);
+      hotspotElement.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onClick();
+      });
 
-    // Position hotspot at bottom center (looking forward)
-    const hotspot = scene.hotspotContainer().createHotspot(
-      hotspotElement,
-      { yaw: 0, pitch: -0.5 } // Bottom center
-    );
+      // Get hotspot container and create hotspot
+      const hotspotContainer = scene.hotspotContainer();
+      if (hotspotContainer) {
+        hotspotContainer.createHotspot(
+          hotspotElement,
+          { yaw: 0, pitch: -0.5 } // Bottom center
+        );
+      }
+    } catch (error) {
+      console.error('Failed to create hotspot:', error);
+    }
   };
 
   // Initialize viewer
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const viewer = new Marzipano.Viewer(containerRef.current, {
-      controls: {
-        mouseViewMode: 'drag',
-      },
-      stage: {
-        width: containerRef.current.clientWidth,
-        height: containerRef.current.clientHeight,
-      },
-    });
+    // Ensure container has dimensions
+    if (containerRef.current.clientWidth === 0 || containerRef.current.clientHeight === 0) {
+      // Wait for container to have dimensions
+      const checkDimensions = setInterval(() => {
+        if (containerRef.current && containerRef.current.clientWidth > 0 && containerRef.current.clientHeight > 0) {
+          clearInterval(checkDimensions);
+          initializeViewer();
+        }
+      }, 100);
+      return () => clearInterval(checkDimensions);
+    } else {
+      initializeViewer();
+    }
 
-    viewerRef.current = viewer;
+    function initializeViewer() {
+      if (!containerRef.current) return;
 
-    // Wait a bit for viewer to be ready before loading scene
-    const timer = setTimeout(() => {
-      loadScene(currentNode);
-    }, 100);
+      try {
+        const viewer = new Marzipano.Viewer(containerRef.current, {
+          controls: {
+            mouseViewMode: 'drag',
+          },
+        });
+
+        viewerRef.current = viewer;
+
+        // Wait for viewer to be fully initialized before loading scene
+        const timer = setTimeout(() => {
+          if (viewerRef.current && currentNode) {
+            loadScene(currentNode);
+          }
+        }, 200);
+
+        return () => {
+          clearTimeout(timer);
+          if (sceneRef.current) {
+            try {
+              sceneRef.current.destroy();
+            } catch (e) {
+              // Ignore destroy errors
+            }
+            sceneRef.current = null;
+          }
+          if (viewerRef.current) {
+            try {
+              viewerRef.current.destroy();
+            } catch (e) {
+              // Ignore destroy errors
+            }
+            viewerRef.current = null;
+          }
+        };
+      } catch (error) {
+        console.error('Failed to initialize Marzipano viewer:', error);
+      }
+    }
 
     return () => {
-      clearTimeout(timer);
       if (sceneRef.current) {
-        sceneRef.current.destroy();
+        try {
+          sceneRef.current.destroy();
+        } catch (e) {
+          // Ignore destroy errors
+        }
         sceneRef.current = null;
       }
       if (viewerRef.current) {
-        viewerRef.current.destroy();
+        try {
+          viewerRef.current.destroy();
+        } catch (e) {
+          // Ignore destroy errors
+        }
         viewerRef.current = null;
       }
     };
@@ -193,7 +272,8 @@ export function SiteLens360Viewer({
 
   // Reload scene when node changes
   useEffect(() => {
-    if (viewerRef.current && currentNode) {
+    if (viewerRef.current && currentNode && viewerRef.current.stage()?.renderLoop) {
+      // Only reload if viewer is properly initialized
       loadScene(currentNode);
     }
   }, [currentNode._id]);

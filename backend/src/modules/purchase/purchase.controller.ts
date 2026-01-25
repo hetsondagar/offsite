@@ -286,12 +286,73 @@ export const receiveMaterial = async (
     // Generate purchase invoice after GRN verification
     try {
       await generateInvoice(purchaseHistory, req.user.userId);
+      logger.info(`Purchase invoice generated for GRN ${historyId}`);
     } catch (invoiceError: any) {
       logger.warn(`Failed to generate purchase invoice: ${invoiceError.message}`);
       // Don't fail the GRN if invoice generation fails
     }
 
-    logger.info(`Material received: ${historyId} by ${req.user.userId}`);
+    // Notify Project Manager and Owner about GRN completion
+    try {
+      const { Project } = await import('../projects/project.model');
+      const { User } = await import('../users/user.model');
+      const project = await Project.findById(purchaseHistory.projectId).populate('owner', 'offsiteId');
+      
+      if (project) {
+        // Notify Project Manager
+        const projectManagers = await User.find({
+          _id: { $in: project.members },
+          role: 'manager',
+        }).select('_id offsiteId name');
+        
+        for (const manager of projectManagers) {
+          try {
+            await createNotification({
+              userId: manager._id.toString(),
+              offsiteId: manager.offsiteId,
+              type: 'material_received',
+              title: 'GRN Generated - Material Received',
+              message: `Engineer has confirmed receipt of ${purchaseHistory.materialName} (${purchaseHistory.qty} ${purchaseHistory.unit}) with GRN. Invoice generated.`,
+              data: {
+                purchaseHistoryId: purchaseHistory._id.toString(),
+                projectId: project._id.toString(),
+                projectName: project.name,
+                materialName: purchaseHistory.materialName,
+              },
+            });
+          } catch (notifError: any) {
+            logger.warn(`Failed to notify manager ${manager._id}:`, notifError.message);
+          }
+        }
+
+        // Notify Owner
+        if (project.owner) {
+          const owner = project.owner as any;
+          try {
+            await createNotification({
+              userId: owner._id.toString(),
+              offsiteId: owner.offsiteId,
+              type: 'material_received',
+              title: 'GRN Generated - Material Received',
+              message: `Engineer has confirmed receipt of ${purchaseHistory.materialName} (${purchaseHistory.qty} ${purchaseHistory.unit}) with GRN. Invoice generated.`,
+              data: {
+                purchaseHistoryId: purchaseHistory._id.toString(),
+                projectId: project._id.toString(),
+                projectName: project.name,
+                materialName: purchaseHistory.materialName,
+              },
+            });
+          } catch (notifError: any) {
+            logger.warn(`Failed to notify owner ${owner._id}:`, notifError.message);
+          }
+        }
+      }
+    } catch (notifError: any) {
+      logger.warn(`Failed to send GRN completion notifications: ${notifError.message}`);
+      // Don't fail the GRN if notifications fail
+    }
+
+    logger.info(`Material received with GRN: ${historyId} by ${req.user.userId}`);
 
     const response: ApiResponse = {
       success: true,
