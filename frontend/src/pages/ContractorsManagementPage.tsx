@@ -61,7 +61,7 @@ export default function ContractorsManagementPage() {
           console.error('[ContractorsManagement] Error loading approved invoices:', err);
           return [] as ContractorInvoice[];
         }) : Promise.resolve([] as ContractorInvoice[]),
-        (isManager || isOwner) ? contractorApi.getPendingInvoices().catch(err => {
+        isManager ? contractorApi.getPendingInvoices().catch(err => {
           console.error('[ContractorsManagement] Error loading pending invoices:', err);
           return [] as ContractorInvoice[];
         }) : Promise.resolve([] as ContractorInvoice[]),
@@ -71,7 +71,7 @@ export default function ContractorsManagementPage() {
         }) : Promise.resolve(null as any),
       ]);
 
-      console.log('[ContractorsManagement] Pending invoices loaded:', pendingInvoicesData, 'count:', pendingInvoicesData?.length || 0);
+      console.log('[ContractorsManagement] Pending invoices loaded (managers only):', pendingInvoicesData, 'count:', pendingInvoicesData?.length || 0);
       
       setContractors(contractorsData || []);
       setInvoices(invoicesData || []);
