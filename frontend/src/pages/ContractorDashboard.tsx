@@ -5,22 +5,28 @@ import { KPICard } from "@/components/common/KPICard";
 import { Logo } from "@/components/common/Logo";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { NotificationBell } from "@/components/common/NotificationBell";
-import { contractorApi } from "@/services/api/contractor";
-import { Users, MapPin, Receipt, Wrench, Calendar } from "lucide-react";
+import { StatusBadge } from "@/components/common/StatusBadge";
+import { contractorApi, ContractorInvoice } from "@/services/api/contractor";
+import { Users, MapPin, Receipt, Wrench, Calendar, Clock, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 
 export default function ContractorDashboard() {
   const navigate = useNavigate();
   const [labourCount, setLabourCount] = useState(0);
   const [invoiceCount, setInvoiceCount] = useState(0);
+  const [pendingInvoices, setPendingInvoices] = useState<ContractorInvoice[]>([]);
+  const [isLoadingPending, setIsLoadingPending] = useState(false);
   
   const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 
   useEffect(() => {
     loadStats();
+    loadPendingInvoices();
   }, []);
 
   const loadStats = async () => {
@@ -34,6 +40,35 @@ export default function ContractorDashboard() {
     } catch (e) {
       console.error('Failed to load stats:', e);
     }
+  };
+
+  const loadPendingInvoices = async () => {
+    try {
+      setIsLoadingPending(true);
+      const invoices = await contractorApi.getMyInvoices();
+      const pending = invoices.filter(inv => inv.status === 'PENDING_PM_APPROVAL');
+      setPendingInvoices(pending);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to load pending invoices');
+    } finally {
+      setIsLoadingPending(false);
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
   };
 
   return (
@@ -93,6 +128,64 @@ export default function ContractorDashboard() {
             onClick={() => navigate('/contractor/weekly-invoice')}
           />
         </div>
+
+        {/* Pending Invoices */}
+        {pendingInvoices.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                Pending Invoices ({pendingInvoices.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoadingPending ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingInvoices.slice(0, 3).map((invoice) => (
+                    <motion.div
+                      key={invoice._id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-3 rounded-lg border bg-card"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-semibold text-sm text-foreground">
+                            {invoice.invoiceNumber || 'Invoice'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDate(invoice.weekStartDate)} - {formatDate(invoice.weekEndDate)}
+                          </p>
+                        </div>
+                        <StatusBadge status="warning" label="PENDING" />
+                      </div>
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <p>Project: {(invoice.projectId as any)?.name || 'N/A'}</p>
+                        <p>Labour Days: {invoice.labourCountTotal}</p>
+                        <p className="font-semibold text-foreground">
+                          Total: {formatCurrency(invoice.totalAmount)}
+                        </p>
+                      </div>
+                    </motion.div>
+                  ))}
+                  {pendingInvoices.length > 3 && (
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => navigate('/contractor/weekly-invoice')}
+                    >
+                      View All ({pendingInvoices.length})
+                    </Button>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Today's Status */}
         <Card>

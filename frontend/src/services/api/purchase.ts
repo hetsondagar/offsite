@@ -156,4 +156,32 @@ export const purchaseInvoiceApi = {
 
     return response.blob();
   },
+
+  // Upload receipt photo and send PDF (Purchase Manager)
+  uploadReceiptAndSend: async (id: string, receiptFile: File): Promise<PurchaseInvoice> => {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    const token = localStorage.getItem('accessToken');
+    
+    const formData = new FormData();
+    formData.append('receipt', receiptFile);
+
+    const response = await fetch(`${apiUrl}/purchase/invoices/${id}/upload-receipt`, {
+      method: 'POST',
+      headers: {
+        ...(token && token.trim() ? { Authorization: `Bearer ${token.trim()}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        window.location.href = '/login';
+        throw new Error('Session expired. Please log in again.');
+      }
+      const error = await response.json().catch(() => ({ message: 'Failed to upload receipt' }));
+      throw new Error(error.message || 'Failed to upload receipt');
+    }
+
+    return response.json();
+  },
 };

@@ -13,6 +13,11 @@ export interface IPurchaseInvoice extends Document {
   totalAmount: number; // INR
   generatedAt: Date;
   generatedBy: mongoose.Types.ObjectId; // System/Engineer who verified GRN
+  receiptPhotoUrl?: string; // Photo of receipt uploaded by Purchase Manager
+  receiptUploadedAt?: Date;
+  receiptUploadedBy?: mongoose.Types.ObjectId; // Purchase Manager who uploaded receipt
+  pdfSentToOwner: boolean;
+  pdfSentToManager: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -82,6 +87,25 @@ const purchaseInvoiceSchema = new Schema<IPurchaseInvoice>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+    },
+    receiptPhotoUrl: {
+      type: String,
+      trim: true,
+    },
+    receiptUploadedAt: {
+      type: Date,
+    },
+    receiptUploadedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    pdfSentToOwner: {
+      type: Boolean,
+      default: false,
+    },
+    pdfSentToManager: {
+      type: Boolean,
+      default: false,
     },
   },
   {

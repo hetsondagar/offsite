@@ -8,8 +8,7 @@ import { History, Package, CheckCircle, Clock, Loader2, Camera, MapPin } from "l
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { useAppSelector } from "@/store/hooks";
-import { takePhoto } from "@/lib/capacitor-camera";
-import { getCurrentPosition, reverseGeocode } from "@/lib/capacitor-geolocation";
+import { ConfirmReceiptModal } from "@/components/purchase/ConfirmReceiptModal";
 
 const formatLatLng = (coords?: { latitude: number; longitude: number }) => {
   if (!coords) return undefined;
@@ -31,6 +30,8 @@ export default function PurchaseHistoryPage() {
   const [history, setHistory] = useState<PurchaseHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [receivingId, setReceivingId] = useState<string | null>(null);
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [selectedHistory, setSelectedHistory] = useState<PurchaseHistory | null>(null);
 
   useEffect(() => {
     loadHistory();
@@ -53,53 +54,29 @@ export default function PurchaseHistoryPage() {
     }
   };
 
-  const handleReceiveMaterial = async (historyId: string) => {
+  const handleOpenConfirmModal = (item: PurchaseHistory) => {
+    setSelectedHistory(item);
+    setConfirmModalOpen(true);
+  };
+
+  const handleConfirmReceipt = async (data: {
+    proofPhotoUrl: string;
+    geoLocation?: string;
+    latitude: number;
+    longitude: number;
+  }) => {
+    if (!selectedHistory) return;
+
     try {
-      setReceivingId(historyId);
-
-      // Take photo proof (MANDATORY for GRN)
-      let proofPhotoUrl: string | undefined;
-      try {
-        proofPhotoUrl = await takePhoto();
-        if (!proofPhotoUrl) {
-          toast.error("Photo proof is required for Goods Receipt Note (GRN)");
-          return;
-        }
-      } catch (e) {
-        toast.error("Photo capture is required for GRN. Please try again.");
-        return;
-      }
-
-      // Get GPS location (MANDATORY for GRN)
-      let latitude: number | undefined;
-      let longitude: number | undefined;
-      let geoLocation: string | undefined;
-
-      try {
-        const position = await getCurrentPosition();
-        latitude = position.coords.latitude;
-        longitude = position.coords.longitude;
-        if (latitude === undefined || longitude === undefined) {
-          toast.error("GPS coordinates are required for GRN");
-          return;
-        }
-        geoLocation = await reverseGeocode(latitude, longitude);
-      } catch (e) {
-        toast.error("GPS location is required for GRN. Please enable location services and try again.");
-        return;
-      }
-
-      await purchaseApi.receiveMaterial(historyId, {
-        proofPhotoUrl: proofPhotoUrl!, // Required
-        geoLocation,
-        latitude: latitude!, // Required
-        longitude: longitude!, // Required
-      });
-
+      setReceivingId(selectedHistory._id);
+      await purchaseApi.receiveMaterial(selectedHistory._id, data);
       toast.success("Material received successfully!");
       loadHistory();
+      setConfirmModalOpen(false);
+      setSelectedHistory(null);
     } catch (error: any) {
       toast.error(error.message || "Failed to confirm receipt");
+      throw error;
     } finally {
       setReceivingId(null);
     }
@@ -230,7 +207,7 @@ export default function PurchaseHistoryPage() {
                     {role === 'engineer' && (item.status === 'PENDING_GRN' || item.status === 'SENT') && (
                       <Button
                         className="w-full"
-                        onClick={() => handleReceiveMaterial(item._id)}
+                        onClick={() => handleOpenConfirmModal(item)}
                         disabled={receivingId === item._id}
                       >
                         {receivingId === item._id ? (
@@ -250,6 +227,18 @@ export default function PurchaseHistoryPage() {
             )}
           </CardContent>
         </Card>
+
+        {selectedHistory && (
+          <ConfirmReceiptModal
+            open={confirmModalOpen}
+            onClose={() => {
+              setConfirmModalOpen(false);
+              setSelectedHistory(null);
+            }}
+            purchaseHistory={selectedHistory}
+            onConfirm={handleConfirmReceipt}
+          />
+        )}
       </div>
     </MobileLayout>
   );

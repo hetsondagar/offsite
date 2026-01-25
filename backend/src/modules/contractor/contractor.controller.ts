@@ -768,6 +768,84 @@ export const approveInvoice = async (
 
     await invoice.save();
 
+    // Populate invoice for PDF generation
+    await invoice.populate('projectId', 'name location owner');
+    await invoice.populate('contractorId', 'userId');
+    if (invoice.contractorId) {
+      await (invoice.contractorId as any).populate('userId', 'name phone email');
+    }
+    await invoice.populate('approvedBy', 'name email');
+
+    // Generate PDF and send to owner
+    try {
+      const { generateContractorInvoicePDFBuffer } = await import('./contractor-invoice-pdf.service');
+      const { sendEmailWithAttachment } = await import('../../utils/email-with-attachment');
+      const { Project } = await import('../projects/project.model');
+      const { User } = await import('../users/user.model');
+
+      const pdfBuffer = await generateContractorInvoicePDFBuffer(invoice);
+
+      // Get owner email
+      const project = await Project.findById(invoice.projectId).populate('owner', 'email name');
+      const ownerEmail = (project?.owner as any)?.email;
+
+      if (ownerEmail) {
+        const html = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #333;">Contractor Invoice - ${invoice.invoiceNumber || 'N/A'}</h2>
+            <p>Dear Owner,</p>
+            <p>A contractor invoice has been approved by the Project Manager.</p>
+            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p><strong>Invoice Number:</strong> ${invoice.invoiceNumber || 'N/A'}</p>
+              <p><strong>Project:</strong> ${(invoice.projectId as any)?.name || 'N/A'}</p>
+              <p><strong>Period:</strong> ${new Date(invoice.weekStartDate).toLocaleDateString('en-IN')} to ${new Date(invoice.weekEndDate).toLocaleDateString('en-IN')}</p>
+              <p><strong>Labour Days:</strong> ${invoice.labourCountTotal}</p>
+              <p><strong>Total Amount:</strong> ₹${invoice.totalAmount.toFixed(2)}</p>
+              <p><strong>Approved By:</strong> ${(invoice.approvedBy as any)?.name || 'N/A'}</p>
+            </div>
+            <p>Please find the invoice PDF attached to this email.</p>
+            <p style="color: #666; font-size: 14px; margin-top: 30px;">
+              This is an automated email from OffSite Construction Management System.
+            </p>
+          </div>
+        `;
+
+        const text = `
+          Contractor Invoice - ${invoice.invoiceNumber || 'N/A'}
+          
+          A contractor invoice has been approved by the Project Manager.
+          
+          Invoice Number: ${invoice.invoiceNumber || 'N/A'}
+          Project: ${(invoice.projectId as any)?.name || 'N/A'}
+          Period: ${new Date(invoice.weekStartDate).toLocaleDateString('en-IN')} to ${new Date(invoice.weekEndDate).toLocaleDateString('en-IN')}
+          Labour Days: ${invoice.labourCountTotal}
+          Total Amount: ₹${invoice.totalAmount.toFixed(2)}
+          Approved By: ${(invoice.approvedBy as any)?.name || 'N/A'}
+          
+          Please find the invoice PDF attached to this email.
+        `;
+
+        await sendEmailWithAttachment(
+          ownerEmail,
+          `Contractor Invoice ${invoice.invoiceNumber || 'N/A'} - ${(invoice.projectId as any)?.name || 'Project'}`,
+          html,
+          text,
+          [
+            {
+              filename: `Contractor-Invoice-${invoice.invoiceNumber || 'N/A'}.pdf`,
+              content: pdfBuffer,
+              contentType: 'application/pdf',
+            },
+          ]
+        );
+
+        logger.info(`Contractor invoice PDF sent to owner for invoice ${invoice.invoiceNumber}`);
+      }
+    } catch (emailError: any) {
+      logger.warn(`Failed to send contractor invoice email: ${emailError.message}`);
+      // Don't fail the approval if email fails
+    }
+
     logger.info(`Invoice approved: ${invoice.invoiceNumber} by ${req.user.userId}`);
 
     const response: ApiResponse = {

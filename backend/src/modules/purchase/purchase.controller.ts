@@ -8,6 +8,7 @@ import { AppError } from '../../middlewares/error.middleware';
 import { logger } from '../../utils/logger';
 import { createNotification } from '../notifications/notification.service';
 import { generatePurchaseInvoice as generateInvoice } from './purchase-invoice.service';
+import { validateGeoFence, getProjectGeoFence } from '../../utils/geoFence';
 
 const sendMaterialSchema = z.object({
   gstRate: z.number().min(0).max(100).optional().default(18),
@@ -256,6 +257,25 @@ export const receiveMaterial = async (
     // Verify this is in PENDING_GRN status
     if (purchaseHistory.status !== 'PENDING_GRN' && purchaseHistory.status !== 'SENT') {
       throw new AppError('Material is not pending GRN verification', 400, 'INVALID_STATUS');
+    }
+
+    // Validate geofencing - check if location is within project boundaries
+    const { Project } = await import('../projects/project.model');
+    const project = await Project.findById(purchaseHistory.projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    const geoFence = getProjectGeoFence(project);
+    if (geoFence && geoFence.enabled) {
+      const validation = validateGeoFence(data.latitude, data.longitude, geoFence);
+      if (validation.violation) {
+        throw new AppError(
+          `You are ${validation.distanceFromCenter} meters away from the project site. Please be within ${geoFence.radiusMeters + geoFence.bufferMeters} meters to confirm receipt.`,
+          400,
+          'OUTSIDE_GEOFENCE'
+        );
+      }
     }
 
     // Update to received with GRN verification
