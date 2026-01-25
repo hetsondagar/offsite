@@ -33,22 +33,44 @@ type SeedContractor = {
   rating: number;
 };
 
-const OWNER_EMAIL = 'seed.owner@offsite.local';
-const PM_EMAIL = 'seed.pm@offsite.local';
+const DEFAULT_OWNER_EMAIL = 'seed.owner@offsite.local';
+const DEFAULT_PM_EMAIL = 'seed.pm@offsite.local';
 const DEFAULT_SEED_PASSWORD = 'ChangeMe123!';
 
 async function ensureSeedUser(params: {
   role: 'owner' | 'manager';
-  name: string;
-  email: string;
+  defaultName: string;
+  defaultEmail: string;
+  preferredEmailEnvVar?: 'SEED_OWNER_EMAIL' | 'SEED_MANAGER_EMAIL';
 }) {
-  const existing = await User.findOne({ email: params.email.toLowerCase() });
-  if (existing) return existing;
+  const preferredEmail = params.preferredEmailEnvVar
+    ? process.env[params.preferredEmailEnvVar]
+    : undefined;
 
+  // Prefer an explicitly configured email (useful when you already have a real owner/manager account)
+  if (preferredEmail) {
+    const byEmail = await User.findOne({
+      email: preferredEmail.toLowerCase(),
+      role: params.role,
+    });
+    if (byEmail) {
+      console.log(`Using existing ${params.role} by email: ${byEmail.email}`);
+      return byEmail;
+    }
+  }
+
+  // Otherwise reuse any existing user for that role (so seeded data shows up for your current accounts)
+  const existingByRole = await User.findOne({ role: params.role }).sort({ createdAt: 1 });
+  if (existingByRole) {
+    console.log(`Using existing ${params.role}: ${existingByRole.email}`);
+    return existingByRole;
+  }
+
+  // Finally create a seed user if none exist
   const offsiteId = await generateOffsiteId(params.role);
   const user = new User({
-    name: params.name,
-    email: params.email.toLowerCase(),
+    name: params.defaultName,
+    email: (preferredEmail || params.defaultEmail).toLowerCase(),
     password: DEFAULT_SEED_PASSWORD,
     role: params.role,
     offsiteId,
@@ -56,7 +78,7 @@ async function ensureSeedUser(params: {
     assignedProjects: [],
   });
   await user.save();
-  console.log(`Created ${params.role}: ${params.name} (${offsiteId})`);
+  console.log(`Created ${params.role}: ${user.name} (${offsiteId})`);
   return user;
 }
 
@@ -108,13 +130,15 @@ async function seedContractors() {
 
     const ownerUser = await ensureSeedUser({
       role: 'owner',
-      name: 'Seed Owner',
-      email: OWNER_EMAIL,
+      defaultName: 'Seed Owner',
+      defaultEmail: DEFAULT_OWNER_EMAIL,
+      preferredEmailEnvVar: 'SEED_OWNER_EMAIL',
     });
     const managerUser = await ensureSeedUser({
       role: 'manager',
-      name: 'Seed Project Manager',
-      email: PM_EMAIL,
+      defaultName: 'Seed Project Manager',
+      defaultEmail: DEFAULT_PM_EMAIL,
+      preferredEmailEnvVar: 'SEED_MANAGER_EMAIL',
     });
 
     let created = 0;
@@ -263,8 +287,9 @@ async function seedContractors() {
     console.log(`Total: ${limitedContractors.length} contractors`);
     console.log(`Mock projects created: ${projectsCreated}`);
     console.log(`Mock projects skipped: ${projectsSkipped} (already exist)`);
-    console.log(`Owner: ${ownerUser.email}`);
-    console.log(`Project Manager: ${managerUser.email}`);
+    console.log(`Owner used: ${ownerUser.email}`);
+    console.log(`Project Manager used: ${managerUser.email}`);
+    console.log(`Tip: set SEED_OWNER_EMAIL and SEED_MANAGER_EMAIL to target specific existing accounts`);
 
     await mongoose.disconnect();
     process.exit(0);

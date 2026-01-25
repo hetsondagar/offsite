@@ -1,4 +1,9 @@
 {
+  "name": "offsite-monorepo",
+  "private": true,
+  "scripts": {
+    "seed:contractors": "npm --prefix backend run seed:contractors"
+  },
   "dependencies": {
     "@capacitor/app": "^8.0.0",
     "@maptiler/sdk": "^3.10.2",

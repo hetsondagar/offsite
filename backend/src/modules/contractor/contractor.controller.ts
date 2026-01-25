@@ -114,7 +114,7 @@ export const getAllContractors = async (
 };
 
 /**
- * Assign contractor to project (Owner only)
+ * Assign contractor to project (Owner + Project Manager)
  */
 export const assignContractorToProject = async (
   req: Request,
@@ -126,11 +126,29 @@ export const assignContractorToProject = async (
       throw new AppError('User not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    if (req.user.role !== 'owner') {
-      throw new AppError('Only owners can assign contractors', 403, 'FORBIDDEN');
+    if (req.user.role !== 'owner' && req.user.role !== 'manager') {
+      throw new AppError('Only owners and project managers can assign contractors', 403, 'FORBIDDEN');
     }
 
     const data = assignContractorSchema.parse(req.body);
+
+    // Authorization: owner can assign within their own projects; manager can assign only for projects they belong to.
+    const project = await Project.findById(data.projectId).select('owner members');
+    if (!project) {
+      throw new AppError('Project not found', 404, 'NOT_FOUND');
+    }
+
+    const actorId = new mongoose.Types.ObjectId(req.user.userId);
+    const isOwnerOfProject = project.owner && project.owner.toString() === actorId.toString();
+    const isMemberOfProject = (project.members || []).some((m: any) => m.toString() === actorId.toString());
+
+    if (req.user.role === 'owner' && !isOwnerOfProject) {
+      throw new AppError('You can only assign contractors to your own projects', 403, 'FORBIDDEN');
+    }
+
+    if (req.user.role === 'manager' && !isMemberOfProject) {
+      throw new AppError('You can only assign contractors to projects you are a member of', 403, 'FORBIDDEN');
+    }
 
     // Resolve contractor user (accept MongoDB userId OR Offsite ID like OSCT0002)
     let contractorUser: any = null;

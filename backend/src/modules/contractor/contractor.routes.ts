@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticateUser } from '../../middlewares/auth.middleware';
+import { authorizeRoles } from '../../middlewares/role.middleware';
 import {
   getAllContractors,
   assignContractorToProject,
@@ -22,7 +23,7 @@ router.use(authenticateUser);
 
 // Contractor management (Owner + Project Manager)
 router.get('/', getAllContractors);
-router.post('/assign', assignContractorToProject);
+router.post('/assign', authorizeRoles('owner', 'manager'), assignContractorToProject);
 
 // Labour management (Contractor)
 router.post('/labour', registerLabour);
