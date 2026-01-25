@@ -183,19 +183,26 @@ export const sendMaterial = async (
         await createNotification({
           userId: requester._id.toString(),
           offsiteId: requester.offsiteId,
-          type: 'material_approved',
-          title: 'Materials Sent',
-          message: `Purchase Manager has sent: ${materialRequest.materialName} (${materialRequest.quantity} ${materialRequest.unit})`,
+          type: 'material_sent',
+          title: 'Materials Sent - GRN Required',
+          message: `Purchase Manager has sent: ${materialRequest.materialName} (${materialRequest.quantity} ${materialRequest.unit}). Please verify receipt and generate GRN.`,
           data: {
             purchaseHistoryId: purchaseHistory._id.toString(),
+            materialRequestId: materialRequest._id.toString(),
+            projectId: (materialRequest.projectId as any)?._id?.toString() || (materialRequest.projectId as any)?.toString(),
+            projectName: (materialRequest.projectId as any)?.name || 'Project',
             materialName: materialRequest.materialName,
             quantity: materialRequest.quantity,
             unit: materialRequest.unit,
           },
         });
+        logger.info(`Notification sent to engineer ${requester._id} for material sent`);
       } catch (notifError: any) {
-        logger.warn('Failed to send notification:', notifError.message);
+        logger.error('Failed to send notification to engineer:', notifError.message);
+        // Don't fail the request if notification fails, but log it
       }
+    } else {
+      logger.warn(`Could not send notification: requester not found for request ${requestId}`);
     }
 
     logger.info(`Material sent: ${purchaseHistory._id} by ${req.user.userId}`);

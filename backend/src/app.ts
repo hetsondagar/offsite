@@ -10,6 +10,7 @@ import { env } from './config/env';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import { requestLogger } from './middlewares/requestLogger';
 import { requireDbConnection } from './middlewares/db.middleware';
+import { logger } from './utils/logger';
 
 // Import routes
 import authRoutes from './modules/auth/auth.routes';
@@ -163,11 +164,40 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve static uploads (must be before API routes to avoid conflicts)
-const uploadsPath = path.join(process.cwd(), 'backend', 'uploads');
+// Handle both development (from project root) and production (from backend/dist) scenarios
+const possibleUploadsPaths = [
+  path.join(process.cwd(), 'backend', 'uploads'), // Development: from project root
+  path.join(process.cwd(), 'uploads'), // Production: from backend/dist
+  path.join(__dirname, '..', 'uploads'), // Alternative: relative to compiled code
+];
+
+let uploadsPath = possibleUploadsPaths[0];
+for (const possiblePath of possibleUploadsPaths) {
+  if (fs.existsSync(possiblePath)) {
+    uploadsPath = possiblePath;
+    break;
+  }
+}
+
+// Ensure uploads directory exists
 if (!fs.existsSync(uploadsPath)) {
   fs.mkdirSync(uploadsPath, { recursive: true });
+  logger.info(`Created uploads directory: ${uploadsPath}`);
 }
-app.use('/uploads', express.static(uploadsPath));
+
+// Also ensure site360 subdirectory exists
+const site360Path = path.join(uploadsPath, 'site360');
+if (!fs.existsSync(site360Path)) {
+  fs.mkdirSync(site360Path, { recursive: true });
+  logger.info(`Created site360 directory: ${site360Path}`);
+}
+
+logger.info(`Serving static uploads from: ${uploadsPath}`);
+app.use('/uploads', express.static(uploadsPath, {
+  etag: true,
+  lastModified: true,
+  maxAge: '1d', // Cache for 1 day
+}));
 
 // Logging
 if (env.NODE_ENV === 'development') {
