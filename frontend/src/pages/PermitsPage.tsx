@@ -33,8 +33,8 @@ export default function PermitsPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [otpDialog, setOtpDialog] = useState<{ open: boolean; permitId: string }>({ open: false, permitId: '' });
-  const [otp, setOtp] = useState("");
+  const [otpByPermitId, setOtpByPermitId] = useState<Record<string, string>>({});
+  const [verifyingPermitId, setVerifyingPermitId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form state
@@ -109,23 +109,23 @@ export default function PermitsPage() {
     }
   };
 
-  const handleVerifyOTP = async () => {
-    if (!otp || otp.length !== 6) {
+  const handleVerifyOTP = async (permitId: string) => {
+    const otp = (otpByPermitId[permitId] || "").trim();
+    if (!/^\d{6}$/.test(otp)) {
       toast.error("Please enter a valid 6-digit OTP");
       return;
     }
 
     try {
-      setIsSubmitting(true);
-      await permitsApi.verifyOTP(otpDialog.permitId, otp);
-      toast.success("OTP verified! You may begin work.");
-      setOtpDialog({ open: false, permitId: '' });
-      setOtp("");
+      setVerifyingPermitId(permitId);
+      await permitsApi.verifyOTP(permitId, otp);
+      toast.success("OTP accepted. Permission is managed.");
+      setOtpByPermitId((prev) => ({ ...prev, [permitId]: "" }));
       loadData();
     } catch (error: any) {
-      toast.error(error.message || "Invalid OTP");
+      toast.error(error.message || "Failed to verify OTP");
     } finally {
-      setIsSubmitting(false);
+      setVerifyingPermitId(null);
     }
   };
 
@@ -297,45 +297,45 @@ export default function PermitsPage() {
                     </div>
                     <p className="text-sm text-muted-foreground mb-3">{permit.taskDescription}</p>
 
-                    {permit.status === 'OTP_GENERATED' && role === 'engineer' && (
-                      <Dialog
-                        open={otpDialog.open && otpDialog.permitId === permit._id}
-                        onOpenChange={(open) => setOtpDialog({ open, permitId: open ? permit._id : '' })}
-                      >
-                        <DialogTrigger asChild>
-                          <Button className="w-full">
-                            <Key className="w-4 h-4 mr-2" />
-                            Enter OTP to Start Work
+                    {(permit.status === 'PENDING' || permit.status === 'OTP_GENERATED') && role === 'engineer' && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Key className="w-4 h-4" />
+                          <span>Enter 6-digit OTP from Safety Officer</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <Input
+                            value={otpByPermitId[permit._id] || ""}
+                            onChange={(e) =>
+                              setOtpByPermitId((prev) => ({
+                                ...prev,
+                                [permit._id]: e.target.value.replace(/[^0-9]/g, "").slice(0, 6),
+                              }))
+                            }
+                            placeholder="6-digit OTP"
+                            inputMode="numeric"
+                            maxLength={6}
+                            className="text-center text-lg tracking-widest"
+                          />
+                          <Button
+                            onClick={() => handleVerifyOTP(permit._id)}
+                            disabled={verifyingPermitId === permit._id}
+                          >
+                            {verifyingPermitId === permit._id && (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            )}
+                            Verify
                           </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Enter OTP</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <p className="text-sm text-muted-foreground">
-                              Enter the 6-digit OTP sent to you. Valid for 10 minutes.
-                            </p>
-                            <Input
-                              value={otp}
-                              onChange={(e) => setOtp(e.target.value)}
-                              placeholder="Enter 6-digit OTP"
-                              maxLength={6}
-                              className="text-center text-2xl tracking-widest"
-                            />
-                            <Button className="w-full" onClick={handleVerifyOTP} disabled={isSubmitting}>
-                              {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                              Verify & Start Work
-                            </Button>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
+                        </div>
+                      </div>
                     )}
 
                     {permit.status === 'COMPLETED' && (
                       <div className="flex items-center gap-2 text-success">
                         <CheckCircle className="w-4 h-4" />
-                        <span className="text-sm">Work started at {new Date(permit.workStartedAt!).toLocaleTimeString()}</span>
+                        <span className="text-sm">
+                          Permission is managed{permit.workStartedAt ? ` • Started at ${new Date(permit.workStartedAt).toLocaleTimeString()}` : ""}
+                        </span>
                       </div>
                     )}
                   </motion.div>

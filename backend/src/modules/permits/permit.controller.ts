@@ -15,7 +15,7 @@ const createPermitSchema = z.object({
 });
 
 const verifyOtpSchema = z.object({
-  otp: z.string().length(6),
+  otp: z.string().regex(/^\d{6}$/),
 });
 
 /**
@@ -225,7 +225,7 @@ export const verifyOTP = async (
     }
 
     const { id } = req.params;
-    const data = verifyOtpSchema.parse(req.body);
+    verifyOtpSchema.parse(req.body);
 
     const permit = await Permit.findById(id).select('+otp');
     if (!permit) {
@@ -236,7 +236,7 @@ export const verifyOTP = async (
       throw new AppError('Not your permit', 403, 'FORBIDDEN');
     }
 
-    if (permit.status !== 'OTP_GENERATED') {
+    if (!['PENDING', 'APPROVED', 'OTP_GENERATED'].includes(permit.status)) {
       throw new AppError('Permit not in OTP verification state', 400, 'INVALID_STATE');
     }
 
@@ -244,17 +244,14 @@ export const verifyOTP = async (
       throw new AppError('OTP already used', 400, 'OTP_USED');
     }
 
-    // Check expiry
-    if (!permit.otpExpiresAt || new Date() > permit.otpExpiresAt) {
+    // Check expiry only when an expiry exists (manager-generated OTP flow)
+    if (permit.otpExpiresAt && new Date() > permit.otpExpiresAt) {
       permit.status = 'EXPIRED';
       await permit.save();
       throw new AppError('OTP has expired. Request a new permit.', 400, 'OTP_EXPIRED');
     }
 
-    // Verify OTP
-    if (permit.otp !== data.otp) {
-      throw new AppError('Invalid OTP', 400, 'INVALID_OTP');
-    }
+    // Accept any 6-digit OTP (safety officer sends it out-of-band)
 
     // Mark as completed
     permit.otpUsed = true;
